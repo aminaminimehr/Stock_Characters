@@ -76,7 +76,7 @@ comp.loc[comp['seq_fallback'].isna(), 'seq_fallback'] = comp['at'] - comp['lt'] 
 
 
 # Fill the missing values of Balance Sheet Taxes and Investment Tax Credit
-# This item is the amount oftax that has not left the company yet and it is deferred to 
+# This item is the amount of tax that has not left the company yet and it is deferred to 
 # a later time to be paind
 comp['txditc'] = comp['txditc'].fillna(0)
 
@@ -103,7 +103,7 @@ comp['chars_year'] = comp['year'] + 1  # this is year t
 
 # Downloading market data to calculate the denominator of BM which is market equity.
 # Building guidline for market equity itself is never explicitely mentioned in Hou Xeu and Zhang. But it seems to be very straightforward. 
-# So we just need the observaitions for the end of December.
+# So we just need the last available (non-zero) observaitions for the end of December.
 
 # Market Equity Components from Compustat
 # permno    : << compustat has not provided an exact description for this variable >>.
