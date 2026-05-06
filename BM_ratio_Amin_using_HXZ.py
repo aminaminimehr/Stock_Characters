@@ -1,4 +1,7 @@
 #%%
+import os
+os.chdir('Stock_Characters')
+
 import wrds
 import pandas as pd
 from functions import *
@@ -30,7 +33,7 @@ db = wrds.Connection(user='aminaminimehr')
 
 # txditc   : Deferred Taxes and Investment Tax Credit.
 
-
+# This query is temporary - I have limited the date range to try to match with datashare.csv file. I will remove the date range limit later on.
 comp = db.raw_sql("""
     SELECT gvkey, datadate, fyear,
            seq, ceq, at, lt,
@@ -41,8 +44,10 @@ comp = db.raw_sql("""
       AND datafmt='STD'
       AND popsrc='D'
       AND consol='C'
+      AND datadate BETWEEN '1957-01-31' AND '2021-12-31'
 """)
 comp['datadate'] = pd.to_datetime(comp['datadate'])
+comp.sort_values(['gvkey', 'datadate'], inplace=True)
 
 # sic     : Industry code.
 # sic is not directly available on compustat fundamental table. Instead, it is available at company tabl in the same compustat dataset.
@@ -85,6 +90,7 @@ comp['be'] = comp['seq_fallback'] + comp['txditc'] - comp['ps']
 # BE in this line matches Dachen's code but as noted above, SEQ (a component of BE) is not the same.
 #################################################################################################################################################################
 # Exclude nonpositive BE
+# First time a drop happens and observations are dropped is when we drop the negative and zero book equity observations. This is because they can lead to infinite or negative BM ratios which are not meaningful.
 comp = comp[comp['be'] > 0]
 
 #################################################################################################################################################################
@@ -93,11 +99,17 @@ comp = comp[comp['be'] > 0]
 #year ending in calendar year t−1 divided by the market equity (from CRSP) at the end of December
 #of t−1.)
 
+comp['be'] = comp['be']*1000 # We need to multiply by 1000 because the book equity is in thousands in compustat.
+
 comp['year'] = comp['datadate'].dt.year # We isolate the year element of datadate here. 
 # (important:) datadate is “what date this accounting data describes, when the fiscal year ends” not when it became public.
 comp['chars_year'] = comp['year'] + 1  # this is year t
+
 #################################################################################################################################################################
 
+# This is for situations when a firm has updated its fiscal year end date and therefore has multiple observations for the same fiscal year. In this case, we keep the last available observation.
+comp.sort_values(['gvkey', 'datadate'], inplace=True)
+comp.drop_duplicates(subset=['gvkey', 'year'], keep='last', inplace=True)
 
 
 
@@ -128,25 +140,36 @@ crsp['month'] = crsp['date'].dt.month
 # year ending in calendar year t−1 divided by the market equity (from CRSP) at the end of December
 # of t−1.)
 
+crsp = crsp.sort_values(['permno', 'date'])
 
-crsp_dec = crsp[crsp['month'] == 12].copy() 
-# To get the data for the last trading day of december we need to first sort the data.
-crsp_dec = crsp_dec.sort_values(['permno', 'date'])
-# Now we keep just the last available observation of december.
-crsp_dec_last = crsp_dec.groupby('permno').tail(1)
+# Forward-fill price and shares within each stock
+crsp[['prc_ffill', 'shrout_ffill']] = (
+    crsp
+    .groupby('permno')[['prc', 'shrout']]
+    .ffill()
+)
 
-# Now we calculate the market equity value for each stock not for each company. Because each company might have issued different
-# stocks.
-crsp_dec_last['me'] = crsp_dec_last['prc'].abs() * crsp_dec_last['shrout']
+# Keep December observations after filling
+crsp_dec = crsp[crsp['month'] == 12].copy()
 
-# Now we aggregate the ME character to create a firm level characteristic because a company might 
-# have issued different stocks so their PERMCO helps us aggregate them
-crsp_dec = crsp_dec_last.groupby(['permco', 'year'])['me'].sum().reset_index()
+# Calculate December market equity using filled values
+crsp_dec['me'] = crsp_dec['prc_ffill'].abs() * crsp_dec['shrout_ffill']
+
+# Drop observations where even forward-fill could not recover values
+crsp_dec = crsp_dec[crsp_dec['me'].notna()].copy()
+
+# Aggregate to firm level using PERMCO
+crsp_firm_me = (
+    crsp_dec
+    .groupby(['permco', 'year'], as_index=False)['me']
+    .sum()
+)
 
 
 # Date adjustment for the market equity. We need the market equity data from December of year t-1 to be matched with the 
 # the book equity data from t-1. so here also we have to create the "chars_year" column as we did for compustat data.
-crsp_dec['chars_year'] = crsp_dec['year'] + 1 #This is year t
+crsp_firm_me['chars_year'] = crsp_firm_me['year'] + 1
+crsp_firm_me.drop(columns=['year'], inplace=True)
 
 # ((((((((((((((((((No commenting has bee done from here onwards. I need to come back later.))))))))))))))))
 
@@ -156,11 +179,14 @@ link = db.raw_sql("""
            linkdt, linkenddt
     FROM crsp.ccmxpf_linktable
     WHERE linktype IN ('LU','LC')
-      AND linkprim = 'P'
+      AND linkprim in ('P' , 'C')
 """)
 
 link['linkdt'] = pd.to_datetime(link['linkdt'])
 link['linkenddt'] = pd.to_datetime(link['linkenddt'])
+
+link['permno'] = link['permno'].astype('Int64')
+link['permco'] = link['permco'].astype('Int64')
 
 comp_linked = pd.merge(comp, link, on='gvkey', how='left')
 
@@ -176,19 +202,30 @@ comp_linked = comp_linked[
 
 # Now we need to merge or attach the CRSP data of December to have the denominator
 # of Book To Market Ratio
+
+
 bm = pd.merge(
     comp_linked,
-    crsp_dec,
+    crsp_firm_me,
     left_on=['permco', 'chars_year'],
     right_on=['permco', 'chars_year'],
     how='inner'
 )
+'''
 
-# When merges happen between datasets the missing values in these two columns cannot be stored
-# in an integer column (Pandas rule) therefore it automatically turns them into
-# float. So, here we need to turn them back into integers. 
-bm['permno'] = bm['permno'].astype('Int64')
-bm['permco'] = bm['permco'].astype('Int64')
+# Code by ChatGPT below
+bm = pd.merge(
+    comp_linked,
+    crsp_dec,
+    on=['permno', 'chars_year'],
+    how='inner',
+    suffixes=('', '_crsp')
+)
+
+# Code by ChatGPT above
+'''
+
+
 
 # Finally we can calculate the BM ( Book to Market Ratio).
 bm = bm[bm['me'] > 0] # We do this to avoid infinity BMs
@@ -196,36 +233,49 @@ bm['bm'] = bm['be'] / bm['me']
 
 
 # Final Data avaialble to save
-bm_semifinal = bm[['gvkey', 'permno', 'permco', 'sic' , 'chars_year', 'be', 'me', 'bm']]
+bm_semifinal = bm[['gvkey', 'permno', 'permco', 'sic' , 'chars_year', 'be', 'me', 'bm']].copy()
 
+# Final Data ready to convert into monthly data
+bm_monthly = bm_semifinal.copy()
+bm_monthly['chars_year'] = bm_monthly['chars_year'].astype(int)
+
+bm_monthly['date'] = bm_monthly['chars_year'].apply(
+    lambda y: pd.date_range(
+        start=pd.Timestamp(year=y, month=7, day=31),
+        periods=12,
+        freq='ME'
+    )
+)
+
+bm_monthly = bm_monthly.explode('date').reset_index(drop=True)
 
 # Book too market ratio of industry (Using 49 category industry code)
-bm_semifinal['sic'] = bm_semifinal['sic'].astype('Int64')
-bm_semifinal['ffi49'] = ffi49(bm_semifinal)
-bm_semifinal['bm_ia49'] = bm_semifinal.groupby(['chars_year' , 'ffi49'])['bm'].transform('mean')
-bm_semifinal['bm_ia49'] = bm_semifinal['bm'] - bm_semifinal['bm_ia49']
+bm_monthly['sic'] = bm_monthly['sic'].astype('Int64')
+bm_monthly['ffi49'] = ffi49(bm_monthly)
+bm_monthly['bm_ia49'] = bm_monthly.groupby(['chars_year' , 'ffi49'])['bm'].transform('mean')
+bm_monthly['bm_ia49'] = bm_monthly['bm'] - bm_monthly['bm_ia49']
 
 # Book too market ratio of industry (Using 30 category industry code)
-bm_semifinal['sic'] = bm_semifinal['sic'].astype('Int64')
-bm_semifinal['ffi30'] = ffi30(bm_semifinal)
-bm_semifinal['bm_ia30'] = bm_semifinal.groupby(['chars_year' , 'ffi30'])['bm'].transform('mean')
-bm_semifinal['bm_ia30'] = bm_semifinal['bm'] - bm_semifinal['bm_ia30']
+bm_monthly['sic'] = bm_monthly['sic'].astype('Int64')
+bm_monthly['ffi30'] = ffi30(bm_monthly)
+bm_monthly['bm_ia30'] = bm_monthly.groupby(['chars_year' , 'ffi30'])['bm'].transform('mean')
+bm_monthly['bm_ia30'] = bm_monthly['bm'] - bm_monthly['bm_ia30']
 
 # Book too market ratio of industry (Using 12 category industry code)
-bm_semifinal['sic'] = bm_semifinal['sic'].astype('Int64')
-bm_semifinal['ffi12'] = ffi12(bm_semifinal)
-bm_semifinal['bm_ia12'] = bm_semifinal.groupby(['chars_year' , 'ffi12'])['bm'].transform('mean')
-bm_semifinal['bm_ia12'] = bm_semifinal['bm'] - bm_semifinal['bm_ia12']
+bm_monthly['sic'] = bm_monthly['sic'].astype('Int64')
+bm_monthly['ffi12'] = ffi12(bm_monthly)
+bm_monthly['bm_ia12'] = bm_monthly.groupby(['chars_year' , 'ffi12'])['bm'].transform('mean')
+bm_monthly['bm_ia12'] = bm_monthly['bm'] - bm_monthly['bm_ia12']
 
 # Book too market ratio of industry (Using first 2 digit category industry code)
-bm_semifinal['sic2'] = bm_semifinal['sic'] // 100
-bm_semifinal['bm_ia_sic2'] = bm_semifinal.groupby(['chars_year' , 'sic2'])['bm'].transform('mean')
-bm_semifinal['bm_ia_sic2'] = bm_semifinal['bm'] - bm_semifinal['bm_ia_sic2']
+bm_monthly['sic2'] = bm_monthly['sic'] // 100
+bm_monthly['bm_ia_sic2'] = bm_monthly.groupby(['chars_year' , 'sic2'])['bm'].transform('mean')
+bm_monthly['bm_ia_sic2'] = bm_monthly['bm'] - bm_monthly['bm_ia_sic2']
 
 
 
 
-bm_final = bm_semifinal[['gvkey', 'permno', 'permco', 'sic' , 'chars_year', 'be', 'me', 'bm' , 'bm_ia_sic2', 'bm_ia12','bm_ia30' ,'bm_ia49']]
+bm_final = bm_monthly[['gvkey', 'permno', 'permco', 'sic' , 'chars_year', 'be', 'me', 'bm' , 'bm_ia_sic2', 'bm_ia12','bm_ia30' ,'bm_ia49']]
 # Saving the file
 bm_final.to_csv('BM_and_BM_ind_ratio.csv')
 
