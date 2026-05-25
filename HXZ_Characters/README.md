@@ -11,5 +11,5 @@ Each character folder contains:
 Current character folders:
 
 - `HXZ_BM_Generalized`: book-to-market.
-- `HXZ_OPE_Generalized`: operating profitability to equity.
+- `HXZ_OPE_Generalized`: operating-profitability-to-equity.
 - `HXZ_CFP_Generalized`: cash-flow-to-price.
