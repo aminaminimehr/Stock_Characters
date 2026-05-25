@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*.csv
+outputs/*
+!outputs/.gitkeep
+*chen_zimmerman*
+*Chen_Zimmerman*
+*OpenSourceAP*
+*.parquet
+*.pkl
+*.xlsx
+*.ipynb_checkpoints/
+.env
+.pgpass

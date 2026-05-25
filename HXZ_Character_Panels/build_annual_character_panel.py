@@ -1,0 +1,72 @@
+import argparse
+from pathlib import Path
+
+import pandas as pd
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+OUTPUT_DIR = PROJECT_ROOT / "outputs"
+INPUT_FILES = {
+    "book_to_market": OUTPUT_DIR / "book_to_market.csv",
+    "operating_profitability": OUTPUT_DIR / "operating_profitability.csv",
+    "cash_flow_to_price": OUTPUT_DIR / "cash_flow_to_price.csv",
+}
+OUTPUT_FILE = OUTPUT_DIR / "annual_character_panel.csv"
+MERGE_KEYS = ["permno", "permco", "gvkey", "datadate", "sic", "fyear"]
+
+
+def require_input_files(input_files=INPUT_FILES):
+    missing = [path for path in input_files.values() if not path.exists()]
+    if not missing:
+        return
+
+    missing_text = "\n".join(f"- {path}" for path in missing)
+    raise FileNotFoundError(
+        "Missing individual character files.\n\n"
+        "Run the individual character builders first:\n\n"
+        "python HXZ_Characters/HXZ_BM_Generalized/build_book_to_market.py --wrds-user YOUR_WRDS_USERNAME\n"
+        "python HXZ_Characters/HXZ_OPE_Generalized/build_operating_profitability.py --wrds-user YOUR_WRDS_USERNAME\n"
+        "python HXZ_Characters/HXZ_CFP_Generalized/build_cash_flow_to_price.py --wrds-user YOUR_WRDS_USERNAME --use-imputed-market-equity\n\n"
+        f"Missing files:\n{missing_text}"
+    )
+
+
+def load_individual_characters(input_files=INPUT_FILES):
+    require_input_files(input_files)
+
+    bm = pd.read_csv(input_files["book_to_market"], parse_dates=["datadate"])
+    ope = pd.read_csv(input_files["operating_profitability"], parse_dates=["datadate"])
+    cfp = pd.read_csv(input_files["cash_flow_to_price"], parse_dates=["datadate"])
+
+    return bm, ope, cfp
+
+
+def build_annual_character_panel(bm, ope, cfp):
+    return bm.merge(ope, on=MERGE_KEYS, how="inner").merge(cfp, on=MERGE_KEYS, how="inner")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Combine existing local HXZ character files into an annual panel."
+    )
+    parser.add_argument("--output", default=OUTPUT_FILE)
+    args = parser.parse_args()
+
+    bm, ope, cfp = load_individual_characters()
+    annual_panel = build_annual_character_panel(bm, ope, cfp)
+
+    output_path = Path(args.output)
+    if not output_path.is_absolute():
+        output_path = PROJECT_ROOT / output_path
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    annual_panel.to_csv(output_path, index=False)
+
+    print(f"Saved annual character panel to: {output_path.resolve()}")
+    print(f"B/M rows: {len(bm):,}")
+    print(f"OPE rows: {len(ope):,}")
+    print(f"CFP rows: {len(cfp):,}")
+    print(f"Combined rows: {len(annual_panel):,}")
+
+
+if __name__ == "__main__":
+    main()
