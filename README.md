@@ -75,18 +75,26 @@ Install them with:
 pip install -r requirements.txt
 ```
 
-## Generalized Characters
+## Character Builders
 
-| Character | Source label | Output column | Folder | Definition summary |
-| --- | --- | --- | --- | --- |
-| Book-to-market | HXZ | `book_to_market` | `Character_Builders/HXZ_BM_Generalized` | Book equity divided by December market equity. |
-| Book-to-June-end market equity | HXZ | `bmj` | `Character_Builders/HXZ_BMJ_Generalized` | Split-adjusted book equity per share divided by June-end CRSP price. |
-| Operating profitability to equity | HXZ | `operating_profitability` | `Character_Builders/HXZ_OPE_Generalized` | `REVT - COGS - XSGA - XINT`, scaled by current book equity. |
-| Cash-flow-to-price | HXZ | `cash_flow_to_price` | `Character_Builders/HXZ_CFP_Generalized` | `IB + DP`, scaled by December market equity. |
-| Size | Green SAS / Banz | `mvel1` | `Character_Builders/Green_MVEL1_Generalized` | Monthly log lagged CRSP market equity. |
+HXZ-specific builders:
 
-The full Green-style target list and implementation status are tracked in
-`Character_Builders/CHARACTER_CATALOG.md`.
+| Acronym | Character | Output column | Folder |
+| --- | --- | --- | --- |
+| `bm` | Book-to-market | `book_to_market` | `Character_Builders/HXZ_BM_Generalized` |
+| `bmj` | Book-to-June-end market equity | `bmj` | `Character_Builders/HXZ_BMJ_Generalized` |
+| `op` | Operating profitability to equity | `operating_profitability` | `Character_Builders/HXZ_OPE_Generalized` |
+| `cfp` | Cash-flow-to-price | `cash_flow_to_price` | `Character_Builders/HXZ_CFP_Generalized` |
+
+Green-style builders:
+
+| Status | Acronyms |
+| --- | --- |
+| Implemented through the shared Green SAS builder | `acc`, `adm`, `agr`, `alm`, `ato`, `baspread`, `bm_ia`, `cash`, `cashdebt`, `chcsho`, `chpm`, `depr`, `dolvol`, `ep`, `gma`, `grltnoa`, `herf`, `hire`, `ill`, `lev`, `lgr`, `maxret`, `me`, `me_ia`, `mom1m`, `mom6m`, `mom12m`, `mom36m`, `mom60m`, `mvel1`, `noa`, `pctacc`, `pm`, `ps`, `rd_sale`, `rdm`, `roe`, `rvar_mean`, `sgr`, `sp`, `std_dolvol`, `std_turn`, `turn`, `zerotrade` |
+| Scaffolded; needs specialized event, IBES, quarterly, or factor-estimation code | `abr`, `beta`, `chtx`, `cinvest`, `dy`, `ni`, `nincr`, `re`, `rna`, `Roa1`, `rsup`, `rvar_capm`, `rvar_ff3`, `seas1a`, `sue` |
+
+The full Green-style target list, descriptions, timing families, and folder
+names are tracked in `Character_Builders/CHARACTER_CATALOG.md`.
 
 ## Imputation Utilities
 
