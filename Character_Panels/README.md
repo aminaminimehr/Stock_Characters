@@ -88,3 +88,28 @@ outputs/all_character_signal_panel.csv
 This script does not connect to WRDS. It reads existing files in `outputs/`,
 expands annual files onto the shared signal-month calendar, and merges monthly
 files directly on `permno`, `signal_yyyymm`, and `target_yyyymm`.
+
+## Complete Prediction Panel
+
+After building monthly characters and excess returns, create the feature-target
+panel with:
+
+```powershell
+python Character_Panels/build_complete_prediction_panel.py
+```
+
+Required inputs:
+
+```text
+outputs/monthly_character_panel.csv
+outputs/excess_returns.csv
+```
+
+Output:
+
+```text
+outputs/complete_prediction_panel.csv
+```
+
+The merge keys are `permno` and `target_yyyymm`. The character month remains
+`signal_yyyymm`; no additional shifting is applied to the character columns.

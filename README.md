@@ -47,6 +47,52 @@ empirical asset pricing resources:
 - Jeremiah Green's website: https://sites.google.com/site/jeremiahrgreenacctg/home
 - Green SAS code: https://drive.google.com/file/d/0BwwEXkCgXEdRQWZreUpKOHBXOUU/view?resourcekey=0-1xjZ8fAc0sTybVC6RADDCA
 
+## CRSP/Compustat Linking Policy
+
+Accounting characteristics require a CRSP/Compustat Merged link from `gvkey` to
+`permno`/`permco`. This repository makes that choice explicit because the CCM
+filter is rarely discussed in signal documentation, but it changes coverage and
+occasionally changes the matched security.
+
+The default rule is conservative:
+
+```text
+linktype in ('LU', 'LC')
+linkprim in ('P', 'C')
+```
+
+This keeps WRDS link-used/research-complete links and accepts both Compustat
+primary (`P`) and CRSP primary (`C`) cases. It is also the default in modern
+teaching/tooling examples such as Kai Chen's WRDS linking note and the
+`tidyfinance` WRDS CCM helper. The code keeps `P` ahead of `C` when duplicate
+links must be ordered.
+
+Other public projects sometimes choose broader rules. For example, some
+Green-style SAS code links through `crsp.ccmxpf_linktable` without applying an
+explicit `linktype`/`linkprim` filter in the visible linking step. Code used in
+the Gu-Kelly-Xiu empirical asset-pricing pipeline commonly keeps all linktypes
+whose first letter is `L` and `linkprim` in `('P', 'C')`. Chen and Zimmermann's
+Open Source Asset Pricing project provides full signal code and downloadable
+data; users comparing to that project should check its current linking scripts
+directly because the relevant code is organized across preparation and signal
+construction files. Fama and French portfolio descriptions specify CRSP and
+Compustat inputs, but do not usually state the CCM `linktype`/`linkprim` filters
+in the public characteristic descriptions, so any CCM rule for matching their
+published data is an implementation choice to be documented and validated.
+
+Accounting builders expose these choices:
+
+```powershell
+python Character_Builders/HXZ_BM_Generalized/build_book_to_market.py --wrds-user YOUR_WRDS_USERNAME --ccm-linktypes LU,LC --ccm-linkprim P,C
+```
+
+To reproduce a broader `L*` style link rule, pass the explicit WRDS codes you
+want to allow, for example:
+
+```powershell
+python Character_Builders/build_all_implemented_characters.py --wrds-user YOUR_WRDS_USERNAME --ccm-linktypes LU,LC,LD,LF,LN,LO,LS,LX --ccm-linkprim P,C
+```
+
 ## WRDS Access
 
 The code does not store WRDS credentials. Use one of the standard local WRDS
@@ -127,6 +173,12 @@ python Character_Builders/HXZ_CFP_Generalized/build_cash_flow_to_price.py --wrds
 python Character_Builders/Green_MVEL1_Generalized/build_mvel1.py --wrds-user YOUR_WRDS_USERNAME
 ```
 
+Then build monthly excess returns:
+
+```powershell
+python Return_Builders/build_excess_returns.py --wrds-user YOUR_WRDS_USERNAME
+```
+
 Then create the annual raw panel with:
 
 ```powershell
@@ -144,6 +196,15 @@ Or combine all compatible generated character CSV files with:
 ```powershell
 python Character_Panels/build_all_character_panel.py
 ```
+
+Finally, merge the monthly character panel to next-month excess returns:
+
+```powershell
+python Character_Panels/build_complete_prediction_panel.py
+```
+
+The complete panel is saved to `outputs/complete_prediction_panel.csv`. It keeps
+character timing untouched and merges returns on `permno` and `target_yyyymm`.
 
 Generated files are written to the `outputs/` folder by default. The folder is
 kept in the repository, but generated data files inside it are ignored by Git.

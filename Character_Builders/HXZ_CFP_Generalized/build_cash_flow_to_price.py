@@ -1,8 +1,13 @@
 import argparse
+import sys
 from pathlib import Path
 
 import pandas as pd
 import wrds
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+
+from _shared.ccm import add_ccm_arguments, attach_ccm_links, load_ccm_links
 
 
 WRDS_USER = None
@@ -85,29 +90,8 @@ def december_firm_market_equity(crsp):
     )
 
 
-def load_ccm_links(db):
-    link = db.raw_sql("""
-        SELECT gvkey, lpermno AS permno, lpermco AS permco,
-               linkdt, linkenddt
-        FROM crsp.ccmxpf_linktable
-        WHERE linktype IN ('LU', 'LC')
-          AND linkprim = 'P'
-    """)
-    link["linkdt"] = pd.to_datetime(link["linkdt"])
-    link["linkenddt"] = pd.to_datetime(link["linkenddt"])
-
-    return link
-
-
 def build_cash_flow_to_price(comp, crsp_december_me, link):
-    comp_linked = comp.merge(link, on="gvkey", how="inner")
-    comp_linked = comp_linked[
-        (comp_linked["datadate"] >= comp_linked["linkdt"])
-        & (
-            (comp_linked["datadate"] <= comp_linked["linkenddt"])
-            | comp_linked["linkenddt"].isna()
-        )
-    ].copy()
+    comp_linked = attach_ccm_links(comp, link)
 
     cfp = comp_linked.merge(
         crsp_december_me,
@@ -136,6 +120,7 @@ def main():
     )
     parser.add_argument("--wrds-user", default=WRDS_USER)
     parser.add_argument("--output", default=OUTPUT_FILE)
+    add_ccm_arguments(parser)
     parser.add_argument(
         "--use-imputed-market-equity",
         action="store_true",
@@ -154,7 +139,7 @@ def main():
     try:
         comp = load_compustat(db)
         crsp = load_crsp_monthly(db, args.use_imputed_market_equity)
-        link = load_ccm_links(db)
+        link = load_ccm_links(db, args.ccm_linktypes, args.ccm_linkprim)
     finally:
         db.close()
 

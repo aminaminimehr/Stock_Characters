@@ -1,6 +1,7 @@
 __pycache__/
 Supplementary_assistive_files/
 *.py[cod]
+*.log
 *.csv
 outputs/*
 !outputs/.gitkeep

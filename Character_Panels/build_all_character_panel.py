@@ -11,6 +11,13 @@ OUTPUT_FILE = OUTPUT_DIR / "all_character_signal_panel.csv"
 
 MONTHLY_KEYS = ["permno", "signal_yyyymm", "target_yyyymm"]
 ANNUAL_ID_COLUMNS = ["permno", "permco", "gvkey", "datadate", "sic", "fyear"]
+NON_CHARACTER_FILES = {
+    "all_character_signal_panel.csv",
+    "annual_character_panel.csv",
+    "complete_prediction_panel.csv",
+    "excess_returns.csv",
+    "monthly_character_panel.csv",
+}
 KNOWN_NON_CHARACTER_COLUMNS = {
     "permno",
     "permco",
@@ -109,7 +116,7 @@ def build_all_character_panel(input_dir=OUTPUT_DIR):
     panels = []
     skipped = []
     for path in paths:
-        if path.name in {"all_character_signal_panel.csv"}:
+        if path.name in NON_CHARACTER_FILES:
             continue
         panel = normalize_character_file(path)
         if panel is None:

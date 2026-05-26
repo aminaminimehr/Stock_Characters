@@ -85,7 +85,15 @@ def expand_to_monthly_prediction_panel(annual_chars):
 
 def load_or_build_annual_panel():
     if Path(ANNUAL_OUTPUT_FILE).exists():
-        return pd.read_csv(ANNUAL_OUTPUT_FILE, parse_dates=["datadate"])
+        annual_panel = pd.read_csv(ANNUAL_OUTPUT_FILE, parse_dates=["datadate"])
+        required_columns = {
+            "book_to_market",
+            "bmj",
+            "operating_profitability",
+            "cash_flow_to_price",
+        }
+        if required_columns.issubset(annual_panel.columns):
+            return annual_panel
 
     bm, bmj, ope, cfp = load_individual_characters()
     return build_annual_character_panel(bm, bmj, ope, cfp)

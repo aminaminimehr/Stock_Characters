@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 import wrds
 
+from _shared.ccm import add_ccm_arguments, attach_ccm_links, load_ccm_links
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_DIR = PROJECT_ROOT / "outputs"
@@ -99,6 +101,10 @@ def lag(df, column, periods=1):
     return df.groupby("gvkey")[column].shift(periods)
 
 
+def indicator(condition):
+    return condition.fillna(False).astype(int)
+
+
 def add_one_month(yyyymm):
     year = yyyymm // 100
     month = yyyymm % 100
@@ -112,26 +118,8 @@ def connect_wrds(wrds_user):
     return wrds.Connection(wrds_username=wrds_user) if wrds_user else wrds.Connection()
 
 
-def load_ccm_links(db):
-    link = db.raw_sql("""
-        SELECT gvkey, lpermno AS permno, lpermco AS permco,
-               linkdt, linkenddt
-        FROM crsp.ccmxpf_linktable
-        WHERE linktype IN ('LU', 'LC', 'LD', 'LF', 'LN', 'LO', 'LS', 'LX')
-          AND lpermno IS NOT NULL
-    """)
-    link["linkdt"] = pd.to_datetime(link["linkdt"])
-    link["linkenddt"] = pd.to_datetime(link["linkenddt"])
-    return link
-
-
 def attach_permno(comp, link):
-    linked = comp.merge(link, on="gvkey", how="inner")
-    linked = linked[
-        (linked["datadate"] >= linked["linkdt"])
-        & ((linked["datadate"] <= linked["linkenddt"]) | linked["linkenddt"].isna())
-    ].copy()
-    return linked.drop(columns=["linkdt", "linkenddt"])
+    return attach_ccm_links(comp, link)
 
 
 def load_annual_compustat(db):
@@ -258,15 +246,15 @@ def compute_annual_characters(comp):
         avg_at,
     )
     comp["ps"] = (
-        (comp["ni"] > 0).astype(int)
-        + (comp["oancf"] > 0).astype(int)
-        + (safe_divide(comp["ni"], comp["at"]) > safe_divide(comp["lag_ni"], comp["lag_at"])).astype(int)
-        + (comp["oancf"] > comp["ni"]).astype(int)
-        + (safe_divide(comp["dltt"], comp["at"]) < safe_divide(comp["lag_dltt"], comp["lag_at"])).astype(int)
-        + (safe_divide(comp["act"], comp["lct"]) > safe_divide(comp["lag_act"], comp["lag_lct"])).astype(int)
-        + (safe_divide(comp["sale"] - comp["cogs"], comp["sale"]) > safe_divide(comp["lag_sale"] - comp["lag_cogs"], comp["lag_sale"])).astype(int)
-        + (safe_divide(comp["sale"], comp["at"]) > safe_divide(comp["lag_sale"], comp["lag_at"])).astype(int)
-        + (comp["scstkc"].fillna(0) == 0).astype(int)
+        indicator(comp["ni"] > 0)
+        + indicator(comp["oancf"] > 0)
+        + indicator(safe_divide(comp["ni"], comp["at"]) > safe_divide(comp["lag_ni"], comp["lag_at"]))
+        + indicator(comp["oancf"] > comp["ni"])
+        + indicator(safe_divide(comp["dltt"], comp["at"]) < safe_divide(comp["lag_dltt"], comp["lag_at"]))
+        + indicator(safe_divide(comp["act"], comp["lct"]) > safe_divide(comp["lag_act"], comp["lag_lct"]))
+        + indicator(safe_divide(comp["sale"] - comp["cogs"], comp["sale"]) > safe_divide(comp["lag_sale"] - comp["lag_cogs"], comp["lag_sale"]))
+        + indicator(safe_divide(comp["sale"], comp["at"]) > safe_divide(comp["lag_sale"], comp["lag_at"]))
+        + indicator(comp["scstkc"].fillna(0) == 0)
     )
 
     grouped = comp.groupby(["calendar_year", "sic2"], dropna=False)
@@ -284,9 +272,9 @@ def compute_annual_characters(comp):
     return comp
 
 
-def build_annual_character(db, character):
+def build_annual_character(db, character, ccm_linktypes=None, ccm_linkprim=None):
     comp = compute_annual_characters(load_annual_compustat(db))
-    link = load_ccm_links(db)
+    link = load_ccm_links(db, ccm_linktypes, ccm_linkprim)
     comp = attach_permno(comp, link)
     comp = comp.rename(columns={character: "character_value"})
     comp = comp[comp["character_value"].replace([np.inf, -np.inf], np.nan).notna()].copy()
@@ -353,7 +341,7 @@ def load_daily_monthly(db):
                MAX(ret) AS maxret,
                VAR_SAMP(ret) AS rvar_mean,
                AVG((askhi - bidlo) / NULLIF(((askhi + bidlo) / 2), 0)) AS baspread,
-               STDDEV_SAMP(LOG(ABS(prc * vol))) AS std_dolvol,
+               STDDEV_SAMP(LOG(NULLIF(ABS(prc * vol), 0))) AS std_dolvol,
                STDDEV_SAMP(vol / NULLIF(shrout, 0)) AS std_turn,
                AVG(ABS(ret) / NULLIF(ABS(prc) * vol, 0)) AS ill,
                SUM(CASE WHEN vol = 0 THEN 1 ELSE 0 END) AS countzero,
@@ -398,11 +386,17 @@ def run_character_cli(character, description):
     parser = argparse.ArgumentParser(description=f"Build {character}: {description}.")
     parser.add_argument("--wrds-user", default=None)
     parser.add_argument("--output", default=f"{character}.csv")
+    add_ccm_arguments(parser)
     args = parser.parse_args()
 
     db = connect_wrds(args.wrds_user)
     try:
-        out = build_character(db, character)
+        if character in ANNUAL_CHARACTER_INFO:
+            out = build_annual_character(
+                db, character, args.ccm_linktypes, args.ccm_linkprim
+            )
+        else:
+            out = build_character(db, character)
     finally:
         db.close()
 
