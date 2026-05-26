@@ -1,4 +1,5 @@
 __pycache__/
+Supplementary_assistive_files/
 *.py[cod]
 *.csv
 outputs/*

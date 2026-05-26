@@ -1,8 +1,9 @@
 # Stock Characters
 
-This repository builds stock-market characteristics in Python following the
-timing and variable definitions used in Hou-Xue-Zhang testing-portfolio
-construction.
+This repository builds stock-market characteristics in Python with explicit
+definitions, identifiers, and timing. The first hand-built builders follow the
+Hou-Xue-Zhang testing-portfolio documentation; the broader character set is
+organized around Green-style SAS definitions.
 
 ## Why This Repository Exists
 
@@ -40,7 +41,9 @@ The characteristic definitions and June portfolio timing follow:
 Hou, Xue, and Zhang, "Technical Document: Testing Portfolios"  
 https://global-q.org/uploads/1/2/2/6/122679606/portfoliostd_2020june.pdf
 
-The PDF is linked from the official source rather than stored in this repository.
+The broader Green-style character scaffolds and shared builder are based on the
+local Green SAS reference file in the private supplementary folder. That folder
+is ignored by Git and is not part of the public repository.
 
 ## WRDS Access
 
@@ -72,15 +75,20 @@ pip install -r requirements.txt
 
 ## Generalized Characters
 
-| Character | Output column | Folder | Definition summary |
-| --- | --- | --- | --- |
-| Book-to-market | `book_to_market` | `HXZ_Characters/HXZ_BM_Generalized` | Book equity divided by December market equity. |
-| Operating profitability to equity | `operating_profitability` | `HXZ_Characters/HXZ_OPE_Generalized` | `REVT - COGS - XSGA - XINT`, scaled by current book equity. |
-| Cash-flow-to-price | `cash_flow_to_price` | `HXZ_Characters/HXZ_CFP_Generalized` | `IB + DP`, scaled by December market equity. |
+| Character | Source label | Output column | Folder | Definition summary |
+| --- | --- | --- | --- | --- |
+| Book-to-market | HXZ | `book_to_market` | `Character_Builders/HXZ_BM_Generalized` | Book equity divided by December market equity. |
+| Book-to-June-end market equity | HXZ | `bmj` | `Character_Builders/HXZ_BMJ_Generalized` | Split-adjusted book equity per share divided by June-end CRSP price. |
+| Operating profitability to equity | HXZ | `operating_profitability` | `Character_Builders/HXZ_OPE_Generalized` | `REVT - COGS - XSGA - XINT`, scaled by current book equity. |
+| Cash-flow-to-price | HXZ | `cash_flow_to_price` | `Character_Builders/HXZ_CFP_Generalized` | `IB + DP`, scaled by December market equity. |
+| Size | Green SAS / Banz | `mvel1` | `Character_Builders/Green_MVEL1_Generalized` | Monthly log lagged CRSP market equity. |
+
+The full Green-style target list and implementation status are tracked in
+`Character_Builders/CHARACTER_CATALOG.md`.
 
 ## Imputation Utilities
 
-`HXZ_Imputation` contains early utilities for Fama-French industry-code
+`Imputation` contains early utilities for Fama-French industry-code
 assignment and time-by-industry median imputation. This folder is intended to
 grow as missing-value handling becomes part of the public workflow.
 
@@ -89,28 +97,42 @@ and 49 industries.
 
 The raw character builders keep the actual Compustat `datadate`. Monthly
 prediction files can be created with
-`HXZ_Character_Panels/build_monthly_character_panel.py`, which assigns annual
-characteristics to the July-through-June return window after the June
-availability date.
+`Character_Panels/build_monthly_character_panel.py`, which assigns each row
+an explicit predictor month, `signal_yyyymm`, and a next-month return marker,
+`target_yyyymm`.
+
+Annual accounting characteristics are observable at the end of June after the
+fiscal-year calendar year. A fiscal year ending in calendar year `y` is repeated
+from `signal_yyyymm = June y+1` through `May y+2`; the matching return months
+are stored as `target_yyyymm = July y+1` through `June y+2`. For prediction, keep
+the characteristics fixed and align or lead the return by one month.
 
 First build the individual character files:
 
 ```powershell
-python HXZ_Characters/HXZ_BM_Generalized/build_book_to_market.py --wrds-user YOUR_WRDS_USERNAME
-python HXZ_Characters/HXZ_OPE_Generalized/build_operating_profitability.py --wrds-user YOUR_WRDS_USERNAME
-python HXZ_Characters/HXZ_CFP_Generalized/build_cash_flow_to_price.py --wrds-user YOUR_WRDS_USERNAME --use-imputed-market-equity
+python Character_Builders/HXZ_BM_Generalized/build_book_to_market.py --wrds-user YOUR_WRDS_USERNAME
+python Character_Builders/HXZ_BMJ_Generalized/build_book_to_june_market_equity.py --wrds-user YOUR_WRDS_USERNAME
+python Character_Builders/HXZ_OPE_Generalized/build_operating_profitability.py --wrds-user YOUR_WRDS_USERNAME
+python Character_Builders/HXZ_CFP_Generalized/build_cash_flow_to_price.py --wrds-user YOUR_WRDS_USERNAME --use-imputed-market-equity
+python Character_Builders/Green_MVEL1_Generalized/build_mvel1.py --wrds-user YOUR_WRDS_USERNAME
 ```
 
 Then create the annual raw panel with:
 
 ```powershell
-python HXZ_Character_Panels/build_annual_character_panel.py
+python Character_Panels/build_annual_character_panel.py
 ```
 
 Then create the monthly prediction panel with:
 
 ```powershell
-python HXZ_Character_Panels/build_monthly_character_panel.py
+python Character_Panels/build_monthly_character_panel.py
+```
+
+Or combine all compatible generated character CSV files with:
+
+```powershell
+python Character_Panels/build_all_character_panel.py
 ```
 
 Generated files are written to the `outputs/` folder by default. The folder is
