@@ -1,8 +1,6 @@
 # Character Catalog
 
-This catalog tracks the target set from the local `chars60_summary.csv` file.
-The file currently contains 61 rows, so the catalog keeps all rows rather than
-silently dropping one.
+This catalog tracks the Green-style target set used by the repository.
 Each implemented character should live in its own source-labeled folder with a
 builder and a README. HXZ-specific builders use `HXZ_<ACRONYM>_Generalized`.
 Green SAS-derived builders use `Green_<ACRONYM>_Generalized`.

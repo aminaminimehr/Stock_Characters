@@ -41,9 +41,11 @@ The characteristic definitions and June portfolio timing follow:
 Hou, Xue, and Zhang, "Technical Document: Testing Portfolios"  
 https://global-q.org/uploads/1/2/2/6/122679606/portfoliostd_2020june.pdf
 
-The broader Green-style character scaffolds and shared builder are based on the
-local Green SAS reference file in the private supplementary folder. That folder
-is ignored by Git and is not part of the public repository.
+Green-style character definitions are based on Jeremiah Green's public
+empirical asset pricing resources:
+
+- Jeremiah Green's website: https://sites.google.com/site/jeremiahrgreenacctg/home
+- Green SAS code: https://drive.google.com/file/d/0BwwEXkCgXEdRQWZreUpKOHBXOUU/view?resourcekey=0-1xjZ8fAc0sTybVC6RADDCA
 
 ## WRDS Access
 
