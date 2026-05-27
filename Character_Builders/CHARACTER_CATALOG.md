@@ -18,6 +18,9 @@ merge the dependent excess return using `target_yyyymm`.
 
 Annual accounting characteristics use the June availability convention. A fiscal
 year ending in calendar year `y` is placed from June `y+1` through May `y+2`.
+If fiscal-year-end changes create overlapping annual observations for the same
+`permno` and signal month, panel construction keeps the observation with the
+latest Compustat `datadate`.
 Quarterly characteristics should use the documented reporting/availability lag.
 Monthly and daily-rolled CRSP characteristics should be placed at their explicit
 monthly `signal_yyyymm` after the required lag is applied inside the builder.

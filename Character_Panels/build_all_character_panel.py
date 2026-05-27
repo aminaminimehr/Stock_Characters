@@ -72,6 +72,10 @@ def expand_annual_file(df, character_columns):
     month_index = first_signal_month + month_offsets
     repeated["signal_yyyymm"] = (month_index // 12) * 100 + (month_index % 12 + 1)
     repeated["target_yyyymm"] = repeated["signal_yyyymm"].map(add_one_month)
+    repeated = (
+        repeated.sort_values(["permno", "signal_yyyymm", "datadate"])
+        .drop_duplicates(["permno", "signal_yyyymm"], keep="last")
+    )
 
     keep = MONTHLY_KEYS + ["permco", "gvkey", "sic"] + character_columns
     return repeated[keep]

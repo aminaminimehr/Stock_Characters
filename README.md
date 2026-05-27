@@ -222,7 +222,12 @@ Annual accounting builders preserve the actual Compustat `datadate` in their
 raw files. The monthly prediction panel applies the repository's public June
 availability convention: fiscal-year information ending in calendar year `y`
 is used from June `y+1` through May `y+2`, with `target_yyyymm` identifying the
-next return month.
+next return month. Fiscal-year-end changes can create more than one Compustat
+report for a firm within the same calendar year or overlapping signal window.
+HXZ-specific builders keep the most recent `datadate` within a firm-calendar
+year. When generic annual character files are expanded into monthly signal
+rows, overlapping `permno`-month observations are resolved by keeping the row
+with the latest underlying `datadate`.
 
 Return-side files include delisting returns when available. The excess-return
 builder also exposes an optional distress-delisting convention:
@@ -266,7 +271,12 @@ an explicit predictor month, `signal_yyyymm`, and a next-month return marker,
 Annual accounting characteristics are observable at the end of June after the
 fiscal-year calendar year. A fiscal year ending in calendar year `y` is repeated
 from `signal_yyyymm = June y+1` through `May y+2`; the matching return months
-are stored as `target_yyyymm = July y+1` through `June y+2`. For prediction, keep the characteristic value fixed over its valid holding period and merge it with the next-month return, so that signal_yyyymm always precedes target_yyyymm.
+are stored as `target_yyyymm = July y+1` through `June y+2`. For prediction,
+keep the characteristic value fixed over its valid holding period and merge it
+with the next-month return, so that `signal_yyyymm` always precedes
+`target_yyyymm`. If fiscal-year-end changes cause overlapping annual signals
+for the same `permno` and signal month, the panel keeps the latest available
+Compustat `datadate`.
 
 ### Step 1. Build Individual Character Files
 
