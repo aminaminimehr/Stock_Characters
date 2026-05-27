@@ -7,7 +7,7 @@ organized around Green-style SAS definitions.
 
 ## About / Contact
 
-This project is maintained by Mahdi Aminimehr. Suggestions, corrections, and
+This project is maintained by Amin Aminimehr. Suggestions, corrections, and
 replication notes are welcome. Please open a GitHub issue or contact me at
 `aminiman@mail.uc.edu`.
 
