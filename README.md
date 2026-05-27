@@ -5,6 +5,12 @@ definitions, identifiers, and timing. The first hand-built builders follow the
 Hou-Xue-Zhang testing-portfolio documentation; the broader character set is
 organized around Green-style SAS definitions.
 
+## About / Contact
+
+This project is maintained by Mahdi Aminimehr. Suggestions, corrections, and
+replication notes are welcome. Please open a GitHub issue or contact me at
+`aminiman@mail.uc.edu`.
+
 ## Why This Repository Exists
 
 There are excellent public resources for empirical asset pricing data, including
@@ -67,18 +73,17 @@ teaching/tooling examples such as Kai Chen's WRDS linking note and the
 `tidyfinance` WRDS CCM helper. The code keeps `P` ahead of `C` when duplicate
 links must be ordered.
 
-Other public projects sometimes choose broader rules. For example, some
-Green-style SAS code links through `crsp.ccmxpf_linktable` without applying an
-explicit `linktype`/`linkprim` filter in the visible linking step. Code used in
-the Gu-Kelly-Xiu empirical asset-pricing pipeline commonly keeps all linktypes
-whose first letter is `L` and `linkprim` in `('P', 'C')`. Chen and Zimmermann's
-Open Source Asset Pricing project provides full signal code and downloadable
-data; users comparing to that project should check its current linking scripts
-directly because the relevant code is organized across preparation and signal
-construction files. Fama and French portfolio descriptions specify CRSP and
-Compustat inputs, but do not usually state the CCM `linktype`/`linkprim` filters
-in the public characteristic descriptions, so any CCM rule for matching their
-published data is an implementation choice to be documented and validated.
+The table below summarizes the relevant conventions and why this repository
+makes the choice configurable.
+
+| Source or codebase | CCM choice visible in the referenced code/documentation | What that choice does | How this repo can match it |
+| --- | --- | --- | --- |
+| This repository | `linktype in ('LU', 'LC')`; `linkprim in ('P', 'C')` | Uses link-used and research-complete CCM links, while allowing both Compustat-primary and CRSP-primary matches. This is the default conservative rule used by the builders. | Default behavior. No extra flags needed. |
+| WRDS/Kai Chen-style examples and `tidyfinance` helpers | Commonly use `LC/LU` with `P/C` | A conservative, teachable default that avoids many stale or secondary historical links while preserving CRSP-primary cases. | Default behavior. |
+| Fama-French public portfolio descriptions | Usually state the CRSP and Compustat inputs, but not the exact CCM `linktype`/`linkprim` filters | Replication must choose and report a CCM rule; the public descriptions alone do not fully determine the link table filter. | Start from the default, then validate against Fama-French benchmark moments. |
+| Green public SAS code | Uses `crsp.ccmxpf_linktable`; in the visible linking step, an explicit `linktype`/`linkprim` filter is not always shown before the date-valid CCM merge | Broader linking can increase coverage, but may include links that a conservative `LC/LU` filter would drop. | Pass a broader explicit list with `--ccm-linktypes`. |
+| Gu-Kelly-Xiu / Xin He style assistive code | Keeps linktypes whose first letter is `L` and `linkprim in ('P', 'C')` | Broadly accepts WRDS link-family records while still restricting to primary Compustat/CRSP link flags. | Use `--ccm-linktypes LU,LC,LD,LF,LN,LO,LS,LX --ccm-linkprim P,C`. |
+| Chen-Zimmermann Open Source Asset Pricing | Provides open signal code and downloadable data; the exact applicable linking rule should be checked in the current preparation scripts for the release being compared | Their project is designed for broad reproducible signal coverage, so comparisons should use the release-specific construction code rather than infer the rule from final data files. | Use this repo's CCM flags to run a conservative or broader variant, then compare against the chosen Open Source Asset Pricing release. |
 
 Accounting builders expose these choices:
 
