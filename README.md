@@ -5,11 +5,30 @@ definitions, identifiers, and timing. The first hand-built builders follow the
 Hou-Xue-Zhang testing-portfolio documentation; the broader character set is
 organized around Green-style SAS definitions.
 
+---
+
+## Table of Contents
+
+- [About / Contact](#about--contact)
+- [Why This Repository Exists](#why-this-repository-exists)
+- [Reference Documentation](#reference-documentation)
+- [CRSP/Compustat Linking Policy](#crspcompustat-linking-policy)
+- [WRDS Access](#wrds-access)
+- [Requirements](#requirements)
+- [Character Builders](#character-builders)
+- [Imputation Utilities](#imputation-utilities)
+- [Panel Construction Workflow](#panel-construction-workflow)
+- [Generated Outputs](#generated-outputs)
+
+---
+
 ## About / Contact
 
 This project is maintained by Amin Aminimehr. Suggestions, corrections, and
 replication notes are welcome. Please open a GitHub issue or contact me at
 `aminiman@mail.uc.edu`.
+
+---
 
 ## Why This Repository Exists
 
@@ -40,6 +59,8 @@ The goal is a small, inspectable codebase where each characteristic states its
 definition, timing convention, and data-cleaning choices directly in code and
 documentation.
 
+---
+
 ## Reference Documentation
 
 The characteristic definitions and June portfolio timing follow:
@@ -53,12 +74,22 @@ empirical asset pricing resources:
 - Jeremiah Green's website: https://sites.google.com/site/jeremiahrgreenacctg/home
 - Green SAS code: https://drive.google.com/file/d/0BwwEXkCgXEdRQWZreUpKOHBXOUU/view?resourcekey=0-1xjZ8fAc0sTybVC6RADDCA
 
+---
+
 ## CRSP/Compustat Linking Policy
 
 Accounting characteristics require a CRSP/Compustat Merged link from `gvkey` to
 `permno`/`permco`. This repository makes that choice explicit because the CCM
 filter is rarely discussed in signal documentation, but it changes coverage and
 occasionally changes the matched security.
+
+This choice directly affects the number of unique `permno` identifiers that
+survive into the final dataset. Broader filters can add firms and share classes,
+while stricter filters can reduce coverage. The tradeoff is not only about row
+count: CCM link types differ in how WRDS classifies the validity and role of the
+link, so the filter is also a data-quality and replication choice.
+
+### Default Rule
 
 The default rule is conservative:
 
@@ -73,6 +104,8 @@ teaching/tooling examples such as Kai Chen's WRDS linking note and the
 `tidyfinance` WRDS CCM helper. The code keeps `P` ahead of `C` when duplicate
 links must be ordered.
 
+### Linking Conventions
+
 The table below summarizes the relevant conventions and why this repository
 makes the choice configurable.
 
@@ -84,6 +117,8 @@ makes the choice configurable.
 | Green public SAS code | Uses `crsp.ccmxpf_linktable`; in the visible linking step, an explicit `linktype`/`linkprim` filter is not always shown before the date-valid CCM merge | Broader linking can increase coverage, but may include links that a conservative `LC/LU` filter would drop. | Pass a broader explicit list with `--ccm-linktypes`. |
 | Gu-Kelly-Xiu / Xin He style assistive code | Keeps linktypes whose first letter is `L` and `linkprim in ('P', 'C')` | Broadly accepts WRDS link-family records while still restricting to primary Compustat/CRSP link flags. | Use `--ccm-linktypes LU,LC,LD,LF,LN,LO,LS,LX --ccm-linkprim P,C`. |
 | Chen-Zimmermann Open Source Asset Pricing | Provides open signal code and downloadable data; the exact applicable linking rule should be checked in the current preparation scripts for the release being compared | Their project is designed for broad reproducible signal coverage, so comparisons should use the release-specific construction code rather than infer the rule from final data files. | Use this repo's CCM flags to run a conservative or broader variant, then compare against the chosen Open Source Asset Pricing release. |
+
+### Builder Flags
 
 Accounting builders expose these choices:
 
@@ -98,6 +133,8 @@ want to allow, for example:
 python Character_Builders/build_all_implemented_characters.py --wrds-user YOUR_WRDS_USERNAME --ccm-linktypes LU,LC,LD,LF,LN,LO,LS,LX --ccm-linkprim P,C
 ```
 
+---
+
 ## WRDS Access
 
 The code does not store WRDS credentials. Use one of the standard local WRDS
@@ -109,6 +146,8 @@ authentication methods:
 
 Do not commit usernames, passwords, `.pgpass` files, downloaded WRDS data, or
 generated output CSVs to a public repository.
+
+---
 
 ## Requirements
 
@@ -126,9 +165,11 @@ Install them with:
 pip install -r requirements.txt
 ```
 
+---
+
 ## Character Builders
 
-HXZ-specific builders:
+### HXZ-Specific Builders
 
 | Acronym | Character | Output column | Folder |
 | --- | --- | --- | --- |
@@ -137,7 +178,7 @@ HXZ-specific builders:
 | `op` | Operating profitability to equity | `operating_profitability` | `Character_Builders/HXZ_OPE_Generalized` |
 | `cfp` | Cash-flow-to-price | `cash_flow_to_price` | `Character_Builders/HXZ_CFP_Generalized` |
 
-Green-style builders:
+### Green-Style Builders
 
 | Status | Acronyms |
 | --- | --- |
@@ -147,6 +188,8 @@ Green-style builders:
 The full Green-style target list, descriptions, timing families, and folder
 names are tracked in `Character_Builders/CHARACTER_CATALOG.md`.
 
+---
+
 ## Imputation Utilities
 
 `Imputation` contains early utilities for Fama-French industry-code
@@ -155,6 +198,10 @@ grow as missing-value handling becomes part of the public workflow.
 
 Included Fama-French industry mapping schemes are 5, 10, 12, 17, 30, 38, 48,
 and 49 industries.
+
+---
+
+## Panel Construction Workflow
 
 The raw character builders keep the actual Compustat `datadate`. Monthly
 prediction files can be created with
@@ -168,6 +215,8 @@ from `signal_yyyymm = June y+1` through `May y+2`; the matching return months
 are stored as `target_yyyymm = July y+1` through `June y+2`. For prediction, keep
 the characteristics fixed and align or lead the return by one month.
 
+### Step 1. Build Individual Character Files
+
 First build the individual character files:
 
 ```powershell
@@ -178,11 +227,15 @@ python Character_Builders/HXZ_CFP_Generalized/build_cash_flow_to_price.py --wrds
 python Character_Builders/Green_MVEL1_Generalized/build_mvel1.py --wrds-user YOUR_WRDS_USERNAME
 ```
 
+### Step 2. Build Monthly Excess Returns
+
 Then build monthly excess returns:
 
 ```powershell
 python Return_Builders/build_excess_returns.py --wrds-user YOUR_WRDS_USERNAME
 ```
+
+### Step 3. Create The Annual Raw Panel
 
 Then create the annual raw panel with:
 
@@ -190,11 +243,15 @@ Then create the annual raw panel with:
 python Character_Panels/build_annual_character_panel.py
 ```
 
+### Step 4. Create The Monthly Prediction Panel
+
 Then create the monthly prediction panel with:
 
 ```powershell
 python Character_Panels/build_monthly_character_panel.py
 ```
+
+### Step 5. Combine Compatible Character CSV Files
 
 Or combine all compatible generated character CSV files with:
 
@@ -202,11 +259,17 @@ Or combine all compatible generated character CSV files with:
 python Character_Panels/build_all_character_panel.py
 ```
 
+### Step 6. Merge Characters With Next-Month Excess Returns
+
 Finally, merge the monthly character panel to next-month excess returns:
 
 ```powershell
 python Character_Panels/build_complete_prediction_panel.py
 ```
+
+---
+
+## Generated Outputs
 
 The complete panel is saved to `outputs/complete_prediction_panel.csv`. It keeps
 character timing untouched and merges returns on `permno` and `target_yyyymm`.
