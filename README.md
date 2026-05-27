@@ -16,6 +16,7 @@ organized around Green-style SAS definitions.
 - [WRDS Access](#wrds-access)
 - [Requirements](#requirements)
 - [Character Builders](#character-builders)
+- [Construction Policy](#construction-policy)
 - [Imputation Utilities](#imputation-utilities)
 - [Panel Construction Workflow](#panel-construction-workflow)
 - [Generated Outputs](#generated-outputs)
@@ -187,6 +188,59 @@ pip install -r requirements.txt
 
 The full Green-style target list, descriptions, timing families, and folder
 names are tracked in `Character_Builders/CHARACTER_CATALOG.md`.
+
+---
+
+## Construction Policy
+
+The repository separates raw characteristic construction from later panel
+operations. Individual character builders write transparent source-level
+outputs and keep identifiers such as `permno`, `permco`, `gvkey`, `datadate`,
+`fyear`, and `sic` where applicable. Panel builders then assign prediction
+months, merge returns, and apply any broader sample rules.
+
+CRSP-based builders restrict the stock universe to common shares on NYSE, AMEX,
+and NASDAQ where monthly CRSP data are queried:
+
+```text
+shrcd in (10, 11)
+exchcd in (1, 2, 3)
+```
+
+Monthly return-history characteristics use lagged returns so the signal month
+does not include the return being predicted. For example, `mom1m` uses the
+previous month's return, `mom6m` uses lags 2 through 6, `mom12m` uses lags 2
+through 12, and `mom36m` uses lags 13 through 36. Monthly size variables such
+as `me` and `mvel1` use lagged market equity.
+
+Daily CRSP-based monthly characteristics are computed from daily data within a
+source month and then placed on the following monthly signal. This keeps daily
+statistics such as maximum daily return, bid-ask spread, turnover volatility,
+and return volatility out of the contemporaneous return month being predicted.
+
+Annual accounting builders preserve the actual Compustat `datadate` in their
+raw files. The monthly prediction panel applies the repository's public June
+availability convention: fiscal-year information ending in calendar year `y`
+is used from June `y+1` through May `y+2`, with `target_yyyymm` identifying the
+next return month.
+
+Return-side files include delisting returns when available. The excess-return
+builder also exposes an optional distress-delisting convention:
+
+```powershell
+python Return_Builders/build_excess_returns.py --wrds-user YOUR_WRDS_USERNAME --green-delisting-fill
+```
+
+This fills selected missing distress delisting returns with `-35%` for
+NYSE/AMEX and `-55%` for NASDAQ before computing adjusted returns. This is a
+return adjustment, not winsorization.
+
+Winsorization is not applied by the individual character builders. Raw
+character CSVs and the default prediction panels are intentionally unwinsorized.
+If a research design requires outlier treatment, apply it as a separate,
+documented panel step, preferably cross-sectionally by signal month. A common
+choice is monthly 1st/99th percentile capping for two-sided variables and
+monthly 99th percentile capping for variables that are only high-tail trimmed.
 
 ---
 

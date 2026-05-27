@@ -79,7 +79,7 @@ monthly `signal_yyyymm` after the required lag is applied inside the builder.
 | `rsup` | Revenue surprise | Annual/quarterly accounting | Scaffolded; needs specialized builder |
 | `rvar_capm` | Residual variance, CAPM rolling 3 months | Monthly/daily CRSP plus factor data | Scaffolded; needs specialized builder |
 | `rvar_ff3` | Residual variance, FF3 rolling 3 months | Monthly/daily CRSP plus factor data | Scaffolded; needs specialized builder |
-| `rvar_mean` | Return variance, rolling 3 months | Monthly/daily CRSP | Implemented through shared Green builder: `Green_RVAR_MEAN_Generalized` |
+| `rvar_mean` | Daily return volatility from previous month; Green SAS column `retvol` | Monthly/daily CRSP | Implemented through shared Green builder: `Green_RVAR_MEAN_Generalized` |
 | `seas1a` | Seasonality | Monthly CRSP returns | Scaffolded; needs specialized builder |
 | `sgr` | Sales growth | Annual/quarterly accounting | Implemented through shared Green builder: `Green_SGR_Generalized` |
 | `sp` | Sales-to-price | Annual/quarterly accounting plus price | Implemented through shared Green builder: `Green_SP_Generalized` |

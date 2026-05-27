@@ -1,8 +1,10 @@
 # rvar_mean Character
 
-Description: return variance rolling 3m
+Description: daily return volatility from the previous month
 
-Primary reference in the Green-style summary: Daily Stock return variance ().
+The Green SAS output column is `retvol` and is computed as the within-month
+standard deviation of daily returns. The local output column remains
+`rvar_mean` for compatibility with the repository's Green-style acronym list.
 
 Construction follows the Green SAS reference where the formula is available, while the panel timing follows this repository's `signal_yyyymm` / `target_yyyymm` convention.
 

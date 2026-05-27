@@ -140,13 +140,16 @@ def load_annual_compustat(db):
           AND f.popsrc = 'D'
           AND f.consol = 'C'
           AND f.at IS NOT NULL
+          AND f.prcc_f IS NOT NULL
+          AND f.ni IS NOT NULL
+          AND f.datadate >= DATE '1975-01-01'
     """)
     comp["datadate"] = pd.to_datetime(comp["datadate"])
     comp["sic2"] = pd.to_numeric(comp["sic"], errors="coerce") // 100
     comp["calendar_year"] = comp["datadate"].dt.year
     comp = (
-        comp.sort_values(["gvkey", "calendar_year", "datadate"])
-        .drop_duplicates(["gvkey", "calendar_year"], keep="last")
+        comp.sort_values(["gvkey", "datadate"])
+        .drop_duplicates(["gvkey", "datadate"], keep="last")
         .sort_values(["gvkey", "datadate"])
     )
     return comp
@@ -167,8 +170,6 @@ def compute_annual_characters(comp):
     comp["mve_f"] = comp["prcc_f"] * comp["csho"]
     comp["xsga0"] = comp["xsga"].fillna(0)
     comp["xint0"] = comp["xint"].fillna(0)
-    comp["xrd0"] = comp["xrd"].fillna(0)
-    comp["xad0"] = comp["xad"].fillna(0)
 
     for col in [
         "at", "act", "che", "lct", "dlc", "txp", "dp", "ib", "csho", "lt",
@@ -192,13 +193,12 @@ def compute_annual_characters(comp):
     )
 
     comp["bm"] = safe_divide(comp["ceq"], comp["mve_f"])
-    comp.loc[comp["book_equity"] > 0, "bm"] = safe_divide(comp["book_equity"], comp["mve_f"])
     comp["ep"] = safe_divide(comp["ib"], comp["mve_f"])
-    comp["adm"] = safe_divide(comp["xad0"], comp["mve_f"])
-    comp["rdm"] = safe_divide(comp["xrd0"], comp["mve_f"])
+    comp["adm"] = safe_divide(comp["xad"], comp["mve_f"])
+    comp["rdm"] = safe_divide(comp["xrd"], comp["mve_f"])
     comp["lev"] = safe_divide(comp["lt"], comp["mve_f"])
     comp["sp"] = safe_divide(comp["sale"], comp["mve_f"])
-    comp["rd_sale"] = safe_divide(comp["xrd0"], comp["sale"])
+    comp["rd_sale"] = safe_divide(comp["xrd"], comp["sale"])
     comp["agr"] = safe_divide(comp["at"], comp["lag_at"]) - 1
     comp["gma"] = safe_divide(comp["revt"] - comp["cogs"], comp["lag_at"])
     comp["chcsho"] = safe_divide(comp["csho"], comp["lag_csho"]) - 1
@@ -220,7 +220,7 @@ def compute_annual_characters(comp):
     comp["cash"] = safe_divide(comp["che"], comp["at"])
     comp["pm"] = safe_divide(comp["ib"], comp["sale"])
     comp["roe"] = safe_divide(comp["ib"], comp["lag_ceq"])
-    comp["op"] = safe_divide(comp["revt"] - comp["cogs"] - comp["xsga0"] - comp["xint0"], comp["book_equity"])
+    comp["op"] = safe_divide(comp["revt"] - comp["cogs"] - comp["xsga0"] - comp["xint0"], comp["lag_ceq"])
     comp["noa"] = safe_divide(
         (comp["at"] - comp["che"]) - (comp["at"] - comp["dlc"] - comp["dltt"] - comp["pstk"] - comp["ceq"]),
         comp["lag_at"],
@@ -257,7 +257,7 @@ def compute_annual_characters(comp):
         + indicator(comp["scstkc"].fillna(0) == 0)
     )
 
-    grouped = comp.groupby(["calendar_year", "sic2"], dropna=False)
+    grouped = comp.groupby(["fyear", "sic2"], dropna=False)
     comp["bm_ia"] = comp["bm"] - grouped["bm"].transform("mean")
     comp["chpm"] = comp["chpm"] - grouped["chpm"].transform("mean")
     comp["me_ia"] = comp["mve_f"] - grouped["mve_f"].transform("mean")
@@ -306,14 +306,17 @@ def load_crsp_monthly(db):
 
 
 def rolling_return_product(crsp, start_lag, end_lag):
-    result = 1
-    for period in range(start_lag, end_lag + 1):
-        result = result * (1 + crsp.groupby("permno")["ret"].shift(period))
-    return result - 1
+    lagged_returns = pd.concat(
+        [crsp.groupby("permno")["ret"].shift(period) for period in range(start_lag, end_lag + 1)],
+        axis=1,
+    )
+    return (1 + lagged_returns).prod(axis=1, min_count=end_lag - start_lag + 1) - 1
 
 
 def build_monthly_character(db, character):
     crsp = load_crsp_monthly(db)
+    crsp = crsp[crsp["ret"].notna()].copy()
+    crsp["return_count"] = crsp.groupby("permno").cumcount() + 1
     crsp["me"] = np.log(crsp.groupby("permno")["market_equity"].shift(1))
     crsp["mvel1"] = crsp["me"]
     crsp["mom1m"] = crsp.groupby("permno")["ret"].shift(1)
@@ -321,6 +324,11 @@ def build_monthly_character(db, character):
     crsp["mom12m"] = rolling_return_product(crsp, 2, 12)
     crsp["mom36m"] = rolling_return_product(crsp, 13, 36)
     crsp["mom60m"] = rolling_return_product(crsp, 13, 60)
+    crsp.loc[crsp["return_count"] == 1, "mom1m"] = np.nan
+    crsp.loc[crsp["return_count"] < 7, "mom6m"] = np.nan
+    crsp.loc[crsp["return_count"] < 13, "mom12m"] = np.nan
+    crsp.loc[crsp["return_count"] < 37, "mom36m"] = np.nan
+    crsp.loc[crsp["return_count"] < 61, "mom60m"] = np.nan
     crsp["dolvol"] = np.log(
         crsp.groupby("permno")["vol"].shift(2) * crsp.groupby("permno")["prc_abs"].shift(2)
     )
@@ -329,6 +337,12 @@ def build_monthly_character(db, character):
 
     crsp = crsp.rename(columns={"siccd": "sic"})
     crsp = crsp[crsp[character].replace([np.inf, -np.inf], np.nan).notna()].copy()
+    if character in {"mom36m", "mom60m"} and crsp[character].nunique(dropna=True) == 1:
+        only_value = crsp[character].dropna().iloc[0]
+        if np.isclose(only_value, -1):
+            raise ValueError(
+                f"{character} is degenerate at -1. Recheck the long-horizon momentum input returns."
+            )
     return crsp[
         ["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "sic", "exchcd", "shrcd", character]
     ]
@@ -339,7 +353,7 @@ def load_daily_monthly(db):
         SELECT permno,
                DATE_TRUNC('month', date)::date AS month_start,
                MAX(ret) AS maxret,
-               VAR_SAMP(ret) AS rvar_mean,
+               STDDEV_SAMP(ret) AS rvar_mean,
                AVG((askhi - bidlo) / NULLIF(((askhi + bidlo) / 2), 0)) AS baspread,
                STDDEV_SAMP(LOG(NULLIF(ABS(prc * vol), 0))) AS std_dolvol,
                STDDEV_SAMP(vol / NULLIF(shrout, 0)) AS std_turn,
