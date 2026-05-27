@@ -49,6 +49,7 @@ def build_complete_prediction_panel(character_panel, excess_returns):
         "date",
         "ret",
         "dlret",
+        "dlstcd",
         "retadj",
         "rf",
         "excess_return",

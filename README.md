@@ -18,6 +18,7 @@ organized around Green-style SAS definitions.
 - [Character Builders](#character-builders)
 - [Imputation Utilities](#imputation-utilities)
 - [Panel Construction Workflow](#panel-construction-workflow)
+- [Green SAS Comparable Panel](#green-sas-comparable-panel)
 - [Generated Outputs](#generated-outputs)
 
 ---
@@ -265,6 +266,80 @@ Finally, merge the monthly character panel to next-month excess returns:
 ```powershell
 python Character_Panels/build_complete_prediction_panel.py
 ```
+
+---
+
+## Green SAS Comparable Panel
+
+The raw character files preserve their own source dates and are not intended to
+hide Green's SAS panel-construction choices. For direct comparison with Green's
+monthly SAS output, use the separate Green-comparable panel builder:
+
+```powershell
+python Character_Panels/build_green_comparable_panel.py
+```
+
+This creates `outputs/green_comparable_temp.csv`. It applies the Green-style
+annual timing rule:
+
+```text
+intnx('MONTH', datadate, 7) <= CRSP month < intnx('MONTH', datadate, 20)
+```
+
+For monthly CRSP characteristics, the builder uses each character file's
+existing `signal_yyyymm`. Daily CRSP-based characteristics are already placed
+on the following monthly signal because the daily builders compute the previous
+month's daily statistic and merge it to the next CRSP month.
+
+The Green-comparable temp panel then applies the same final raw-panel filter:
+
+```text
+not missing(mve) and not missing(mom1m) and not missing(bm)
+```
+
+In this repository the lagged size column is named `me` by the shared Green
+monthly builder, with `mvel1` available as the same lagged log market-equity
+concept in its standalone builder. The comparable-panel script uses `me` when
+available and otherwise uses `mvel1`.
+
+Monthly winsorization is explicit and optional. Green's `temp2` is formed by
+cross-sectional monthly caps, not full-sample caps:
+
+```powershell
+python Character_Panels/build_green_comparable_panel.py --hitrim col1,col2 --hilotrim col3,col4
+```
+
+`--hitrim` caps only at the monthly 99th percentile. `--hilotrim` caps at the
+monthly 1st and 99th percentiles. The script writes
+`outputs/green_comparable_temp2_winsorized.csv` only when trim lists are passed,
+so the exact winsorization list remains visible in the command.
+
+To compare the Green-comparable panel against the supplied Green SAS output,
+run:
+
+```powershell
+python Character_Panels/compare_green_comparable_panel.py
+```
+
+This writes `outputs/green_comparable_validation_report.md` and
+`outputs/green_comparable_validation_summary.csv`.
+
+The table below summarizes what is currently implemented relative to the Green
+SAS output-building steps.
+
+| Green SAS step | Current repository status |
+| --- | --- |
+| Link Compustat to CRSP and keep common stocks on NYSE/AMEX/NASDAQ | Implemented in the CRSP and CCM-based builders with `shrcd in (10, 11)` and `exchcd in (1, 2, 3)` where CRSP monthly data are queried. |
+| Annual Compustat-to-monthly timing using `intnx('MONTH', datadate, 7)` through before `intnx('MONTH', datadate, 20)` | Implemented in `Character_Panels/build_green_comparable_panel.py`. The older prediction panel keeps the simpler June `y+1` through May `y+2` convention. |
+| Lagged monthly size and price variables | Lagged log market equity is implemented as `me`/`mvel1`. Lagged price `pps` is not yet implemented as a separate output. |
+| Monthly CRSP return-history variables | Implemented for `mom1m`, `mom6m`, `mom12m`, `mom36m`, `mom60m`, `dolvol`, and `turn`; `chmom`, `IPO`, `retcons_pos`, and `retcons_neg` are not yet implemented. |
+| Daily CRSP variables from the previous month | Implemented for `maxret`, `rvar_mean`, `baspread`, `std_dolvol`, `std_turn`, `ill`, and `zerotrade`. |
+| Delisting-return imputation for selected missing distress delistings | Available with `python Return_Builders/build_excess_returns.py --green-delisting-fill`. |
+| Quarterly Compustat timing rule | Not yet implemented in the public panel builder. Quarterly variables remain scaffolded or partial. |
+| IBES variables | Not implemented; IBES-based variables should be removed from comparisons or built separately. |
+| Weekly beta, beta-squared, idiosyncratic volatility, and price delay | Scaffolded, not yet implemented. |
+| Final Green raw-panel filter | Implemented in `Character_Panels/build_green_comparable_panel.py`. |
+| Monthly winsorization into `temp2` | Implemented as an explicit command option requiring visible `--hitrim` and `--hilotrim` lists. |
 
 ---
 

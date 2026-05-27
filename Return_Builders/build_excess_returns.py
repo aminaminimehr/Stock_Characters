@@ -31,13 +31,13 @@ def load_crsp_monthly_returns(db):
 
 def load_delisting_returns(db):
     dlret = db.raw_sql("""
-        SELECT permno, dlstdt, dlret
+        SELECT permno, dlstdt, dlret, dlstcd
         FROM crsp.msedelist
         WHERE dlstdt IS NOT NULL
     """)
     dlret["date"] = pd.to_datetime(dlret["dlstdt"]) + pd.offsets.MonthEnd(0)
     dlret["dlret"] = pd.to_numeric(dlret["dlret"], errors="coerce")
-    return dlret[["permno", "date", "dlret"]]
+    return dlret[["permno", "date", "dlret", "dlstcd"]]
 
 
 def load_risk_free_rate(db):
@@ -57,8 +57,24 @@ def load_risk_free_rate(db):
     return factors
 
 
-def build_excess_returns(crsp, dlret, rf):
+def apply_green_delisting_fill(returns):
+    distress_codes = (
+        returns["dlstcd"].between(500, 584)
+        & ~returns["dlstcd"].isin([501, 502, 503, 504])
+    )
+    missing_distress_dlret = returns["dlret"].isna() & distress_codes
+    nyse_amex = missing_distress_dlret & returns["exchcd"].isin([1, 2])
+    nasdaq = missing_distress_dlret & returns["exchcd"].eq(3)
+    returns.loc[nyse_amex, "dlret"] = -0.35
+    returns.loc[nasdaq, "dlret"] = -0.55
+    return returns
+
+
+def build_excess_returns(crsp, dlret, rf, green_delisting_fill=False):
     returns = crsp.merge(dlret, on=["permno", "date"], how="left")
+    if green_delisting_fill:
+        returns = apply_green_delisting_fill(returns)
+
     returns["ret_for_adjustment"] = returns["ret"].fillna(0)
     returns["dlret_for_adjustment"] = returns["dlret"].fillna(0)
 
@@ -87,6 +103,7 @@ def build_excess_returns(crsp, dlret, rf):
             "shrcd",
             "ret",
             "dlret",
+            "dlstcd",
             "retadj",
             "rf",
             "excess_return",
@@ -103,6 +120,14 @@ def main():
     )
     parser.add_argument("--wrds-user", default=WRDS_USER)
     parser.add_argument("--output", default=OUTPUT_FILE)
+    parser.add_argument(
+        "--green-delisting-fill",
+        action="store_true",
+        help=(
+            "For missing distress delisting returns, fill NYSE/AMEX with -35% "
+            "and NASDAQ with -55%, following the Green-style SAS convention."
+        ),
+    )
     args = parser.parse_args()
 
     db = (
@@ -117,7 +142,9 @@ def main():
     finally:
         db.close()
 
-    excess_returns = build_excess_returns(crsp, dlret, rf)
+    excess_returns = build_excess_returns(
+        crsp, dlret, rf, green_delisting_fill=args.green_delisting_fill
+    )
 
     output_path = Path(args.output)
     if not output_path.is_absolute():
