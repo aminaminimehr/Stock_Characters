@@ -212,8 +212,7 @@ an explicit predictor month, `signal_yyyymm`, and a next-month return marker,
 Annual accounting characteristics are observable at the end of June after the
 fiscal-year calendar year. A fiscal year ending in calendar year `y` is repeated
 from `signal_yyyymm = June y+1` through `May y+2`; the matching return months
-are stored as `target_yyyymm = July y+1` through `June y+2`. For prediction, keep
-the characteristics fixed and align or lead the return by one month.
+are stored as `target_yyyymm = July y+1` through `June y+2`. For prediction, keep the characteristic value fixed over its valid holding period and merge it with the next-month return, so that signal_yyyymm always precedes target_yyyymm.
 
 ### Step 1. Build Individual Character Files
 
