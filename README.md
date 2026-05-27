@@ -229,12 +229,15 @@ next return month.
 Fiscal-year-end changes can create more than one Compustat annual report for
 the same firm within a calendar year. After linking to CRSP, this can also
 create duplicate or overlapping observations for the same `permno` and signal
-month.
+month. This issue is rarely discussed explicitly in characteristic
+documentation, but it affects reproducibility when annual accounting data are
+expanded to monthly prediction panels.
 
 The repository handles these cases explicitly:
 
-- HXZ-specific builders keep the most recent Compustat `datadate` within each
-  firm-calendar year.
+- Annual builders keep the most recent Compustat `datadate` within each
+  firm-calendar year when multiple annual reports map to the same calendar
+  year.
 - Generic annual character panel construction resolves duplicate
   `permno`/`signal_yyyymm` rows by keeping the observation with the latest
   underlying `datadate`.
