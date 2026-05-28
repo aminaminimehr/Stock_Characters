@@ -26,6 +26,7 @@ ANNUAL_CHARACTER_INFO = {
     "chcsho": "Change in shares outstanding",
     "chpm": "Industry-adjusted change in profit margin",
     "depr": "Depreciation / PP&E",
+    "dy": "Dividend yield",
     "ep": "Earnings-to-price",
     "gma": "Gross profitability",
     "grltnoa": "Growth in long-term net operating assets",
@@ -197,6 +198,7 @@ def compute_annual_characters(comp):
     comp["adm"] = safe_divide(comp["xad"], comp["mve_f"])
     comp["rdm"] = safe_divide(comp["xrd"], comp["mve_f"])
     comp["lev"] = safe_divide(comp["lt"], comp["mve_f"])
+    comp["dy"] = safe_divide(comp["dvt"], comp["mve_f"])
     comp["sp"] = safe_divide(comp["sale"], comp["mve_f"])
     comp["rd_sale"] = safe_divide(comp["xrd"], comp["sale"])
     comp["agr"] = safe_divide(comp["at"], comp["lag_at"]) - 1
@@ -358,9 +360,9 @@ def load_daily_monthly(db):
                STDDEV_SAMP(LOG(NULLIF(ABS(prc * vol), 0))) AS std_dolvol,
                STDDEV_SAMP(vol / NULLIF(shrout, 0)) AS std_turn,
                AVG(ABS(ret) / NULLIF(ABS(prc) * vol, 0)) AS ill,
-               SUM(CASE WHEN vol = 0 THEN 1 ELSE 0 END) AS countzero,
-               COUNT(*) AS ndays,
-               SUM(vol / NULLIF(shrout, 0)) AS turn_sum
+               SUM(CASE WHEN vol = 0 THEN 1 ELSE 0 END)::double precision AS countzero,
+               COUNT(*)::double precision AS ndays,
+               SUM(vol / NULLIF(shrout, 0))::double precision AS turn_sum
         FROM crsp.dsf
         GROUP BY permno, DATE_TRUNC('month', date)::date
     """)
