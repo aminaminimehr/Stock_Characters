@@ -16,6 +16,7 @@ organized around Green-style SAS definitions.
 - [WRDS Access](#wrds-access)
 - [Requirements](#requirements)
 - [Character Builders](#character-builders)
+- [Book-To-Market Specifications](#book-to-market-specifications)
 - [Construction Policy](#construction-policy)
 - [Imputation Utilities](#imputation-utilities)
 - [Panel Construction Workflow](#panel-construction-workflow)
@@ -188,6 +189,42 @@ pip install -r requirements.txt
 
 The full Green-style target list, descriptions, timing families, and folder
 names are tracked in `Character_Builders/CHARACTER_CATALOG.md`.
+
+---
+
+## Book-To-Market Specifications
+
+Book-to-market equity is a central asset-pricing characteristic. It is the
+sorting variable behind the value factor in the Fama-French factor model, and
+it is also used as a control or benchmark variable in many anomaly tests.
+Because small timing or denominator choices can change both coverage and
+replication moments, this repository keeps the alternative book-to-market
+constructions separate instead of treating them as interchangeable.
+
+The repository currently contains three book-to-market-style specifications:
+
+| Specification | Output column | Builder | Book numerator | Market denominator | Timing interpretation | Primary use |
+| --- | --- | --- | --- | --- | --- | --- |
+| Green-style `bm` | `bm` | Shared Green builder, emitted by `Character_Builders/Green_BM_IA_Generalized` support code and `build_all_implemented_characters.py` | Compustat common equity, `ceq` | Compustat fiscal-year-end market equity, `prcc_f * csho` | Annual Compustat value later expanded to monthly signals using Green-style availability timing | Best for comparison to Green SAS outputs and Green-style characteristic panels |
+| HXZ/Fama-French-style book-to-market equity | `book_to_market` | `Character_Builders/HXZ_BM_Generalized` | Book equity using the standard fallback hierarchy: stockholders' equity from `seq`, then `ceq + preferred stock`, then `at - lt`, plus deferred taxes, minus preferred stock | CRSP December firm market equity for the same calendar year as the fiscal year end | Fiscal year ending in calendar year `t-1` is used for June `t` portfolio formation and July `t` onward prediction windows | Preferred specification for Fama-French/HXZ-style book-to-market validation and benchmark comparisons |
+| Book-to-June market equity | `bmj` | `Character_Builders/HXZ_BMJ_Generalized` | Book equity per share from the HXZ-style book-equity construction | CRSP June price/share information | Uses June market valuation rather than prior December market equity | A separate June-price variant; useful when the research design intentionally wants book scaled by the current June market value |
+
+These variables are related, but they are not equivalent. Green `bm` and HXZ
+`book_to_market` are conceptually closest because both measure book equity
+relative to market equity, but they differ mechanically in both the book
+numerator and the market denominator. The Green version is designed to track
+Green's SAS convention; the HXZ version is designed to track the
+Fama-French/HXZ portfolio-timing convention.
+
+The `bmj` variable is a different timing choice rather than a drop-in
+replacement. By using June market valuation, it can be more contemporaneous
+with June portfolio formation, but it is not the same object as the standard
+Fama-French book-to-market ratio based on December market equity.
+
+For most benchmark work in this repository, use `book_to_market` when the
+target is Fama-French or HXZ-style book-to-market equity, use Green `bm` when
+the target is Green SAS comparability, and use `bmj` only when a June
+market-equity denominator is part of the intended research design.
 
 ---
 
