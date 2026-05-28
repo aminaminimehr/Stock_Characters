@@ -25,6 +25,8 @@ permno, target_yyyymm
 The builder:
 
 - uses CRSP monthly returns for common shares on NYSE, AMEX, and NASDAQ,
+- normalizes CRSP monthly return dates to calendar month-end before merging
+  delisting returns and Fama-French risk-free rates,
 - adds CRSP delisting returns,
 - subtracts the monthly risk-free rate from WRDS Fama-French monthly factors,
 - writes `outputs/excess_returns.csv` by default.

@@ -23,7 +23,7 @@ def load_crsp_monthly_returns(db):
         WHERE n.shrcd IN (10, 11)
           AND n.exchcd IN (1, 2, 3)
     """)
-    crsp["date"] = pd.to_datetime(crsp["date"])
+    crsp["date"] = pd.to_datetime(crsp["date"]) + pd.offsets.MonthEnd(0)
     crsp["ret"] = pd.to_numeric(crsp["ret"], errors="coerce")
     crsp["retx"] = pd.to_numeric(crsp["retx"], errors="coerce")
     return crsp

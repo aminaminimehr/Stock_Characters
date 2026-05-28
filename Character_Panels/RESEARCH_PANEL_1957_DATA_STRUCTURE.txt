@@ -38,8 +38,10 @@ Coverage
 
 The current rebuilt file contains:
 
-Rows: 2,405,776
+Rows: 3,435,938
 Target months: 195701 to 202412
+Unique target months: 816
+Missing target months in this range: 0
 Characteristics: 54
 
 The exact row count can change if WRDS updates CRSP, Compustat, or Fama-French
@@ -189,4 +191,3 @@ X_train = train[feature_cols]
 y_train = train[target_col]
 X_test = test[feature_cols]
 y_test = test[target_col]
-
