@@ -201,6 +201,11 @@ Because small timing or denominator choices can change both coverage and
 replication moments, this repository keeps the alternative book-to-market
 constructions separate instead of treating them as interchangeable.
 
+The validation reference for the HXZ/Fama-French-style specification is Fama
+and French, "Dissecting Anomalies." Their Table I reports annual descriptive
+moments for log book-to-market by size group, using June size assignments and
+book equity from the prior fiscal year.
+
 The repository currently contains three book-to-market-style specifications:
 
 | Specification | Output column | Builder | Book numerator | Market denominator | Timing interpretation | Primary use |
@@ -225,6 +230,30 @@ For most benchmark work in this repository, use `book_to_market` when the
 target is Fama-French or HXZ-style book-to-market equity, use Green `bm` when
 the target is Green SAS comparability, and use `bmj` only when a June
 market-equity denominator is part of the intended research design.
+
+### Validation Against Fama-French Descriptive Moments
+
+As a benchmark check, the HXZ/Fama-French-style `book_to_market` construction
+was filtered to match the sample description in Fama and French's "Dissecting
+Anomalies": June size groups based on NYSE 20th and 50th percentile market-cap
+breakpoints; positive book equity; available June and prior-December market
+equity; and the accounting variables required by the paper's appendix sample.
+The reported characteristic is log book-to-market.
+
+The table below compares repository moments to the published Table I moments.
+Values are annual equal-weight cross-sectional averages over the benchmark
+period, grouped by the paper's size categories.
+
+| Size group | Repository avg firms | Paper avg firms | Repository avg log B/M | Paper avg log B/M | Repository avg cross-section SD | Paper avg cross-section SD |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Market | 3143.67 | 3060 | -0.473 | -0.47 | 0.879 | 0.87 |
+| Micro | 1910.98 | 1831 | -0.343 | -0.34 | 0.898 | 0.89 |
+| Small | 622.86 | 603 | -0.572 | -0.59 | 0.793 | 0.77 |
+| Big | 609.83 | 626 | -0.696 | -0.70 | 0.747 | 0.74 |
+| All but Micro | 1232.69 | 1229 | -0.643 | -0.65 | 0.775 | 0.76 |
+
+This validation is a sample-filter check only. It does not alter the raw
+`book_to_market` builder, which remains a transparent firm-year construction.
 
 ---
 
