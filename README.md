@@ -70,6 +70,11 @@ The characteristic definitions and June portfolio timing follow:
 Hou, Xue, and Zhang, "Technical Document: Testing Portfolios"  
 https://global-q.org/uploads/1/2/2/6/122679606/portfoliostd_2020june.pdf
 
+The book-to-market validation moments reference:
+
+Fama and French, "Dissecting Anomalies"  
+https://papers.ssrn.com/sol3/papers.cfm?abstract_id=911960
+
 Green-style character definitions are based on Jeremiah Green's public
 empirical asset pricing resources:
 
