@@ -1,0 +1,192 @@
+Research Panel 1957 Data Structure
+==================================
+
+Generated file
+--------------
+
+Path:
+outputs/research_panel_1957_ranked.csv
+
+Builder:
+Character_Panels/build_research_panel_1957.py
+
+This file is generated data and is ignored by Git. Recreate it locally after
+building the character files and excess-return panel.
+
+
+Observation level
+-----------------
+
+Each row is a stock-month observation:
+
+permno x signal_yyyymm x target_yyyymm
+
+The characteristic values are known at the end of signal_yyyymm. The prediction
+target is the next monthly excess return in target_yyyymm.
+
+Example:
+
+signal_yyyymm = 195612
+target_yyyymm = 195701
+
+This means the row uses predictors observable by the end of December 1956 to
+predict the January 1957 excess return.
+
+
+Coverage
+--------
+
+The current rebuilt file contains:
+
+Rows: 2,405,776
+Target months: 195701 to 202412
+Characteristics: 54
+
+The exact row count can change if WRDS updates CRSP, Compustat, or Fama-French
+factor tables.
+
+
+Core columns
+------------
+
+permno:
+CRSP permanent security identifier. This is the stock identifier used for
+panel operations.
+
+signal_yyyymm:
+Predictor month in YYYYMM format. All characteristic values in the row are
+treated as available at this date.
+
+target_yyyymm:
+Return month in YYYYMM format. This is one month after signal_yyyymm.
+
+date:
+Calendar month-end date for the target return.
+
+sic:
+SIC code retained for auditability and industry assignment.
+
+ffi49:
+Fama-French 49-industry code assigned from SIC.
+
+excess_return:
+The next-month stock return minus the risk-free rate. This is the supervised
+learning target.
+
+
+Characteristic columns
+----------------------
+
+Every column after excess_return is a predictor characteristic. In the current
+panel there are 54 characteristic columns:
+
+acc, adm, agr, alm, ato, baspread, bm, bm_ia, bmj, book_to_market, cash,
+cash_flow_to_price, cashdebt, cfp, chcsho, chpm, depr, dolvol, dy, ep, gma,
+grltnoa, herf, hire, ill, lev, lgr, maxret, me, me_ia, mom12m, mom1m, mom36m,
+mom60m, mom6m, mvel1, noa, op, operating_profitability, pctacc, pm, ps,
+rd_sale, rdm, roe, rvar_capm, rvar_ff3, rvar_mean, sgr, sp, std_dolvol,
+std_turn, turn, zerotrade.
+
+These predictors are not raw characteristic values in this final file. They
+have already been transformed for model use.
+
+
+Preprocessing already applied
+-----------------------------
+
+The final research-panel builder applies these operations after raw
+construction and after merging predictors to next-month returns:
+
+1. Keep target return months from January 1957 onward.
+2. Winsorize each characteristic cross-sectionally by signal_yyyymm at the
+   1st and 99th percentiles.
+3. Assign Fama-French 49-industry codes from SIC.
+4. Impute missing values using signal-month by FF49 industry medians.
+5. If an industry median is unavailable, use the same-month cross-sectional
+   median.
+6. Rank each characteristic cross-sectionally within signal_yyyymm and map
+   ranks into the [-1, 1] interval.
+7. If an entire characteristic is unavailable in an early month, set the final
+   ranked value to 0, the neutral midpoint.
+
+The rank mapping is:
+
+ranked_x = 2 * (rank(x) - 1) / (N - 1) - 1
+
+where N is the number of available observations for that characteristic in the
+signal month after winsorization and imputation. Ties receive average ranks.
+
+
+How to use for prediction
+-------------------------
+
+Recommended supervised-learning setup:
+
+Identifier columns:
+permno, signal_yyyymm, target_yyyymm, date, sic, ffi49
+
+Target column:
+excess_return
+
+Feature columns:
+all 54 characteristic columns listed above.
+
+Train/test splitting should be done by time, using target_yyyymm or date. Do
+not randomly split rows across the full panel if the research design is meant
+to mimic real-time prediction.
+
+A common design is:
+
+1. Train on earlier target months.
+2. Validate on a later contiguous block of target months.
+3. Test out of sample on the final block of target months.
+
+For rolling or expanding-window forecasts, fit the model using only rows whose
+target_yyyymm is earlier than the forecast month.
+
+
+Leakage notes
+-------------
+
+Use the characteristic columns as predictors and excess_return as the target.
+Do not use ret, retadj, rf, dlret, or other return-construction fields as model
+features. They are intentionally not kept in this final research file.
+
+signal_yyyymm is the information date. target_yyyymm is the outcome date.
+The one-month lead is already built into the panel, so model builders should
+not shift the characteristic columns again.
+
+The final file is normalized cross-sectionally within each signal month. This
+means characteristic magnitudes are comparable across stocks within a month,
+but the values are ranks rather than accounting or return units.
+
+
+Minimal Python example
+----------------------
+
+import pandas as pd
+
+panel = pd.read_csv("outputs/research_panel_1957_ranked.csv")
+
+id_cols = [
+    "permno",
+    "signal_yyyymm",
+    "target_yyyymm",
+    "date",
+    "sic",
+    "ffi49",
+]
+target_col = "excess_return"
+feature_cols = [
+    col for col in panel.columns
+    if col not in id_cols + [target_col]
+]
+
+train = panel[panel["target_yyyymm"] <= 200012]
+test = panel[panel["target_yyyymm"] >= 200101]
+
+X_train = train[feature_cols]
+y_train = train[target_col]
+X_test = test[feature_cols]
+y_test = test[target_col]
+

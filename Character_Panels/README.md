@@ -87,7 +87,8 @@ outputs/all_character_signal_panel.csv
 
 This script does not connect to WRDS. It reads existing files in `outputs/`,
 expands annual files onto the shared signal-month calendar, and merges monthly
-files directly on `permno`, `signal_yyyymm`, and `target_yyyymm`.
+files directly on `permno`, `signal_yyyymm`, and `target_yyyymm`. It also
+preserves SIC when available so later industry imputation can be performed.
 
 ## Complete Prediction Panel
 
@@ -113,3 +114,32 @@ outputs/complete_prediction_panel.csv
 
 The merge keys are `permno` and `target_yyyymm`. The character month remains
 `signal_yyyymm`; no additional shifting is applied to the character columns.
+
+## 1957+ Research Panel
+
+To create the project-ready broad panel used for prediction work, first build
+the broad all-character signal panel and merge it to returns:
+
+```powershell
+python Character_Panels/build_all_character_panel.py
+python Character_Panels/build_complete_prediction_panel.py --characters outputs/all_character_signal_panel.csv --returns outputs/excess_returns.csv --output outputs/complete_all_character_prediction_panel.csv
+```
+
+Then run:
+
+```powershell
+python Character_Panels/build_research_panel_1957.py
+```
+
+Output:
+
+```text
+outputs/research_panel_1957_ranked.csv
+```
+
+This final step keeps target return months from `195701` onward, winsorizes
+each characteristic by signal month at the 1st and 99th percentiles, imputes
+missing values using signal-month by Fama-French 49-industry medians, and then
+cross-sectionally maps each characteristic's monthly ranks into `[-1, 1]`.
+Remaining unavailable cells, which occur when an entire characteristic does not
+exist in an early month, are assigned the neutral rank value `0`.

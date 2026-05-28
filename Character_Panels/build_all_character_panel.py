@@ -14,9 +14,18 @@ ANNUAL_ID_COLUMNS = ["permno", "permco", "gvkey", "datadate", "sic", "fyear"]
 NON_CHARACTER_FILES = {
     "all_character_signal_panel.csv",
     "annual_character_panel.csv",
+    "complete_all_character_prediction_panel.csv",
     "complete_prediction_panel.csv",
+    "complete_prediction_panel_imputed.csv",
     "excess_returns.csv",
+    "green_comparable_temp.csv",
+    "green_comparable_temp2_winsorized.csv",
+    "green_comparable_validation_summary.csv",
+    "green_comparable_winsorized_validation_summary.csv",
+    "green_comparable_winsorized_validation_summary_fresh.csv",
+    "green_missing_character_inventory.csv",
     "monthly_character_panel.csv",
+    "research_panel_1957_ranked.csv",
 }
 KNOWN_NON_CHARACTER_COLUMNS = {
     "permno",
@@ -99,6 +108,41 @@ def normalize_character_file(path):
     return None
 
 
+def coalesce_metadata(panels):
+    metadata = None
+    for panel in panels:
+        meta_cols = [
+            column
+            for column in ["sic"]
+            if column in panel.columns
+        ]
+        if not meta_cols:
+            continue
+
+        one_meta = (
+            panel[MONTHLY_KEYS + meta_cols]
+            .sort_values(MONTHLY_KEYS)
+            .drop_duplicates(MONTHLY_KEYS)
+        )
+        if metadata is None:
+            metadata = one_meta
+            continue
+
+        metadata = metadata.merge(
+            one_meta,
+            on=MONTHLY_KEYS,
+            how="outer",
+            suffixes=("", "_new"),
+        )
+        for column in meta_cols:
+            new_column = f"{column}_new"
+            if new_column in metadata.columns:
+                metadata[column] = metadata[column].combine_first(metadata[new_column])
+                metadata = metadata.drop(columns=[new_column])
+
+    return metadata
+
+
 def merge_panels(panels):
     final = None
     for panel in panels:
@@ -112,6 +156,11 @@ def merge_panels(panels):
             final = panel
         else:
             final = final.merge(panel, on=MONTHLY_KEYS, how="outer")
+
+    metadata = coalesce_metadata(panels)
+    if metadata is not None:
+        final = metadata.merge(final, on=MONTHLY_KEYS, how="right")
+
     return final
 
 
@@ -154,7 +203,15 @@ def main():
 
     print(f"Saved all-character signal panel to: {output_path.resolve()}")
     print(f"Rows: {len(panel):,}")
-    print(f"Character columns: {len(panel.columns) - len(MONTHLY_KEYS):,}")
+    metadata_columns = {"sic"}
+    character_count = len(
+        [
+            column
+            for column in panel.columns
+            if column not in set(MONTHLY_KEYS) | metadata_columns
+        ]
+    )
+    print(f"Character columns: {character_count:,}")
     if skipped:
         print("Skipped incompatible files:")
         for name in skipped:

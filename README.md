@@ -189,8 +189,9 @@ pip install -r requirements.txt
 
 | Status | Acronyms |
 | --- | --- |
-| Implemented through the shared Green SAS builder | `acc`, `adm`, `agr`, `alm`, `ato`, `baspread`, `bm_ia`, `cash`, `cashdebt`, `chcsho`, `chpm`, `depr`, `dolvol`, `ep`, `gma`, `grltnoa`, `herf`, `hire`, `ill`, `lev`, `lgr`, `maxret`, `me`, `me_ia`, `mom1m`, `mom6m`, `mom12m`, `mom36m`, `mom60m`, `mvel1`, `noa`, `pctacc`, `pm`, `ps`, `rd_sale`, `rdm`, `roe`, `rvar_mean`, `sgr`, `sp`, `std_dolvol`, `std_turn`, `turn`, `zerotrade` |
-| Scaffolded; needs specialized event, IBES, quarterly, or factor-estimation code | `abr`, `beta`, `chtx`, `cinvest`, `dy`, `ni`, `nincr`, `re`, `rna`, `Roa1`, `rsup`, `rvar_capm`, `rvar_ff3`, `seas1a`, `sue` |
+| Implemented through the shared Green SAS builder | `acc`, `adm`, `agr`, `alm`, `ato`, `baspread`, `bm_ia`, `cash`, `cashdebt`, `chcsho`, `chpm`, `depr`, `dolvol`, `dy`, `ep`, `gma`, `grltnoa`, `herf`, `hire`, `ill`, `lev`, `lgr`, `maxret`, `me`, `me_ia`, `mom1m`, `mom6m`, `mom12m`, `mom36m`, `mom60m`, `mvel1`, `noa`, `pctacc`, `pm`, `ps`, `rd_sale`, `rdm`, `roe`, `rvar_mean`, `sgr`, `sp`, `std_dolvol`, `std_turn`, `turn`, `zerotrade` |
+| Implemented with specialized daily-factor builders | `rvar_capm`, `rvar_ff3` |
+| Scaffolded; needs specialized event, IBES, quarterly, or factor-estimation code | `abr`, `beta`, `chtx`, `cinvest`, `ni`, `nincr`, `re`, `rna`, `Roa1`, `rsup`, `seas1a`, `sue` |
 
 The full Green-style target list, descriptions, timing families, and folder
 names are tracked in `Character_Builders/CHARACTER_CATALOG.md`.
@@ -333,6 +334,41 @@ documented panel step, preferably cross-sectionally by signal month. A common
 choice is monthly 1st/99th percentile capping for two-sided variables and
 monthly 99th percentile capping for variables that are only high-tail trimmed.
 
+### Research-Ready 1957+ Panel
+
+For empirical work that needs a clean machine-learning style panel, the
+repository includes a final research-panel step. This step starts from the
+complete all-character prediction panel and applies the following operations
+only after raw construction and return alignment are complete:
+
+1. Keep target return months from January 1957 onward.
+2. Winsorize each characteristic cross-sectionally by `signal_yyyymm` at the
+   monthly 1st and 99th percentiles.
+3. Assign Fama-French 49-industry codes from SIC.
+4. Impute missing characteristic values using `signal_yyyymm` by FF49 industry
+   medians, with a same-month cross-sectional median fallback when the industry
+   median is unavailable.
+5. Cross-sectionally rank each characteristic period by period and map the
+   ranks into the `[-1, 1]` interval, following the normalization convention
+   used by Kelly, Pruitt, and Su (2019) and Freyberger, Neuhierl, and Weber
+   (2020).
+
+The rank transformation is applied separately to each characteristic in each
+signal month:
+
+```text
+ranked_x = 2 * (rank(x) - 1) / (N - 1) - 1
+```
+
+where `N` is the number of nonmissing observations for that characteristic in
+the month after winsorization and imputation. Ties receive average ranks. The
+final panel therefore keeps the original timing columns and next-month
+`excess_return`, while the characteristic columns are normalized predictors.
+If an entire characteristic is unavailable in an early month, the final ranked
+value is set to `0`, the neutral midpoint of the normalized interval. This keeps
+the 1957+ matrix rectangular without pretending that an unavailable
+cross-section had informative ranks.
+
 ---
 
 ## Imputation Utilities
@@ -416,12 +452,39 @@ Finally, merge the monthly character panel to next-month excess returns:
 python Character_Panels/build_complete_prediction_panel.py
 ```
 
+For the broad all-character panel, pass the all-character signal file
+explicitly:
+
+```powershell
+python Character_Panels/build_complete_prediction_panel.py --characters outputs/all_character_signal_panel.csv --returns outputs/excess_returns.csv --output outputs/complete_all_character_prediction_panel.csv
+```
+
+### Step 7. Build The 1957+ Research Panel
+
+After the broad prediction panel exists, create the winsorized, industry-median
+imputed, rank-normalized research panel with:
+
+```powershell
+python Character_Panels/build_research_panel_1957.py
+```
+
+Output:
+
+```text
+outputs/research_panel_1957_ranked.csv
+```
+
 ---
 
 ## Generated Outputs
 
 The complete panel is saved to `outputs/complete_prediction_panel.csv`. It keeps
 character timing untouched and merges returns on `permno` and `target_yyyymm`.
+
+The broad research panel is saved to `outputs/research_panel_1957_ranked.csv`.
+It starts in target month `195701`, includes next-month `excess_return`, and
+stores each usable characteristic after monthly winsorization, FF49
+industry-median imputation, and `[-1, 1]` rank normalization.
 
 Generated files are written to the `outputs/` folder by default. The folder is
 kept in the repository, but generated data files inside it are ignored by Git.
