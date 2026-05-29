@@ -35,7 +35,7 @@ def lag_by_gvkey(df, column, periods=1):
 
 def load_quarterly_compustat(db):
     comp = db.raw_sql("""
-        SELECT c.gvkey, SUBSTR(compress(c.cusip), 1, 6) AS cusip6, f.datadate, f.fyearq, f.fqtr, f.rdq, c.sic,
+        SELECT c.gvkey, SUBSTR(compress(f.cusip), 1, 6) AS cusip6, f.datadate, f.fyearq, f.fqtr, f.rdq, c.sic,
                f.ibq, f.saleq, f.txtq, f.revtq, f.cogsq, f.xsgaq, f.xintq,
                f.atq, f.actq, f.cheq, f.lctq, f.dlcq, f.dlttq, f.ppentq,
                f.ceqq, f.seqq, f.pstkq, f.pstkrq, f.ltq,

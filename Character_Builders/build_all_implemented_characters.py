@@ -103,6 +103,11 @@ def main():
         action="store_true",
         help="Skip beta, abr, re, and residual-variance characters.",
     )
+    parser.add_argument(
+        "--skip-annual-monthly",
+        action="store_true",
+        help="Skip annual and monthly blocks (use after a partial run that already wrote those CSVs).",
+    )
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
@@ -113,10 +118,11 @@ def main():
     db = connect_wrds(args.wrds_user)
     try:
         if not args.only_daily:
-            build_annual_characters(
-                db, output_dir, args.ccm_linktypes, args.ccm_linkprim
-            )
-            build_monthly_characters(db, output_dir)
+            if not args.skip_annual_monthly:
+                build_annual_characters(
+                    db, output_dir, args.ccm_linktypes, args.ccm_linkprim
+                )
+                build_monthly_characters(db, output_dir)
             build_quarterly_characters(
                 db, output_dir, args.ccm_linktypes, args.ccm_linkprim
             )
