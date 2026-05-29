@@ -3,8 +3,8 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from _shared.green_builders import run_character_cli
+from _shared.event_builders import run_abr_cli
 
 
 if __name__ == "__main__":
-    run_character_cli("abr", "cumulative abnormal returns around earnings announcement dates")
+    run_abr_cli()

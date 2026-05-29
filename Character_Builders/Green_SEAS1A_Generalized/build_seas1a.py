@@ -7,4 +7,4 @@ from _shared.green_builders import run_character_cli
 
 
 if __name__ == "__main__":
-    run_character_cli("seas1a", "Seasonality")
+    run_character_cli("seas1a", "Seasonality (lagged 11-month return)")

@@ -42,7 +42,9 @@ Rows: 3,435,938
 Target months: 195701 to 202412
 Unique target months: 816
 Missing target months in this range: 0
-Characteristics: 54
+Characteristics: 54 in the last local rebuild documented here; a full rebuild
+after implementing the remaining Green-style builders can reach about 66
+predictor columns before HXZ/Green naming overlaps are deduplicated in merges.
 
 The exact row count can change if WRDS updates CRSP, Compustat, or Fama-French
 factor tables.
@@ -80,14 +82,10 @@ Characteristic columns
 ----------------------
 
 Every column after excess_return is a predictor characteristic. In the current
-panel there are 54 characteristic columns:
-
-acc, adm, agr, alm, ato, baspread, bm, bm_ia, bmj, book_to_market, cash,
-cash_flow_to_price, cashdebt, cfp, chcsho, chpm, depr, dolvol, dy, ep, gma,
-grltnoa, herf, hire, ill, lev, lgr, maxret, me, me_ia, mom12m, mom1m, mom36m,
-mom60m, mom6m, mvel1, noa, op, operating_profitability, pctacc, pm, ps,
-rd_sale, rdm, roe, rvar_capm, rvar_ff3, rvar_mean, sgr, sp, std_dolvol,
-std_turn, turn, zerotrade.
+panel there are 54 characteristic columns in the documented rebuild. After a
+full regeneration with all implemented builders, expect additional columns
+such as abr, beta, chtx, cinvest, ni, nincr, re, rna, roa1, rsup, seas1a, and
+sue, subject to WRDS coverage and merge availability.
 
 These predictors are not raw characteristic values in this final file. They
 have already been transformed for model use.

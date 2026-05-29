@@ -56,6 +56,7 @@ MONTHLY_CHARACTER_INFO = {
     "mom12m": "Twelve-month momentum",
     "mom36m": "Thirty-six-month momentum",
     "mom60m": "Sixty-month momentum",
+    "seas1a": "Seasonality (lagged 11-month return)",
     "turn": "Share turnover",
 }
 
@@ -75,23 +76,7 @@ SUPPORTED_CHARACTERS = {
     **DAILY_MONTHLY_CHARACTER_INFO,
 }
 
-PLANNED_CHARACTERS = {
-    "abr": "Requires earnings-announcement event windows.",
-    "beta": "Requires rolling market-model estimation.",
-    "chtx": "Quarterly tax-expense change.",
-    "cinvest": "Quarterly corporate investment.",
-    "dy": "Dividend yield; needs final decision on monthly versus annual construction.",
-    "ni": "Net stock issues; needs split-adjusted share construction.",
-    "nincr": "Quarterly consecutive earnings increases.",
-    "re": "Requires IBES analyst forecasts.",
-    "rna": "Quarterly return on net operating assets.",
-    "Roa1": "Quarterly return on assets.",
-    "rsup": "Quarterly revenue surprise.",
-    "rvar_capm": "Requires factor/market residual variance estimation.",
-    "rvar_ff3": "Requires Fama-French factor residual variance estimation.",
-    "seas1a": "Requires seasonality return construction.",
-    "sue": "Requires quarterly earnings surprise / IBES fallback logic.",
-}
+PLANNED_CHARACTERS = {}
 
 
 def safe_divide(numerator, denominator):
@@ -274,6 +259,14 @@ def compute_annual_characters(comp):
     return comp
 
 
+def write_character(df, character, output_dir):
+    out = df.copy()
+    out = out[out[character].replace([np.inf, -np.inf], np.nan).notna()].copy()
+    output_path = Path(output_dir) / f"{character}.csv"
+    out.to_csv(output_path, index=False)
+    print(f"{character}: {len(out):,} rows -> {output_path}")
+
+
 def build_annual_character(db, character, ccm_linktypes=None, ccm_linkprim=None):
     comp = compute_annual_characters(load_annual_compustat(db))
     link = load_ccm_links(db, ccm_linktypes, ccm_linkprim)
@@ -326,11 +319,13 @@ def build_monthly_character(db, character):
     crsp["mom12m"] = rolling_return_product(crsp, 2, 12)
     crsp["mom36m"] = rolling_return_product(crsp, 13, 36)
     crsp["mom60m"] = rolling_return_product(crsp, 13, 60)
+    crsp["seas1a"] = crsp.groupby("permno")["ret"].shift(11)
     crsp.loc[crsp["return_count"] == 1, "mom1m"] = np.nan
     crsp.loc[crsp["return_count"] < 7, "mom6m"] = np.nan
     crsp.loc[crsp["return_count"] < 13, "mom12m"] = np.nan
     crsp.loc[crsp["return_count"] < 37, "mom36m"] = np.nan
     crsp.loc[crsp["return_count"] < 61, "mom60m"] = np.nan
+    crsp.loc[crsp["return_count"] < 12, "seas1a"] = np.nan
     crsp["dolvol"] = np.log(
         crsp.groupby("permno")["vol"].shift(2) * crsp.groupby("permno")["prc_abs"].shift(2)
     )
@@ -383,13 +378,30 @@ def build_daily_monthly_character(db, character):
     return out[["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "sic", "exchcd", "shrcd", character]]
 
 
-def build_character(db, character):
+def build_character(db, character, ccm_linktypes=None, ccm_linkprim=None):
     if character in ANNUAL_CHARACTER_INFO:
-        return build_annual_character(db, character)
+        return build_annual_character(db, character, ccm_linktypes, ccm_linkprim)
     if character in MONTHLY_CHARACTER_INFO:
         return build_monthly_character(db, character)
     if character in DAILY_MONTHLY_CHARACTER_INFO:
         return build_daily_monthly_character(db, character)
+
+    from _shared.quarterly_builders import QUARTERLY_CHARACTER_INFO, build_quarterly_character
+
+    if character in QUARTERLY_CHARACTER_INFO:
+        return build_quarterly_character(db, character, ccm_linktypes, ccm_linkprim)
+    if character == "beta":
+        from _shared.beta_builder import build_beta_character
+
+        return build_beta_character(db)
+    if character == "abr":
+        from _shared.event_builders import build_abr_character
+
+        return build_abr_character(db, ccm_linktypes, ccm_linkprim)
+    if character == "re":
+        from _shared.ibes_builders import build_re_character
+
+        return build_re_character(db)
     if character in PLANNED_CHARACTERS:
         raise NotImplementedError(
             f"{character} needs an additional specialized data source or event-time routine. "
@@ -407,12 +419,7 @@ def run_character_cli(character, description):
 
     db = connect_wrds(args.wrds_user)
     try:
-        if character in ANNUAL_CHARACTER_INFO:
-            out = build_annual_character(
-                db, character, args.ccm_linktypes, args.ccm_linkprim
-            )
-        else:
-            out = build_character(db, character)
+        out = build_character(db, character, args.ccm_linktypes, args.ccm_linkprim)
     finally:
         db.close()
 

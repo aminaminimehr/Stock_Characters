@@ -9,6 +9,7 @@ organized around Green-style SAS definitions.
 
 ## Table of Contents
 
+- [License and Citation](#license-and-citation)
 - [About / Contact](#about--contact)
 - [Why This Repository Exists](#why-this-repository-exists)
 - [Reference Documentation](#reference-documentation)
@@ -21,6 +22,26 @@ organized around Green-style SAS definitions.
 - [Imputation Utilities](#imputation-utilities)
 - [Panel Construction Workflow](#panel-construction-workflow)
 - [Generated Outputs](#generated-outputs)
+
+---
+
+## License and Citation
+
+This repository is released under the [MIT License](LICENSE).
+
+If you use the code or the construction definitions in academic work, please cite the repository. A machine-readable record is provided in [CITATION.cff](CITATION.cff). A standard reference you can adapt in BibTeX is:
+
+```bibtex
+@software{aminimehr2026stockcharacters,
+  author       = {Aminimehr, Amin},
+  title        = {Stock Characters: Reproducible Python Builders for Green-Style and HXZ-Style Signals},
+  year         = {2026},
+  url          = {https://github.com/aminaminimehr/Stock_Characters},
+  note         = {Construction definitions follow Green (2016) SAS programs and Hou-Xue-Zhang (2020) portfolio documentation.}
+}
+```
+
+Empirical outputs also depend on licensed vendor data accessed through WRDS (CRSP, Compustat, IBES, and Fama-French factors). Follow each provider's terms of use in addition to citing this repository.
 
 ---
 
@@ -189,9 +210,11 @@ pip install -r requirements.txt
 
 | Status | Acronyms |
 | --- | --- |
-| Implemented through the shared Green SAS builder | `acc`, `adm`, `agr`, `alm`, `ato`, `baspread`, `bm_ia`, `cash`, `cashdebt`, `chcsho`, `chpm`, `depr`, `dolvol`, `dy`, `ep`, `gma`, `grltnoa`, `herf`, `hire`, `ill`, `lev`, `lgr`, `maxret`, `me`, `me_ia`, `mom1m`, `mom6m`, `mom12m`, `mom36m`, `mom60m`, `mvel1`, `noa`, `pctacc`, `pm`, `ps`, `rd_sale`, `rdm`, `roe`, `rvar_mean`, `sgr`, `sp`, `std_dolvol`, `std_turn`, `turn`, `zerotrade` |
-| Implemented with specialized daily-factor builders | `rvar_capm`, `rvar_ff3` |
-| Scaffolded; needs specialized event, IBES, quarterly, or factor-estimation code | `abr`, `beta`, `chtx`, `cinvest`, `ni`, `nincr`, `re`, `rna`, `Roa1`, `rsup`, `seas1a`, `sue` |
+| Implemented through the shared Green annual builder | `acc`, `adm`, `agr`, `alm`, `ato`, `bm`, `bm_ia`, `cash`, `cashdebt`, `cfp`, `chcsho`, `chpm`, `depr`, `dy`, `ep`, `gma`, `grltnoa`, `herf`, `hire`, `lev`, `lgr`, `me_ia`, `noa`, `op`, `pctacc`, `pm`, `ps`, `rd_sale`, `rdm`, `roe`, `sgr`, `sp` |
+| Implemented through the shared Green monthly builder | `dolvol`, `me`, `mom1m`, `mom6m`, `mom12m`, `mom36m`, `mom60m`, `mvel1`, `seas1a`, `turn` |
+| Implemented through daily-CRSP monthly builders | `baspread`, `ill`, `maxret`, `rvar_mean`, `std_dolvol`, `std_turn`, `zerotrade` |
+| Implemented through quarterly Compustat builders | `chtx`, `cinvest`, `ni`, `nincr`, `rna`, `roa1`, `rsup`, `sue` |
+| Implemented with specialized factor / event / IBES builders | `abr`, `beta`, `re`, `rvar_capm`, `rvar_ff3` |
 
 The full Green-style target list, descriptions, timing families, and folder
 names are tracked in `Character_Builders/CHARACTER_CATALOG.md`.

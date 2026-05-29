@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+title: Stock Characters
+message: >-
+  If you use this repository in academic work, please cite it using the metadata
+  below and acknowledge the underlying data providers (WRDS, CRSP, Compustat,
+  IBES, and Fama-French factors) according to their license terms.
+type: software
+authors:
+  - family-names: Aminimehr
+    given-names: Amin
+    email: aminiman@mail.uc.edu
+repository-code: "https://github.com/aminaminimehr/Stock_Characters"
+url: "https://github.com/aminaminimehr/Stock_Characters"
+license: MIT
+version: 0.1.0
+date-released: 2026-05-29
+keywords:
+  - asset pricing
+  - stock characteristics
+  - return prediction
+  - CRSP
+  - Compustat
+preferred-citation:
+  type: software
+  title: "Stock Characters: Reproducible Python Builders for Green-Style and HXZ-Style Signals"
+  authors:
+    - family-names: Aminimehr
+      given-names: Amin
+  year: 2026
+  url: "https://github.com/aminaminimehr/Stock_Characters"

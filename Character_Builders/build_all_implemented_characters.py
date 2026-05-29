@@ -3,6 +3,8 @@ from pathlib import Path
 
 import numpy as np
 
+from _shared.beta_builder import build_beta_character
+from _shared.event_builders import build_abr_character
 from _shared.green_builders import (
     ANNUAL_CHARACTER_INFO,
     DAILY_MONTHLY_CHARACTER_INFO,
@@ -16,20 +18,16 @@ from _shared.green_builders import (
     load_ccm_links,
     load_crsp_monthly,
     load_daily_monthly,
+    write_character,
 )
+from _shared.ibes_builders import build_re_character
+from _shared.quarterly_builders import QUARTERLY_CHARACTER_INFO, build_quarterly_character
+from _shared.rvar_factor_builders import build_factor_rvar
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = PROJECT_ROOT / "outputs"
 ANNUAL_ID_COLUMNS = ["permno", "permco", "gvkey", "datadate", "sic", "fyear"]
-
-
-def write_character(df, character, output_dir):
-    out = df.copy()
-    out = out[out[character].replace([np.inf, -np.inf], np.nan).notna()].copy()
-    output_path = output_dir / f"{character}.csv"
-    out.to_csv(output_path, index=False)
-    print(f"{character}: {len(out):,} rows -> {output_path}")
 
 
 def build_annual_characters(db, output_dir, ccm_linktypes=None, ccm_linkprim=None):
@@ -44,6 +42,24 @@ def build_monthly_characters(db, output_dir):
     for character in MONTHLY_CHARACTER_INFO:
         out = build_monthly_character(db, character)
         write_character(out, character, output_dir)
+
+
+def build_quarterly_characters(db, output_dir, ccm_linktypes=None, ccm_linkprim=None):
+    for character in QUARTERLY_CHARACTER_INFO:
+        out = build_quarterly_character(db, character, ccm_linktypes, ccm_linkprim)
+        write_character(out, character, output_dir)
+
+
+def build_special_characters(db, output_dir, ccm_linktypes=None, ccm_linkprim=None):
+    write_character(build_beta_character(db), "beta", output_dir)
+    write_character(build_abr_character(db, ccm_linktypes, ccm_linkprim), "abr", output_dir)
+    write_character(build_re_character(db), "re", output_dir)
+    write_character(build_factor_rvar(db, "rvar_capm", ["mktrf"]), "rvar_capm", output_dir)
+    write_character(
+        build_factor_rvar(db, "rvar_ff3", ["mktrf", "smb", "hml"]),
+        "rvar_ff3",
+        output_dir,
+    )
 
 
 def build_daily_monthly_characters(db, output_dir):
@@ -82,6 +98,11 @@ def main():
         action="store_true",
         help="Build only daily-CRSP based monthly characters.",
     )
+    parser.add_argument(
+        "--skip-special",
+        action="store_true",
+        help="Skip beta, abr, re, and residual-variance characters.",
+    )
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
@@ -96,6 +117,13 @@ def main():
                 db, output_dir, args.ccm_linktypes, args.ccm_linkprim
             )
             build_monthly_characters(db, output_dir)
+            build_quarterly_characters(
+                db, output_dir, args.ccm_linktypes, args.ccm_linkprim
+            )
+            if not args.skip_special:
+                build_special_characters(
+                    db, output_dir, args.ccm_linktypes, args.ccm_linkprim
+                )
         if args.only_daily or not args.skip_daily:
             build_daily_monthly_characters(db, output_dir)
     finally:
