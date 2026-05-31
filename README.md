@@ -16,6 +16,7 @@ organized around Green-style SAS definitions.
 - [CRSP/Compustat Linking Policy](#crspcompustat-linking-policy)
 - [WRDS Access](#wrds-access)
 - [Requirements](#requirements)
+- [Runtime and Hardware](#runtime-and-hardware)
 - [Character Builders](#character-builders)
 - [Book-To-Market Specifications](#book-to-market-specifications)
 - [Construction Policy](#construction-policy)
@@ -192,6 +193,35 @@ Install them with:
 ```powershell
 pip install -r requirements.txt
 ```
+
+---
+
+## Runtime and Hardware
+
+Building the full characteristic set is **time-consuming** and should be run on a
+**strong workstation or server**, not a lightweight laptop.
+
+A complete WRDS-backed run that builds every implemented character and merges the
+monthly panels can take **many hours** end to end. On typical hardware, a full
+first build often takes **more than half a day**, and **8–12+ hours** is common.
+Longer runtimes are possible when WRDS is slow, network transfer is limited, or
+the machine has less RAM and must rely more heavily on disk I/O. The slowest steps are usually:
+
+- large WRDS pulls for daily CRSP and Compustat data,
+- quarterly characteristics expanded to monthly signal months,
+- daily-based monthly variables such as `beta`, `abr`, and residual-variance
+  measures,
+- and the final merge of many large CSV files into the all-character panel.
+
+These jobs also use **substantial memory**. Panel merges and some event-style
+builders can require **many gigabytes of RAM** at peak. A machine with at least
+**16 GB RAM** is a practical minimum; **32 GB or more** is safer for the full
+pipeline.
+
+If a run is interrupted, the builders support resume-friendly flags such as
+`--skip-existing`, `--skip-annual-monthly`, and `--skip-ibes`, and the panel
+scripts can be rerun with `--skip-build` once the individual character CSV files
+already exist in `outputs/`.
 
 ---
 
