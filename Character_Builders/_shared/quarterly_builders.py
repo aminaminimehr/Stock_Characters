@@ -28,6 +28,17 @@ QUARTERLY_CHARACTER_INFO = {
 
 QUARTERLY_ID_COLUMNS = ["permno", "permco", "gvkey", "datadate", "sic", "fyearq", "fqtr"]
 
+_MONTHLY_CRSP_PANEL = None
+
+
+def get_monthly_crsp_panel(db):
+    global _MONTHLY_CRSP_PANEL
+    if _MONTHLY_CRSP_PANEL is None:
+        _MONTHLY_CRSP_PANEL = load_crsp_monthly(db)[
+            ["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "siccd", "exchcd", "shrcd"]
+        ].rename(columns={"siccd": "sic"})
+    return _MONTHLY_CRSP_PANEL
+
 
 def lag_by_gvkey(df, column, periods=1):
     return df.groupby("gvkey")[column].shift(periods)
@@ -35,7 +46,7 @@ def lag_by_gvkey(df, column, periods=1):
 
 def load_quarterly_compustat(db):
     comp = db.raw_sql("""
-        SELECT c.gvkey, SUBSTR(compress(f.cusip), 1, 6) AS cusip6, f.datadate, f.fyearq, f.fqtr, f.rdq, c.sic,
+        SELECT c.gvkey, SUBSTR(REPLACE(f.cusip, ' ', ''), 1, 6) AS cusip6, f.datadate, f.fyearq, f.fqtr, f.rdq, c.sic,
                f.ibq, f.saleq, f.txtq, f.revtq, f.cogsq, f.xsgaq, f.xintq,
                f.atq, f.actq, f.cheq, f.lctq, f.dlcq, f.dlttq, f.ppentq,
                f.ceqq, f.seqq, f.pstkq, f.pstkrq, f.ltq,
@@ -63,7 +74,7 @@ def load_quarterly_compustat(db):
 
 def load_quarterly_ibes(db):
     return db.raw_sql("""
-        SELECT SUBSTR(compress(cusip), 1, 6) AS cusip6,
+        SELECT SUBSTR(REPLACE(cusip, ' ', ''), 1, 6) AS cusip6,
                fpedats, statpers, medest, actual
         FROM ibes.statsum_epsus
         WHERE fpi = '6'
@@ -104,7 +115,7 @@ def compute_quarterly_characters(comp):
     scal = scal.fillna(comp["atq"] - comp["ltq"])
 
     comp["chtx"] = safe_divide(comp["txtq"] - comp["lag4_txtq"], comp["lag4_atq"])
-    comp["roa1"] = safe_divide(comp["ibq"], comp["lag_atq"])
+    comp["roa1"] = safe_divide(comp["ibq"], comp["lag1_atq"])
     comp["rsup"] = safe_divide(comp["saleq"] - comp["lag4_saleq"], comp["prccq"] * comp["cshoq"])
 
     operating_assets = comp["atq"] - comp["cheq"]
@@ -112,10 +123,10 @@ def compute_quarterly_characters(comp):
     comp["noa_level"] = operating_assets - operating_liabilities
     comp["rna"] = safe_divide(comp["oiadpq"], lag_by_gvkey(comp, "noa_level", 4))
 
-    pp_change = safe_divide(comp["ppentq"] - comp["lag_ppentq"], comp["saleq"])
+    pp_change = safe_divide(comp["ppentq"] - comp["lag1_ppentq"], comp["saleq"])
     pp_mean = pd.concat(
         [
-            safe_divide(comp["lag_ppentq"] - comp["lag2_ppentq"], comp["lag_saleq"]),
+            safe_divide(comp["lag1_ppentq"] - comp["lag2_ppentq"], comp["lag1_saleq"]),
             safe_divide(comp["lag2_ppentq"] - comp["lag3_ppentq"], comp["lag2_saleq"]),
             safe_divide(comp["lag3_ppentq"] - comp["lag4_ppentq"], comp["lag3_saleq"]),
         ],
@@ -123,19 +134,27 @@ def compute_quarterly_characters(comp):
     ).mean(axis=1)
     comp["cinvest"] = pp_change - pp_mean
     low_sale = comp["saleq"] <= 0
-    comp.loc[low_sale, "cinvest"] = safe_divide(comp["ppentq"] - comp["lag_ppentq"], 0.01) - pp_mean
+    comp.loc[low_sale, "cinvest"] = (
+        (comp.loc[low_sale, "ppentq"] - comp.loc[low_sale, "lag1_ppentq"]) / 0.01
+        - pp_mean.loc[low_sale]
+    )
+
+    def qinc(left, right):
+        return (left > right).fillna(False).astype(int)
 
     increases = [
-        comp["ibq"] > comp["lag_ibq"],
-        comp["lag_ibq"] > comp["lag2_ibq"],
-        comp["lag2_ibq"] > comp["lag3_ibq"],
-        comp["lag3_ibq"] > comp["lag4_ibq"],
-        comp["lag4_ibq"] > comp["lag5_ibq"],
-        comp["lag5_ibq"] > comp["lag6_ibq"],
-        comp["lag6_ibq"] > comp["lag7_ibq"],
-        comp["lag7_ibq"] > comp["lag8_ibq"],
+        qinc(comp["ibq"], comp["lag1_ibq"]),
+        qinc(comp["lag1_ibq"], comp["lag2_ibq"]),
+        qinc(comp["lag2_ibq"], comp["lag3_ibq"]),
+        qinc(comp["lag3_ibq"], comp["lag4_ibq"]),
+        qinc(comp["lag4_ibq"], comp["lag5_ibq"]),
+        qinc(comp["lag5_ibq"], comp["lag6_ibq"]),
+        qinc(comp["lag6_ibq"], comp["lag7_ibq"]),
+        qinc(comp["lag7_ibq"], comp["lag8_ibq"]),
     ]
-    comp["nincr"] = sum(ind.astype(int) for ind in increases)
+    comp["nincr"] = increases[0]
+    for extra in increases[1:]:
+        comp["nincr"] = comp["nincr"] + comp["nincr"] * extra
 
     shares = comp["cshoq"] * comp["ajexq"]
     lag_shares = comp["lag4_cshoq"] * comp["lag4_ajexq"]
@@ -158,42 +177,93 @@ def compute_quarterly_characters(comp):
 
 
 def expand_quarterly_to_monthly(db, quarterly, character):
-    monthly = load_crsp_monthly(db)[
-        ["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "siccd", "exchcd", "shrcd"]
-    ].rename(columns={"siccd": "sic"})
+    monthly = get_monthly_crsp_panel(db)[
+        ["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "sic", "exchcd", "shrcd"]
+    ].copy()
+    monthly["date"] = pd.to_datetime(monthly["date"])
+    monthly["permno"] = pd.to_numeric(monthly["permno"], errors="coerce").astype("int64")
+    monthly = monthly.drop_duplicates(["permno", "date"], keep="last")
 
-    qcols = QUARTERLY_ID_COLUMNS + [character]
-    q = quarterly[qcols].copy()
+    q = quarterly[["permno", "datadate", character]].copy()
+    q["permno"] = pd.to_numeric(q["permno"], errors="coerce").astype("int64")
     q["datadate"] = pd.to_datetime(q["datadate"])
     q["valid_through"] = q["datadate"] + pd.DateOffset(months=12) + pd.offsets.MonthEnd(0)
+    q = q[q[character].replace([np.inf, -np.inf], np.nan).notna()].copy()
+    q = q.sort_values(["permno", "datadate"])
 
-    merged = monthly.merge(q, on="permno", how="inner")
-    merged = merged[
-        (merged["datadate"] <= merged["date"])
-        & (merged["date"] <= merged["valid_through"])
-    ]
-    merged = (
-        merged.sort_values(["permno", "date", "datadate"])
-        .drop_duplicates(["permno", "signal_yyyymm"], keep="last")
-    )
-    merged = merged[merged[character].replace([np.inf, -np.inf], np.nan).notna()].copy()
+    valid_permnos = q["permno"].unique()
+    monthly = monthly[monthly["permno"].isin(valid_permnos)]
+
+    q_by_permno = {
+        permno: grp[["datadate", "valid_through", character]]
+        for permno, grp in q.groupby("permno", sort=False)
+    }
+    parts = []
+    for permno, m_grp in monthly.groupby("permno", sort=False):
+        q_grp = q_by_permno.get(permno)
+        if q_grp is None or q_grp.empty:
+            continue
+        m_grp = m_grp.sort_values("date")
+        part = pd.merge_asof(
+            m_grp,
+            q_grp,
+            left_on="date",
+            right_on="datadate",
+            direction="backward",
+        )
+        part = part[part["datadate"].notna() & (part["date"] <= part["valid_through"])]
+        if not part.empty:
+            parts.append(part)
+
+    if not parts:
+        return pd.DataFrame(
+            columns=[
+                "permno",
+                "permco",
+                "date",
+                "signal_yyyymm",
+                "target_yyyymm",
+                "sic",
+                "exchcd",
+                "shrcd",
+                character,
+            ]
+        )
+
+    merged = pd.concat(parts, ignore_index=True)
+    merged = merged.drop(columns=["valid_through", "datadate"], errors="ignore")
     return merged[
         ["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "sic", "exchcd", "shrcd", character]
     ]
 
 
-def build_quarterly_character(db, character, ccm_linktypes=None, ccm_linkprim=None):
+def prepare_quarterly_compustat_panel(
+    db, ccm_linktypes=None, ccm_linkprim=None, use_ibes=True
+):
     comp = load_quarterly_compustat(db)
-    try:
-        ibes = load_quarterly_ibes(db)
-        comp = attach_ibes_to_quarterly(comp, ibes)
-    except Exception:
+    if use_ibes:
+        try:
+            ibes = load_quarterly_ibes(db)
+            comp = attach_ibes_to_quarterly(comp, ibes)
+        except Exception:
+            comp["medest"] = np.nan
+            comp["actual"] = np.nan
+    else:
         comp["medest"] = np.nan
         comp["actual"] = np.nan
 
     comp = compute_quarterly_characters(comp)
     comp = attach_ccm_links(comp, load_ccm_links(db, ccm_linktypes, ccm_linkprim))
-    comp = comp[comp["permno"].notna()].copy()
+    return comp[comp["permno"].notna()].copy()
+
+
+def build_quarterly_character(
+    db, character, ccm_linktypes=None, ccm_linkprim=None, use_ibes=True, comp=None
+):
+    if comp is None:
+        comp = prepare_quarterly_compustat_panel(
+            db, ccm_linktypes, ccm_linkprim, use_ibes=use_ibes
+        )
     return expand_quarterly_to_monthly(db, comp, character)
 
 

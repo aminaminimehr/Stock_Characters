@@ -22,6 +22,9 @@ organized around Green-style SAS definitions.
 - [Construction Policy](#construction-policy)
 - [Imputation Utilities](#imputation-utilities)
 - [Panel Construction Workflow](#panel-construction-workflow)
+  - [Recommended: full pipeline](#recommended-full-pipeline-from-scratch)
+  - [Recovering from partial builds](#recovering-from-partial-builds)
+  - [Partial / legacy workflows](#partial--legacy-workflows)
 - [Generated Outputs](#generated-outputs)
 
 ---
@@ -437,107 +440,162 @@ and 49 industries.
 
 ## Panel Construction Workflow
 
-The raw character builders keep the actual Compustat `datadate`. Monthly
-prediction files can be created with
-`Character_Panels/build_monthly_character_panel.py`, which assigns each row
-an explicit predictor month, `signal_yyyymm`, and a next-month return marker,
-`target_yyyymm`.
+The raw character builders keep the actual Compustat `datadate`. Monthly signal
+files use `signal_yyyymm` for the predictor month and `target_yyyymm` for the
+next-month return month.
 
-Annual accounting characteristics are observable at the end of June after the
-fiscal-year calendar year. A fiscal year ending in calendar year `y` is repeated
-from `signal_yyyymm = June y+1` through `May y+2`; the matching return months
-are stored as `target_yyyymm = July y+1` through `June y+2`. For prediction,
-keep the characteristic value fixed over its valid holding period and merge it
-with the next-month return, so that `signal_yyyymm` always precedes
-`target_yyyymm`. If fiscal-year-end changes cause overlapping annual signals
-for the same `permno` and signal month, the panel keeps the latest available
-Compustat `datadate`.
+Annual accounting characteristics follow the June availability convention
+described in [Construction Policy](#construction-policy). If fiscal-year-end
+changes create overlapping annual signals for the same `permno` and signal
+month, the panel keeps the latest available Compustat `datadate`.
 
-### Step 1. Build Individual Character Files
+**Important:** Running only the four HXZ builders plus `mvel1` creates about
+**five** character CSV files. That is **not** the full repository panel. The
+full set requires `Character_Builders/build_all_implemented_characters.py`
+(which builds the Green-style annual, monthly, quarterly, daily, and special
+characters) plus the HXZ builders, then the panel merge scripts below.
 
-First build the individual character files:
+### Recommended: full pipeline (from scratch)
+
+Run everything from the **repository root** after [WRDS Access](#wrds-access) and
+[Requirements](#requirements) are set up. See [Runtime and Hardware](#runtime-and-hardware)
+for expected runtimes.
+
+**Expected result (default, without IBES):**
+
+| Artifact | Typical count |
+| --- | ---: |
+| Individual `outputs/*.csv` character files | **65** |
+| `outputs/all_character_signal_panel.csv` predictors | **65** |
+| `outputs/research_panel_1957_ranked.csv` predictors | **65** |
+
+Add `--skip-ibes` when WRDS IBES access is unavailable (`re` is omitted; `sue`
+uses Compustat-only surprise). With full IBES access, omit `--skip-ibes` for
+**66** predictors.
+
+#### Linux / macOS server
+
+```bash
+cd Stock_Characters
+pip install -r requirements.txt
+export WRDS_USER=your_wrds_username
+export PGPASSFILE=~/.pgpass   # or your WRDS pgpass path
+chmod +x run_full_pipeline.sh
+bash run_full_pipeline.sh
+```
+
+#### Windows
+
+```powershell
+cd Stock_Characters
+pip install -r requirements.txt
+$env:WRDS_USER = "your_wrds_username"
+$env:PGPASSFILE = "$env:APPDATA\postgresql\pgpass.conf"
+.\run_full_pipeline.ps1
+```
+
+#### Cross-platform (same steps as the scripts above)
+
+```powershell
+python Character_Panels/run_full_pipeline.py --wrds-user YOUR_WRDS_USERNAME --skip-ibes
+```
+
+#### What the full pipeline runs, in order
+
+1. **`Character_Builders/build_all_implemented_characters.py`** — bulk Green-style
+   builders: annual, monthly (`me`, `mom*`, `mvel1`, `seas1a`, `turn`, …),
+   quarterly (`chtx`, `sue`, …), daily-based monthly (`ill`, `baspread`, …),
+   and special characters (`beta`, `abr`, `rvar_*`). Pass `--skip-ibes` if IBES
+   is restricted.
+2. **HXZ builders** — `book_to_market`, `book_to_june_market_equity`,
+   `operating_profitability`, `cash_flow_to_price` (separate column names from
+   Green `bm` / `op` / `cfp`).
+3. **`Return_Builders/build_excess_returns.py`**
+4. **`Character_Panels/build_all_character_panel.py`** — merges all compatible
+   `outputs/*.csv` files into `outputs/all_character_signal_panel.csv`.
+5. **`Character_Panels/build_complete_prediction_panel.py`** — merges signals to
+   next-month returns → `outputs/complete_all_character_prediction_panel.csv`.
+6. **`Character_Panels/build_research_panel_1957.py`** — winsorize, FF49 impute,
+   rank to `[-1, 1]` → `outputs/research_panel_1957_ranked.csv`.
+
+Logs are appended to `outputs/pipeline_run.log`.
+
+#### Resume after interruption
+
+If some character CSVs already exist:
+
+```powershell
+python Character_Panels/run_full_pipeline.py --wrds-user YOUR_WRDS_USERNAME --skip-ibes --resume
+```
+
+`--resume` passes `--skip-existing` and `--skip-annual-monthly` to the bulk
+builder (useful when annual/monthly files are already done and only slower
+quarterly/daily/special builds remain).
+
+To **rebuild panels only** from existing CSVs (no WRDS queries):
+
+```powershell
+python Character_Panels/run_full_pipeline.py --wrds-user YOUR_WRDS_USERNAME --skip-build
+```
+
+### Recovering from partial builds
+
+If you previously followed an older README snippet that only listed the HXZ
+builders and `mvel1`, you likely have only a handful of files in `outputs/`.
+Either:
+
+- **Clean restart (recommended on a new server):** remove generated CSVs in
+  `outputs/` (keep `.gitkeep`), then run the [full pipeline](#recommended-full-pipeline-from-scratch); or
+- **Keep existing HXZ files:** run the bulk builder without skipping annual/monthly:
+
+```powershell
+python Character_Builders/build_all_implemented_characters.py --wrds-user YOUR_WRDS_USERNAME --skip-ibes --skip-existing
+python Character_Panels/run_full_pipeline.py --wrds-user YOUR_WRDS_USERNAME --skip-ibes --skip-build
+```
+
+The second command rebuilds panels only after the bulk builder finishes.
+
+### Partial / legacy workflows
+
+These scripts are for **subsets** or older two-step panel layouts. They do **not**
+replace the full pipeline above.
+
+| Goal | Script |
+| --- | --- |
+| All characters in one monthly signal file | `Character_Panels/build_all_character_panel.py` |
+| Annual raw files only → June-timed annual panel | `Character_Panels/build_annual_character_panel.py` |
+| Monthly raw files only → monthly prediction panel | `Character_Panels/build_monthly_character_panel.py` |
+| Single character | `Character_Builders/<folder>/build_*.py` or `build_all_implemented_characters.py` with filters |
+
+Individual HXZ / `mvel1` commands (for debugging only):
 
 ```powershell
 python Character_Builders/HXZ_BM_Generalized/build_book_to_market.py --wrds-user YOUR_WRDS_USERNAME
 python Character_Builders/HXZ_BMJ_Generalized/build_book_to_june_market_equity.py --wrds-user YOUR_WRDS_USERNAME
 python Character_Builders/HXZ_OPE_Generalized/build_operating_profitability.py --wrds-user YOUR_WRDS_USERNAME
 python Character_Builders/HXZ_CFP_Generalized/build_cash_flow_to_price.py --wrds-user YOUR_WRDS_USERNAME --use-imputed-market-equity
-python Character_Builders/Green_MVEL1_Generalized/build_mvel1.py --wrds-user YOUR_WRDS_USERNAME
 ```
 
-### Step 2. Build Monthly Excess Returns
-
-Then build monthly excess returns:
-
-```powershell
-python Return_Builders/build_excess_returns.py --wrds-user YOUR_WRDS_USERNAME
-```
-
-### Step 3. Create The Annual Raw Panel
-
-Then create the annual raw panel with:
-
-```powershell
-python Character_Panels/build_annual_character_panel.py
-```
-
-### Step 4. Create The Monthly Prediction Panel
-
-Then create the monthly prediction panel with:
-
-```powershell
-python Character_Panels/build_monthly_character_panel.py
-```
-
-### Step 5. Combine Compatible Character CSV Files
-
-Or combine all compatible generated character CSV files with:
-
-```powershell
-python Character_Panels/build_all_character_panel.py
-```
-
-### Step 6. Merge Characters With Next-Month Excess Returns
-
-Finally, merge the monthly character panel to next-month excess returns:
-
-```powershell
-python Character_Panels/build_complete_prediction_panel.py
-```
-
-For the broad all-character panel, pass the all-character signal file
-explicitly:
-
-```powershell
-python Character_Panels/build_complete_prediction_panel.py --characters outputs/all_character_signal_panel.csv --returns outputs/excess_returns.csv --output outputs/complete_all_character_prediction_panel.csv
-```
-
-### Step 7. Build The 1957+ Research Panel
-
-After the broad prediction panel exists, create the winsorized, industry-median
-imputed, rank-normalized research panel with:
-
-```powershell
-python Character_Panels/build_research_panel_1957.py
-```
-
-Output:
-
-```text
-outputs/research_panel_1957_ranked.csv
-```
+`mvel1` is already built by `build_all_implemented_characters.py`; a separate
+`Green_MVEL1_Generalized` run is optional.
 
 ---
 
 ## Generated Outputs
 
-The complete panel is saved to `outputs/complete_prediction_panel.csv`. It keeps
-character timing untouched and merges returns on `permno` and `target_yyyymm`.
+Primary full-panel outputs:
 
-The broad research panel is saved to `outputs/research_panel_1957_ranked.csv`.
-It starts in target month `195701`, includes next-month `excess_return`, and
-stores each usable characteristic after monthly winsorization, FF49
-industry-median imputation, and `[-1, 1]` rank normalization.
+| File | Description |
+| --- | --- |
+| `outputs/all_character_signal_panel.csv` | All characters on `permno` / `signal_yyyymm` / `target_yyyymm` |
+| `outputs/complete_all_character_prediction_panel.csv` | Signal panel merged to next-month `excess_return` |
+| `outputs/research_panel_1957_ranked.csv` | 195701+ panel with winsorization, FF49 imputation, ranks in `[-1, 1]` |
+| `outputs/excess_returns.csv` | CRSP excess returns by `permno` / `target_yyyymm` |
 
-Generated files are written to the `outputs/` folder by default. The folder is
-kept in the repository, but generated data files inside it are ignored by Git.
+Narrower legacy files (not required for the full pipeline):
+
+- `outputs/complete_prediction_panel.csv` — smaller monthly/annual workflow
+- `outputs/annual_character_panel.csv`, `outputs/monthly_character_panel.csv`
+
+Generated files are written to `outputs/` by default. The folder is tracked in
+Git, but generated CSVs inside it are ignored.

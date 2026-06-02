@@ -3,10 +3,17 @@
 This folder contains scripts that combine individual character builders into
 larger panels.
 
-These scripts do not connect to WRDS. They expect the individual character files
-to already exist in `outputs/`.
+**Full repository panel:** see the root [README](../README.md#recommended-full-pipeline-from-scratch).
+Run `Character_Panels/run_full_pipeline.py` (or `run_full_pipeline.sh` /
+`run_full_pipeline.ps1`) from the repository root. That builds all characters
+via WRDS, then creates `all_character_signal_panel.csv` and
+`research_panel_1957_ranked.csv`.
 
-For the annual accounting panel, run:
+The panel scripts below do **not** connect to WRDS. They expect individual
+character CSV files to already exist in `outputs/`.
+
+The following HXZ-only commands build a **small subset** (about five files) and
+are **not** sufficient for the full all-character panel:
 
 ```powershell
 python Character_Builders/HXZ_BM_Generalized/build_book_to_market.py --wrds-user YOUR_WRDS_USERNAME
@@ -15,11 +22,9 @@ python Character_Builders/HXZ_OPE_Generalized/build_operating_profitability.py -
 python Character_Builders/HXZ_CFP_Generalized/build_cash_flow_to_price.py --wrds-user YOUR_WRDS_USERNAME --use-imputed-market-equity
 ```
 
-For the monthly prediction panel, also run:
-
-```powershell
-python Character_Builders/Green_MVEL1_Generalized/build_mvel1.py --wrds-user YOUR_WRDS_USERNAME
-```
+For the legacy narrow annual panel workflow, those four files are required. For
+the full panel, run `build_all_implemented_characters.py` first (includes
+`mvel1` and all Green-style characters).
 
 Required local files for the annual panel:
 
