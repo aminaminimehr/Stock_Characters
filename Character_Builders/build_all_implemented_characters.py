@@ -26,7 +26,7 @@ from _shared.quarterly_builders import (
     build_quarterly_character,
     prepare_quarterly_compustat_panel,
 )
-from _shared.rvar_factor_builders import build_factor_rvar
+from _shared.rvar_factor_builders import RVAR_SPECS, build_factor_rvar, clear_rvar_caches
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -97,11 +97,6 @@ def build_special_characters(
     special_jobs = [
         ("beta", lambda: build_beta_character(db)),
         ("abr", lambda: build_abr_character(db, ccm_linktypes, ccm_linkprim)),
-        ("rvar_capm", lambda: build_factor_rvar(db, "rvar_capm", ["mktrf"])),
-        (
-            "rvar_ff3",
-            lambda: build_factor_rvar(db, "rvar_ff3", ["mktrf", "smb", "hml"]),
-        ),
     ]
     if not skip_ibes:
         special_jobs.insert(2, ("re", lambda: build_re_character(db)))
@@ -111,6 +106,17 @@ def build_special_characters(
             print(f"{name}: skipped (already exists)")
             continue
         write_character(builder(), name, output_dir)
+
+    rvar_pending = [
+        name
+        for name in RVAR_SPECS
+        if not (skip_existing and (output_dir / f"{name}.csv").exists())
+    ]
+    if rvar_pending:
+        clear_rvar_caches()
+        for name in rvar_pending:
+            write_character(build_factor_rvar(db, name, RVAR_SPECS[name]), name, output_dir)
+        clear_rvar_caches()
 
 
 def build_daily_monthly_characters(db, output_dir, skip_existing=False):

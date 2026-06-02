@@ -522,15 +522,21 @@ Logs are appended to `outputs/pipeline_run.log`.
 
 #### Resume after interruption
 
-If some character CSVs already exist:
+If some character CSVs already exist (including after a WRDS timeout):
+
+```bash
+RESUME=1 bash run_full_pipeline.sh
+```
 
 ```powershell
 python Character_Panels/run_full_pipeline.py --wrds-user YOUR_WRDS_USERNAME --skip-ibes --resume
 ```
 
 `--resume` passes `--skip-existing` and `--skip-annual-monthly` to the bulk
-builder (useful when annual/monthly files are already done and only slower
-quarterly/daily/special builds remain).
+builder, so completed files (for example `rvar_capm.csv`) are not rebuilt. Only
+missing characters run—typically `rvar_ff3`, daily CRSP characters
+(`ill`, `baspread`, …), then HXZ files and panel merges if those steps had not
+started yet.
 
 To **rebuild panels only** from existing CSVs (no WRDS queries):
 

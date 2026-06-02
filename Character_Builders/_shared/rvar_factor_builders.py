@@ -3,16 +3,34 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from _shared.green_builders import connect_wrds, load_crsp_monthly
+from _shared.green_builders import connect_wrds, raw_sql_with_retry
+from _shared.quarterly_builders import get_monthly_crsp_panel
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_DIR = PROJECT_ROOT / "outputs"
 
+FF3_FACTORS = ["mktrf", "smb", "hml"]
+RVAR_SPECS = {
+    "rvar_capm": ["mktrf"],
+    "rvar_ff3": ["mktrf", "smb", "hml"],
+}
+
+_DAILY_FACTOR_CACHE = None
+_MONTHLY_ALIGNMENT_CACHE = None
+
+
+def clear_rvar_caches():
+    global _DAILY_FACTOR_CACHE, _MONTHLY_ALIGNMENT_CACHE
+    _DAILY_FACTOR_CACHE = None
+    _MONTHLY_ALIGNMENT_CACHE = None
+
 
 def load_daily_factor_data(db, factors):
     factor_cols = ", ".join(f"f.{factor}" for factor in factors)
-    daily = db.raw_sql(f"""
+    daily = raw_sql_with_retry(
+        db,
+        f"""
         SELECT d.permno, d.date, d.ret, f.rf, {factor_cols},
                dl.dlret
         FROM crsp.dsf AS d
@@ -22,7 +40,8 @@ def load_daily_factor_data(db, factors):
           ON d.permno = dl.permno
          AND d.date = dl.dlstdt
         WHERE d.date >= DATE '1959-01-01'
-    """)
+    """,
+    )
     daily["date"] = pd.to_datetime(daily["date"])
     daily = daily.sort_values(["permno", "date"])
     daily["ret"] = pd.to_numeric(daily["ret"], errors="coerce").fillna(0)
@@ -31,6 +50,24 @@ def load_daily_factor_data(db, factors):
     daily["exret"] = daily["retadj"] - daily["rf"]
     daily["source_yyyymm"] = daily["date"].dt.year * 100 + daily["date"].dt.month
     return daily[["permno", "date", "source_yyyymm", "exret", *factors]]
+
+
+def get_daily_ff_factor_data(db):
+    global _DAILY_FACTOR_CACHE
+    if _DAILY_FACTOR_CACHE is None:
+        _DAILY_FACTOR_CACHE = load_daily_factor_data(db, FF3_FACTORS)
+        print(f"Loaded daily factor rows (cached for rvar builds): {len(_DAILY_FACTOR_CACHE):,}")
+    return _DAILY_FACTOR_CACHE
+
+
+def get_monthly_alignment(db):
+    global _MONTHLY_ALIGNMENT_CACHE
+    if _MONTHLY_ALIGNMENT_CACHE is None:
+        monthly = get_monthly_crsp_panel(db).copy()
+        monthly["source_yyyymm"] = monthly.groupby("permno")["signal_yyyymm"].shift(1)
+        _MONTHLY_ALIGNMENT_CACHE = monthly
+        print(f"Cached monthly CRSP alignment rows: {len(_MONTHLY_ALIGNMENT_CACHE):,}")
+    return _MONTHLY_ALIGNMENT_CACHE
 
 
 def residual_variance(y, x):
@@ -69,19 +106,17 @@ def compute_monthly_residual_variance(daily, factors, character):
 
 
 def build_factor_rvar(db, character, factors):
-    daily = load_daily_factor_data(db, factors)
-    print(f"Loaded daily factor rows: {len(daily):,}")
+    daily = get_daily_ff_factor_data(db)
     rvar = compute_monthly_residual_variance(daily, factors, character)
-    print(f"Computed monthly residual-variance rows: {len(rvar):,}")
+    print(f"Computed monthly residual-variance rows for {character}: {len(rvar):,}")
 
-    monthly = load_crsp_monthly(db)[
-        ["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "siccd", "exchcd", "shrcd"]
-    ].rename(columns={"siccd": "sic"})
-    monthly["source_yyyymm"] = monthly.groupby("permno")["signal_yyyymm"].shift(1)
+    monthly = get_monthly_alignment(db)
     out = monthly.merge(rvar, on=["permno", "source_yyyymm"], how="left")
     print(f"Rows after monthly alignment before dropping missing {character}: {len(out):,}")
     out = out[out[character].replace([np.inf, -np.inf], np.nan).notna()].copy()
-    return out[["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "sic", "exchcd", "shrcd", character]]
+    return out[
+        ["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "sic", "exchcd", "shrcd", character]
+    ]
 
 
 def run_factor_rvar_cli(character, description, factors):
@@ -95,13 +130,15 @@ def run_factor_rvar_cli(character, description, factors):
     output = Path(args.output)
     if not output.is_absolute():
         output = PROJECT_ROOT / output
-    output.parent.mkdir(parents=True, exist_ok=True)
+    output.parent.mkdir(parents=True, exist=True)
 
     db = connect_wrds(args.wrds_user)
     try:
+        clear_rvar_caches()
         result = build_factor_rvar(db, character, factors)
     finally:
         db.close()
+        clear_rvar_caches()
 
     result.to_csv(output, index=False)
     print(f"Saved {character} to: {output}")

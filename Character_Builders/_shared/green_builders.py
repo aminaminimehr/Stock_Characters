@@ -1,4 +1,5 @@
 import argparse
+import time
 from pathlib import Path
 
 import numpy as np
@@ -278,8 +279,34 @@ def build_annual_character(db, character, ccm_linktypes=None, ccm_linkprim=None)
     ].rename(columns={"character_value": character})
 
 
+def raw_sql_with_retry(db, sql, attempts=3, pause_seconds=60):
+    """Retry WRDS queries that fail from transient connection timeouts."""
+    last_exc = None
+    for attempt in range(1, attempts + 1):
+        try:
+            return db.raw_sql(sql)
+        except Exception as exc:
+            last_exc = exc
+            msg = str(exc).lower()
+            retryable = any(
+                token in msg
+                for token in ("timeout", "timed out", "connection", "ssl", "closed", "reset")
+            )
+            if attempt == attempts or not retryable:
+                raise
+            print(
+                f"WRDS query failed (attempt {attempt}/{attempts}): {exc}; "
+                f"retrying in {pause_seconds}s...",
+                flush=True,
+            )
+            time.sleep(pause_seconds)
+    raise last_exc
+
+
 def load_crsp_monthly(db):
-    crsp = db.raw_sql("""
+    crsp = raw_sql_with_retry(
+        db,
+        """
         SELECT m.permno, m.permco, m.date, m.ret, m.retx, m.prc, m.shrout, m.vol,
                n.exchcd, n.shrcd, n.siccd
         FROM crsp.msf AS m
@@ -289,7 +316,8 @@ def load_crsp_monthly(db):
          AND m.date <= COALESCE(n.nameendt, DATE '9999-12-31')
         WHERE n.shrcd IN (10, 11)
           AND n.exchcd IN (1, 2, 3)
-    """)
+    """,
+    )
     crsp["date"] = pd.to_datetime(crsp["date"])
     crsp = crsp.sort_values(["permno", "date"])
     crsp["ret"] = pd.to_numeric(crsp["ret"], errors="coerce")
