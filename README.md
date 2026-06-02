@@ -540,11 +540,11 @@ python Character_Panels/run_full_pipeline.py --wrds-user YOUR_WRDS_USERNAME --sk
 
 ### Recovering from partial builds
 
-If you previously followed an older README snippet that only listed the HXZ
-builders and `mvel1`, you likely have only a handful of files in `outputs/`.
+If you previously have used some of the individual
+builders, you likely have only a handful of files in `outputs/`.
 Either:
 
-- **Clean restart (recommended on a new server):** remove generated CSVs in
+- **Clean restart (recommended):** remove generated CSVs in
   `outputs/` (keep `.gitkeep`), then run the [full pipeline](#recommended-full-pipeline-from-scratch); or
 - **Keep existing HXZ files:** run the bulk builder without skipping annual/monthly:
 
