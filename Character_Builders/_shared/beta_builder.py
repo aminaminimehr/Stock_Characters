@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from _shared.green_builders import OUTPUT_DIR, connect_wrds, load_crsp_monthly
+from _shared.green_builders import OUTPUT_DIR, connect_wrds, load_monthly_alignment_frame
 from _shared.rvar_factor_builders import load_daily_factor_data
 
 
@@ -42,14 +42,11 @@ def compute_monthly_beta(daily, character="beta"):
     return pd.DataFrame(rows, columns=["permno", "source_yyyymm", character])
 
 
-def build_beta_character(db):
+def build_beta_character(db, output_dir=OUTPUT_DIR):
     daily = load_daily_factor_data(db, ["mktrf"])
     beta = compute_monthly_beta(daily, "beta")
 
-    monthly = load_crsp_monthly(db)[
-        ["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "siccd", "exchcd", "shrcd"]
-    ].rename(columns={"siccd": "sic"})
-    monthly["source_yyyymm"] = monthly.groupby("permno")["signal_yyyymm"].shift(1)
+    monthly = load_monthly_alignment_frame(output_dir, db=db)
     out = monthly.merge(beta, on=["permno", "source_yyyymm"], how="left")
     out = out[out["beta"].replace([np.inf, -np.inf], np.nan).notna()].copy()
     return out[["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "sic", "exchcd", "shrcd", "beta"]]

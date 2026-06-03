@@ -386,7 +386,26 @@ def load_monthly_alignment_frame(output_dir=OUTPUT_DIR, db=None):
     return monthly[MONTHLY_ALIGNMENT_COLUMNS].copy()
 
 
-def load_crsp_monthly(db):
+_MONTHLY_CRSP_CACHE = None
+
+
+def clear_monthly_crsp_cache():
+    global _MONTHLY_CRSP_CACHE
+    _MONTHLY_CRSP_CACHE = None
+
+
+def load_crsp_monthly(db, use_cache=True):
+    """
+    Load filtered CRSP monthly stock file + msenames once per process.
+
+    Xin He / Dacheng Xiu reference scripts (e.g. Rvar_ff3.py, maxret_d.py) typically
+    pull crsp.dsf only and never touch crsp.msf. Our Green-style panel needs msf for
+    permco/sic/exchcd timing, but it must be queried once—not once per characteristic.
+    """
+    global _MONTHLY_CRSP_CACHE
+    if use_cache and _MONTHLY_CRSP_CACHE is not None:
+        return _MONTHLY_CRSP_CACHE
+
     crsp = raw_sql_with_retry(
         db,
         """
@@ -408,6 +427,8 @@ def load_crsp_monthly(db):
     crsp["market_equity"] = crsp["prc_abs"] * crsp["shrout"]
     crsp["signal_yyyymm"] = crsp["date"].dt.year * 100 + crsp["date"].dt.month
     crsp["target_yyyymm"] = crsp["signal_yyyymm"].map(add_one_month)
+    if use_cache:
+        _MONTHLY_CRSP_CACHE = crsp
     return crsp
 
 
@@ -419,8 +440,8 @@ def rolling_return_product(crsp, start_lag, end_lag):
     return (1 + lagged_returns).prod(axis=1, min_count=end_lag - start_lag + 1) - 1
 
 
-def build_monthly_character(db, character):
-    crsp = load_crsp_monthly(db)
+def prepare_monthly_crsp_features(crsp):
+    """Compute all shared monthly CRSP characteristics on one loaded panel."""
     crsp = crsp[crsp["ret"].notna()].copy()
     crsp["return_count"] = crsp.groupby("permno").cumcount() + 1
     crsp["me"] = np.log(crsp.groupby("permno")["market_equity"].shift(1))
@@ -442,18 +463,36 @@ def build_monthly_character(db, character):
     )
     vol_lags = [crsp.groupby("permno")["vol"].shift(i) for i in range(1, 4)]
     crsp["turn"] = pd.concat(vol_lags, axis=1).mean(axis=1) / crsp["shrout"]
+    return crsp.rename(columns={"siccd": "sic"})
 
-    crsp = crsp.rename(columns={"siccd": "sic"})
-    crsp = crsp[crsp[character].replace([np.inf, -np.inf], np.nan).notna()].copy()
-    if character in {"mom36m", "mom60m"} and crsp[character].nunique(dropna=True) == 1:
-        only_value = crsp[character].dropna().iloc[0]
+
+def finalize_monthly_character(crsp, character):
+    out = crsp[crsp[character].replace([np.inf, -np.inf], np.nan).notna()].copy()
+    if character in {"mom36m", "mom60m"} and out[character].nunique(dropna=True) == 1:
+        only_value = out[character].dropna().iloc[0]
         if np.isclose(only_value, -1):
             raise ValueError(
                 f"{character} is degenerate at -1. Recheck the long-horizon momentum input returns."
             )
-    return crsp[
+    return out[
         ["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "sic", "exchcd", "shrcd", character]
     ]
+
+
+def build_monthly_character(db, character, monthly_panel=None):
+    if monthly_panel is None:
+        monthly_panel = prepare_monthly_crsp_features(load_crsp_monthly(db))
+    return finalize_monthly_character(monthly_panel, character)
+
+
+def build_all_monthly_characters(db, characters=None):
+    """One WRDS monthly pull for all Green monthly characteristics (Xiu-style batching)."""
+    characters = characters or list(MONTHLY_CHARACTER_INFO)
+    if not characters:
+        return {}
+    print("Loading CRSP monthly panel once for all monthly characters...", flush=True)
+    monthly_panel = prepare_monthly_crsp_features(load_crsp_monthly(db))
+    return {character: finalize_monthly_character(monthly_panel, character) for character in characters}
 
 
 def load_daily_monthly(db):

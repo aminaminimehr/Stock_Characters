@@ -548,6 +548,16 @@ successful WRDS pull.
 If WRDS still times out, wait and rerun the same resume command; transient
 connection drops are common on long server sessions.
 
+**Why Xin He / Dacheng Xiu scripts rarely hit this:** reference files such as
+`Supplementary_assistive_files/Python_codes/Dacheng_Xiu_or_Xin_he/Rvar_ff3.py` and
+`maxret_d.py` each run **one** `crsp.dsf` download, compute in Python (often with
+multiprocessing), and save a small `.feather` with `permno` / `date` / signal only.
+They **do not** query `crsp.msf` + `msenames`, and they **do not** run 60+ factors in
+one long-lived WRDS session. Our full pipeline adds monthly-panel metadata
+(`permco`, `sic`, `signal_yyyymm`, …) and batches many characteristics; that is
+why we cache monthly CRSP, cache daily factor pulls, and reuse `outputs/me.csv` on
+resume instead of re-downloading the same tables.
+
 To **rebuild panels only** from existing CSVs (no WRDS queries):
 
 ```powershell

@@ -11,6 +11,8 @@ from _shared.green_builders import (
     MONTHLY_CHARACTER_INFO,
     add_ccm_arguments,
     attach_permno,
+    build_all_monthly_characters,
+    clear_monthly_crsp_cache,
     build_monthly_character,
     compute_annual_characters,
     connect_wrds,
@@ -48,11 +50,15 @@ def build_annual_characters(
 
 
 def build_monthly_characters(db, output_dir, skip_existing=False):
-    for character in MONTHLY_CHARACTER_INFO:
-        if skip_existing and (output_dir / f"{character}.csv").exists():
-            print(f"{character}: skipped (already exists)")
-            continue
-        out = build_monthly_character(db, character)
+    pending = [
+        character
+        for character in MONTHLY_CHARACTER_INFO
+        if not (skip_existing and (output_dir / f"{character}.csv").exists())
+    ]
+    if not pending:
+        return
+    monthly_outputs = build_all_monthly_characters(db, pending)
+    for character, out in monthly_outputs.items():
         write_character(out, character, output_dir)
 
 
@@ -95,7 +101,7 @@ def build_special_characters(
     skip_existing=False,
 ):
     special_jobs = [
-        ("beta", lambda: build_beta_character(db)),
+        ("beta", lambda: build_beta_character(db, output_dir)),
         ("abr", lambda: build_abr_character(db, ccm_linktypes, ccm_linkprim)),
     ]
     if not skip_ibes:
@@ -190,6 +196,7 @@ def main():
 
     db = connect_wrds(args.wrds_user)
     try:
+        clear_monthly_crsp_cache()
         if not args.only_daily:
             if not args.skip_annual_monthly:
                 build_annual_characters(
@@ -224,6 +231,7 @@ def main():
                 db, output_dir, skip_existing=args.skip_existing
             )
     finally:
+        clear_monthly_crsp_cache()
         db.close()
 
 

@@ -35,23 +35,35 @@ def clear_rvar_caches():
 
 
 def load_daily_factor_data(db, factors):
+    """
+    Match Xin He / Dacheng Xiu Rvar_ff3.py: one dsf + factors_daily pull, then merge
+    delisting returns in pandas (avoids a heavy per-row SQL join on dsf).
+    """
     factor_cols = ", ".join(f"f.{factor}" for factor in factors)
     daily = raw_sql_with_retry(
         db,
         f"""
-        SELECT d.permno, d.date, d.ret, f.rf, {factor_cols},
-               dl.dlret
+        SELECT d.permno, d.date, d.ret, f.rf, {factor_cols}
         FROM crsp.dsf AS d
         LEFT JOIN ff.factors_daily AS f
           ON d.date = f.date
-        LEFT JOIN crsp.dsedelist AS dl
-          ON d.permno = dl.permno
-         AND d.date = dl.dlstdt
         WHERE d.date >= DATE '1959-01-01'
+    """,
+    )
+    dlret = raw_sql_with_retry(
+        db,
+        """
+        SELECT permno, dlret, dlstdt
+        FROM crsp.dsedelist
+        WHERE dlstdt >= DATE '1959-01-01'
     """,
     )
     daily["date"] = pd.to_datetime(daily["date"])
     daily = daily.sort_values(["permno", "date"])
+    dlret["permno"] = pd.to_numeric(dlret["permno"], errors="coerce").astype("int64")
+    dlret["dlstdt"] = pd.to_datetime(dlret["dlstdt"])
+    dlret = dlret.rename(columns={"dlstdt": "date"})
+    daily = daily.merge(dlret[["permno", "date", "dlret"]], on=["permno", "date"], how="left")
     daily["ret"] = pd.to_numeric(daily["ret"], errors="coerce").fillna(0)
     daily["dlret"] = pd.to_numeric(daily["dlret"], errors="coerce").fillna(0)
     daily["retadj"] = (1 + daily["ret"]) * (1 + daily["dlret"]) - 1
