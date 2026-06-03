@@ -496,8 +496,10 @@ $env:PGPASSFILE = "$env:APPDATA\postgresql\pgpass.conf"
 
 #### Cross-platform (same steps as the scripts above)
 
+Replace `YOUR_WRDS_USERNAME` with your actual WRDS login (for example `aminaminimehr`):
+
 ```powershell
-python Character_Panels/run_full_pipeline.py --wrds-user YOUR_WRDS_USERNAME --skip-ibes
+python Character_Panels/run_full_pipeline.py --wrds-user aminaminimehr --skip-ibes
 ```
 
 #### What the full pipeline runs, in order
@@ -537,6 +539,14 @@ builder, so completed files (for example `rvar_capm.csv`) are not rebuilt. Only
 missing characters run—typically `rvar_ff3`, daily CRSP characters
 (`ill`, `baspread`, …), then HXZ files and panel merges if those steps had not
 started yet.
+
+During resume, monthly timing is read from existing files such as `outputs/me.csv`
+instead of re-querying full monthly CRSP from WRDS. Daily factor data for
+`rvar_*` is cached under `outputs/.cache/daily_ff_factors.pkl` after the first
+successful WRDS pull.
+
+If WRDS still times out, wait and rerun the same resume command; transient
+connection drops are common on long server sessions.
 
 To **rebuild panels only** from existing CSVs (no WRDS queries):
 

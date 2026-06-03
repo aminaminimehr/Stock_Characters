@@ -1,14 +1,18 @@
+import pickle
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from _shared.green_builders import connect_wrds, raw_sql_with_retry
-from _shared.quarterly_builders import get_monthly_crsp_panel
+from _shared.green_builders import (
+    OUTPUT_DIR,
+    connect_wrds,
+    load_monthly_alignment_frame,
+    raw_sql_with_retry,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-OUTPUT_DIR = PROJECT_ROOT / "outputs"
 
 FF3_FACTORS = ["mktrf", "smb", "hml"]
 RVAR_SPECS = {
@@ -18,6 +22,10 @@ RVAR_SPECS = {
 
 _DAILY_FACTOR_CACHE = None
 _MONTHLY_ALIGNMENT_CACHE = None
+
+
+def _daily_factor_cache_path(output_dir):
+    return Path(output_dir) / ".cache" / "daily_ff_factors.pkl"
 
 
 def clear_rvar_caches():
@@ -52,21 +60,34 @@ def load_daily_factor_data(db, factors):
     return daily[["permno", "date", "source_yyyymm", "exret", *factors]]
 
 
-def get_daily_ff_factor_data(db):
+def get_daily_ff_factor_data(db, output_dir=OUTPUT_DIR):
     global _DAILY_FACTOR_CACHE
-    if _DAILY_FACTOR_CACHE is None:
-        _DAILY_FACTOR_CACHE = load_daily_factor_data(db, FF3_FACTORS)
-        print(f"Loaded daily factor rows (cached for rvar builds): {len(_DAILY_FACTOR_CACHE):,}")
+    if _DAILY_FACTOR_CACHE is not None:
+        return _DAILY_FACTOR_CACHE
+
+    cache_path = _daily_factor_cache_path(output_dir)
+    if cache_path.exists():
+        with cache_path.open("rb") as handle:
+            _DAILY_FACTOR_CACHE = pickle.load(handle)
+        print(
+            f"Loaded daily factor rows from local cache ({len(_DAILY_FACTOR_CACHE):,})",
+            flush=True,
+        )
+        return _DAILY_FACTOR_CACHE
+
+    _DAILY_FACTOR_CACHE = load_daily_factor_data(db, FF3_FACTORS)
+    print(f"Loaded daily factor rows from WRDS ({len(_DAILY_FACTOR_CACHE):,})", flush=True)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    with cache_path.open("wb") as handle:
+        pickle.dump(_DAILY_FACTOR_CACHE, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    print(f"Saved daily factor cache to {cache_path}", flush=True)
     return _DAILY_FACTOR_CACHE
 
 
-def get_monthly_alignment(db):
+def get_monthly_alignment(db, output_dir=OUTPUT_DIR):
     global _MONTHLY_ALIGNMENT_CACHE
     if _MONTHLY_ALIGNMENT_CACHE is None:
-        monthly = get_monthly_crsp_panel(db).copy()
-        monthly["source_yyyymm"] = monthly.groupby("permno")["signal_yyyymm"].shift(1)
-        _MONTHLY_ALIGNMENT_CACHE = monthly
-        print(f"Cached monthly CRSP alignment rows: {len(_MONTHLY_ALIGNMENT_CACHE):,}")
+        _MONTHLY_ALIGNMENT_CACHE = load_monthly_alignment_frame(output_dir, db=db)
     return _MONTHLY_ALIGNMENT_CACHE
 
 
@@ -105,12 +126,12 @@ def compute_monthly_residual_variance(daily, factors, character):
     return pd.DataFrame(rows, columns=["permno", "source_yyyymm", character])
 
 
-def build_factor_rvar(db, character, factors):
-    daily = get_daily_ff_factor_data(db)
+def build_factor_rvar(db, character, factors, output_dir=OUTPUT_DIR):
+    daily = get_daily_ff_factor_data(db, output_dir)
     rvar = compute_monthly_residual_variance(daily, factors, character)
     print(f"Computed monthly residual-variance rows for {character}: {len(rvar):,}")
 
-    monthly = get_monthly_alignment(db)
+    monthly = get_monthly_alignment(db, output_dir)
     out = monthly.merge(rvar, on=["permno", "source_yyyymm"], how="left")
     print(f"Rows after monthly alignment before dropping missing {character}: {len(out):,}")
     out = out[out[character].replace([np.inf, -np.inf], np.nan).notna()].copy()
@@ -130,12 +151,13 @@ def run_factor_rvar_cli(character, description, factors):
     output = Path(args.output)
     if not output.is_absolute():
         output = PROJECT_ROOT / output
-    output.parent.mkdir(parents=True, exist=True)
+    output_dir = output.parent
+    output.parent.mkdir(parents=True, exist_ok=True)
 
     db = connect_wrds(args.wrds_user)
     try:
         clear_rvar_caches()
-        result = build_factor_rvar(db, character, factors)
+        result = build_factor_rvar(db, character, factors, output_dir)
     finally:
         db.close()
         clear_rvar_caches()

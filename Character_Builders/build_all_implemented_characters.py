@@ -115,16 +115,19 @@ def build_special_characters(
     if rvar_pending:
         clear_rvar_caches()
         for name in rvar_pending:
-            write_character(build_factor_rvar(db, name, RVAR_SPECS[name]), name, output_dir)
+            write_character(
+                build_factor_rvar(db, name, RVAR_SPECS[name], output_dir),
+                name,
+                output_dir,
+            )
         clear_rvar_caches()
 
 
 def build_daily_monthly_characters(db, output_dir, skip_existing=False):
+    from _shared.green_builders import load_monthly_alignment_frame
+
     daily = load_daily_monthly(db)
-    monthly = load_crsp_monthly(db)[
-        ["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "siccd", "exchcd", "shrcd"]
-    ].rename(columns={"siccd": "sic"})
-    monthly["source_yyyymm"] = monthly.groupby("permno")["signal_yyyymm"].shift(1)
+    monthly = load_monthly_alignment_frame(output_dir, db=db)
 
     for character in DAILY_MONTHLY_CHARACTER_INFO:
         if skip_existing and (output_dir / f"{character}.csv").exists():

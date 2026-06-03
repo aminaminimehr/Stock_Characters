@@ -279,7 +279,22 @@ def build_annual_character(db, character, ccm_linktypes=None, ccm_linkprim=None)
     ].rename(columns={"character_value": character})
 
 
-def raw_sql_with_retry(db, sql, attempts=3, pause_seconds=60):
+def _reset_wrds_connection(db):
+    """Rollback and reconnect after a failed WRDS query."""
+    try:
+        conn = getattr(db, "connection", None)
+        if conn is not None and hasattr(conn, "rollback"):
+            conn.rollback()
+    except Exception:
+        pass
+    try:
+        db.close()
+        db.connect()
+    except Exception as exc:
+        print(f"Warning: could not reset WRDS connection: {exc}", flush=True)
+
+
+def raw_sql_with_retry(db, sql, attempts=5, pause_seconds=120):
     """Retry WRDS queries that fail from transient connection timeouts."""
     last_exc = None
     for attempt in range(1, attempts + 1):
@@ -290,7 +305,16 @@ def raw_sql_with_retry(db, sql, attempts=3, pause_seconds=60):
             msg = str(exc).lower()
             retryable = any(
                 token in msg
-                for token in ("timeout", "timed out", "connection", "ssl", "closed", "reset")
+                for token in (
+                    "timeout",
+                    "timed out",
+                    "connection",
+                    "ssl",
+                    "closed",
+                    "reset",
+                    "rollback",
+                    "invalid transaction",
+                )
             )
             if attempt == attempts or not retryable:
                 raise
@@ -299,8 +323,67 @@ def raw_sql_with_retry(db, sql, attempts=3, pause_seconds=60):
                 f"retrying in {pause_seconds}s...",
                 flush=True,
             )
+            _reset_wrds_connection(db)
             time.sleep(pause_seconds)
     raise last_exc
+
+
+MONTHLY_ALIGNMENT_STEMS = ("me", "mvel1", "mom1m", "dolvol", "beta", "turn")
+MONTHLY_ALIGNMENT_COLUMNS = [
+    "permno",
+    "permco",
+    "date",
+    "signal_yyyymm",
+    "target_yyyymm",
+    "sic",
+    "exchcd",
+    "shrcd",
+    "source_yyyymm",
+]
+
+
+def load_monthly_alignment_frame(output_dir=OUTPUT_DIR, db=None):
+    """
+    Reuse monthly CRSP timing from an existing monthly character CSV when possible.
+    Avoids re-querying crsp.msf during resume runs.
+    """
+    output_dir = Path(output_dir)
+    for stem in MONTHLY_ALIGNMENT_STEMS:
+        path = output_dir / f"{stem}.csv"
+        if not path.exists():
+            continue
+        monthly = pd.read_csv(path)
+        required = {
+            "permno",
+            "permco",
+            "date",
+            "signal_yyyymm",
+            "target_yyyymm",
+            "sic",
+            "exchcd",
+            "shrcd",
+        }
+        if not required.issubset(monthly.columns):
+            continue
+        monthly["date"] = pd.to_datetime(monthly["date"])
+        if "source_yyyymm" not in monthly.columns:
+            monthly["source_yyyymm"] = monthly.groupby("permno")["signal_yyyymm"].shift(1)
+        print(
+            f"Monthly alignment loaded from local {path.name} ({len(monthly):,} rows)",
+            flush=True,
+        )
+        return monthly[MONTHLY_ALIGNMENT_COLUMNS].copy()
+
+    if db is None:
+        raise FileNotFoundError(
+            "No monthly character CSV found for alignment and no WRDS connection supplied."
+        )
+    from _shared.quarterly_builders import get_monthly_crsp_panel
+
+    monthly = get_monthly_crsp_panel(db).copy()
+    monthly["source_yyyymm"] = monthly.groupby("permno")["signal_yyyymm"].shift(1)
+    print(f"Monthly alignment loaded from WRDS ({len(monthly):,} rows)", flush=True)
+    return monthly[MONTHLY_ALIGNMENT_COLUMNS].copy()
 
 
 def load_crsp_monthly(db):
