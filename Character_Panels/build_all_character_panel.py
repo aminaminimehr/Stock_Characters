@@ -6,27 +6,20 @@ import pandas as pd
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-OUTPUT_DIR = PROJECT_ROOT / "outputs"
-OUTPUT_FILE = OUTPUT_DIR / "all_character_signal_panel.csv"
+import sys
+
+sys.path.insert(0, str(PROJECT_ROOT))
+from output_paths import (  # noqa: E402
+    CHARACTER_INDIVIDUAL_DIR,
+    LEGACY_FLAT_OUTPUT_DIR,
+    NON_CHARACTER_STEMS,
+    SIGNAL_PANEL_FILE,
+    iter_character_csv_paths,
+)
 
 MONTHLY_KEYS = ["permno", "signal_yyyymm", "target_yyyymm"]
 ANNUAL_ID_COLUMNS = ["permno", "permco", "gvkey", "datadate", "sic", "fyear"]
-NON_CHARACTER_FILES = {
-    "all_character_signal_panel.csv",
-    "annual_character_panel.csv",
-    "complete_all_character_prediction_panel.csv",
-    "complete_prediction_panel.csv",
-    "complete_prediction_panel_imputed.csv",
-    "excess_returns.csv",
-    "green_comparable_temp.csv",
-    "green_comparable_temp2_winsorized.csv",
-    "green_comparable_validation_summary.csv",
-    "green_comparable_winsorized_validation_summary.csv",
-    "green_comparable_winsorized_validation_summary_fresh.csv",
-    "green_missing_character_inventory.csv",
-    "monthly_character_panel.csv",
-    "research_panel_1957_ranked.csv",
-}
+NON_CHARACTER_FILES = {f"{stem}.csv" for stem in NON_CHARACTER_STEMS}
 KNOWN_NON_CHARACTER_COLUMNS = {
     "permno",
     "permco",
@@ -164,8 +157,20 @@ def merge_panels(panels):
     return final
 
 
-def build_all_character_panel(input_dir=OUTPUT_DIR):
-    paths = sorted(Path(input_dir).glob("*.csv"))
+def build_all_character_panel(input_dir=None):
+    if input_dir is None:
+        paths = list(iter_character_csv_paths())
+    else:
+        input_dir = Path(input_dir)
+        paths = sorted(input_dir.glob("*.csv"))
+        if input_dir == CHARACTER_INDIVIDUAL_DIR and LEGACY_FLAT_OUTPUT_DIR.exists():
+            legacy = {
+                p.name
+                for p in paths
+            }
+            for path in sorted(LEGACY_FLAT_OUTPUT_DIR.glob("*.csv")):
+                if path.name not in legacy and path.name not in NON_CHARACTER_FILES:
+                    paths.append(path)
     panels = []
     skipped = []
     for path in paths:
@@ -189,8 +194,8 @@ def main():
     parser = argparse.ArgumentParser(
         description="Combine local character CSVs into one signal-month panel."
     )
-    parser.add_argument("--input-dir", default=OUTPUT_DIR)
-    parser.add_argument("--output", default=OUTPUT_FILE)
+    parser.add_argument("--input-dir", default=None)
+    parser.add_argument("--output", default=str(SIGNAL_PANEL_FILE))
     args = parser.parse_args()
 
     panel, skipped = build_all_character_panel(args.input_dir)

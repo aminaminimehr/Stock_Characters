@@ -1,4 +1,5 @@
 import argparse
+import os
 from pathlib import Path
 
 import numpy as np
@@ -32,7 +33,12 @@ from _shared.rvar_factor_builders import RVAR_SPECS, build_factor_rvar, clear_rv
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-OUTPUT_DIR = PROJECT_ROOT / "outputs"
+import sys
+
+sys.path.insert(0, str(PROJECT_ROOT))
+from output_paths import CHARACTER_INDIVIDUAL_DIR, ensure_output_tree  # noqa: E402
+
+OUTPUT_DIR = CHARACTER_INDIVIDUAL_DIR
 ANNUAL_ID_COLUMNS = ["permno", "permco", "gvkey", "datadate", "sic", "fyear"]
 
 
@@ -187,8 +193,24 @@ def main():
         action="store_true",
         help="Skip characters whose CSV already exists in the output directory.",
     )
+    parser.add_argument(
+        "--sample-start",
+        default=None,
+        help="Optional WRDS lower date (YYYY-MM-DD). Also reads STOCK_CHARACTERS_SAMPLE_START.",
+    )
+    parser.add_argument(
+        "--sample-end",
+        default=None,
+        help="Optional WRDS upper date (YYYY-MM-DD). Also reads STOCK_CHARACTERS_SAMPLE_END.",
+    )
     args = parser.parse_args()
 
+    if args.sample_start:
+        os.environ["STOCK_CHARACTERS_SAMPLE_START"] = args.sample_start
+    if args.sample_end:
+        os.environ["STOCK_CHARACTERS_SAMPLE_END"] = args.sample_end
+
+    ensure_output_tree()
     output_dir = Path(args.output_dir)
     if not output_dir.is_absolute():
         output_dir = PROJECT_ROOT / output_dir

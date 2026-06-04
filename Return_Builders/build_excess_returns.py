@@ -1,18 +1,24 @@
 import argparse
+import os
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import wrds
 
-
 WRDS_USER = None
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-OUTPUT_FILE = PROJECT_ROOT / "outputs" / "excess_returns.csv"
+import sys
+
+sys.path.insert(0, str(PROJECT_ROOT))
+from output_paths import EXCESS_RETURNS_FILE, sql_date_filter  # noqa: E402
+
+OUTPUT_FILE = EXCESS_RETURNS_FILE
 
 
 def load_crsp_monthly_returns(db):
-    crsp = db.raw_sql("""
+    crsp = db.raw_sql(
+        f"""
         SELECT m.permno, m.permco, m.date, m.ret, m.retx,
                n.exchcd, n.shrcd
         FROM crsp.msf AS m
@@ -22,7 +28,9 @@ def load_crsp_monthly_returns(db):
          AND m.date <= COALESCE(n.nameendt, DATE '9999-12-31')
         WHERE n.shrcd IN (10, 11)
           AND n.exchcd IN (1, 2, 3)
-    """)
+          AND {sql_date_filter("date", "m")}
+    """
+    )
     crsp["date"] = pd.to_datetime(crsp["date"]) + pd.offsets.MonthEnd(0)
     crsp["ret"] = pd.to_numeric(crsp["ret"], errors="coerce")
     crsp["retx"] = pd.to_numeric(crsp["retx"], errors="coerce")
@@ -119,7 +127,9 @@ def main():
         )
     )
     parser.add_argument("--wrds-user", default=WRDS_USER)
-    parser.add_argument("--output", default=OUTPUT_FILE)
+    parser.add_argument("--output", default=str(OUTPUT_FILE))
+    parser.add_argument("--sample-start", default=None)
+    parser.add_argument("--sample-end", default=None)
     parser.add_argument(
         "--green-delisting-fill",
         action="store_true",
@@ -129,6 +139,11 @@ def main():
         ),
     )
     args = parser.parse_args()
+
+    if args.sample_start:
+        os.environ["STOCK_CHARACTERS_SAMPLE_START"] = args.sample_start
+    if args.sample_end:
+        os.environ["STOCK_CHARACTERS_SAMPLE_END"] = args.sample_end
 
     db = (
         wrds.Connection(wrds_username=args.wrds_user)

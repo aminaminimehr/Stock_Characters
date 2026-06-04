@@ -6,27 +6,23 @@ from pathlib import Path
 
 import pandas as pd
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-OUTPUT_DIR = PROJECT_ROOT / "outputs"
-PYTHON = sys.executable
+sys.path.insert(0, str(PROJECT_ROOT))
 
-NON_CHARACTER_FILES = {
-    "all_character_signal_panel",
-    "annual_character_panel",
-    "complete_all_character_prediction_panel",
-    "complete_prediction_panel",
-    "complete_prediction_panel_imputed",
-    "excess_returns",
-    "green_comparable_temp",
-    "green_comparable_temp2_winsorized",
-    "green_comparable_validation_summary",
-    "green_comparable_winsorized_validation_summary",
-    "green_comparable_winsorized_validation_summary_fresh",
-    "green_missing_character_inventory",
-    "monthly_character_panel",
-    "research_panel_1957_ranked",
-}
+from output_paths import (  # noqa: E402
+    CHARACTER_INDIVIDUAL_DIR,
+    COMPLETE_ALL_PANEL_FILE,
+    EXCESS_RETURNS_FILE,
+    PIPELINE_LOG_FILE,
+    RESEARCH_PANEL_FILE,
+    SIGNAL_PANEL_FILE,
+    character_csv_path,
+    ensure_output_tree,
+    iter_character_csv_paths,
+    list_character_stems,
+)
+
+PYTHON = sys.executable
 
 PANEL_META = {
     "permno",
@@ -74,76 +70,114 @@ def run(cmd):
     subprocess.run(cmd, check=True, cwd=PROJECT_ROOT)
 
 
-def list_character_csvs():
-    return sorted(
-        p.stem
-        for p in OUTPUT_DIR.glob("*.csv")
-        if p.stem not in NON_CHARACTER_FILES
-    )
-
-
 def count_panel_characters(path):
     df = pd.read_csv(path, nrows=0)
     return [c for c in df.columns if c not in PANEL_META]
 
 
-def build_all_characters(wrds_user, skip_ibes=False, resume=False):
+def build_all_characters(wrds_user, skip_ibes=False, resume=False, sample_start=None, sample_end=None):
     cmd = [
         PYTHON,
         "Character_Builders/build_all_implemented_characters.py",
         "--wrds-user",
         wrds_user,
+        "--output-dir",
+        str(CHARACTER_INDIVIDUAL_DIR),
     ]
     if skip_ibes:
         cmd.append("--skip-ibes")
     if resume:
         cmd.extend(["--skip-existing", "--skip-annual-monthly"])
+    if sample_start:
+        cmd.extend(["--sample-start", sample_start])
+    if sample_end:
+        cmd.extend(["--sample-end", sample_end])
     run(cmd)
 
 
-def build_hxz_characters(wrds_user):
+def build_hxz_characters(wrds_user, output_dir):
     for stem, script, extra in HXZ_JOBS:
-        out = OUTPUT_DIR / f"{stem}.csv"
+        out = output_dir / f"{stem}.csv"
         if out.exists():
             print(f"{stem}: skipped (already exists)")
             continue
-        run([PYTHON, script, "--wrds-user", wrds_user, *extra])
+        run(
+            [
+                PYTHON,
+                script,
+                "--wrds-user",
+                wrds_user,
+                "--output",
+                str(out),
+                *extra,
+            ]
+        )
 
 
-def build_excess_returns(wrds_user):
-    if (OUTPUT_DIR / "excess_returns.csv").exists():
+def build_excess_returns(wrds_user, sample_start=None, sample_end=None):
+    if EXCESS_RETURNS_FILE.exists():
         print("excess_returns: skipped (already exists)")
         return
-    run([PYTHON, "Return_Builders/build_excess_returns.py", "--wrds-user", wrds_user])
+    cmd = [
+        PYTHON,
+        "Return_Builders/build_excess_returns.py",
+        "--wrds-user",
+        wrds_user,
+        "--output",
+        str(EXCESS_RETURNS_FILE),
+    ]
+    if sample_start:
+        cmd.extend(["--sample-start", sample_start])
+    if sample_end:
+        cmd.extend(["--sample-end", sample_end])
+    run(cmd)
 
 
 def build_panels():
-    run([PYTHON, "Character_Panels/build_all_character_panel.py"])
+    run(
+        [
+            PYTHON,
+            "Character_Panels/build_all_character_panel.py",
+            "--input-dir",
+            str(CHARACTER_INDIVIDUAL_DIR),
+            "--output",
+            str(SIGNAL_PANEL_FILE),
+        ]
+    )
     run(
         [
             PYTHON,
             "Character_Panels/build_complete_prediction_panel.py",
             "--characters",
-            "outputs/all_character_signal_panel.csv",
+            str(SIGNAL_PANEL_FILE),
             "--returns",
-            "outputs/excess_returns.csv",
+            str(EXCESS_RETURNS_FILE),
             "--output",
-            "outputs/complete_all_character_prediction_panel.csv",
+            str(COMPLETE_ALL_PANEL_FILE),
         ]
     )
-    run([PYTHON, "Character_Panels/build_research_panel_1957.py"])
+    run(
+        [
+            PYTHON,
+            "Character_Panels/build_research_panel_1957.py",
+            "--input",
+            str(COMPLETE_ALL_PANEL_FILE),
+            "--output",
+            str(RESEARCH_PANEL_FILE),
+        ]
+    )
 
 
 def print_summary():
-    chars = list_character_csvs()
-    signal_cols = count_panel_characters(OUTPUT_DIR / "all_character_signal_panel.csv")
-    pred_cols = count_panel_characters(
-        OUTPUT_DIR / "complete_all_character_prediction_panel.csv"
-    )
-    research_cols = count_panel_characters(OUTPUT_DIR / "research_panel_1957_ranked.csv")
+    chars = list_character_stems()
+    signal_cols = count_panel_characters(SIGNAL_PANEL_FILE)
+    pred_cols = count_panel_characters(COMPLETE_ALL_PANEL_FILE)
+    research_cols = count_panel_characters(RESEARCH_PANEL_FILE)
 
     print("\n=== Pipeline summary ===")
     print(f"Individual character CSV files: {len(chars)}")
+    print(f"Signal panel: {SIGNAL_PANEL_FILE}")
+    print(f"Complete panel: {COMPLETE_ALL_PANEL_FILE}")
     print(f"all_character_signal_panel predictors: {len(signal_cols)}")
     print(f"complete_all_character_prediction_panel predictors: {len(pred_cols)}")
     print(f"research_panel_1957_ranked predictors: {len(research_cols)}")
@@ -162,7 +196,7 @@ def main():
     parser.add_argument(
         "--skip-build",
         action="store_true",
-        help="Only rebuild panels from existing character CSVs in outputs/.",
+        help="Only rebuild panels from existing character CSVs.",
     )
     parser.add_argument(
         "--skip-ibes",
@@ -172,19 +206,36 @@ def main():
     parser.add_argument(
         "--resume",
         action="store_true",
-        help=(
-            "Resume a partial build: skip existing character CSVs and skip the "
-            "annual/monthly block in build_all_implemented_characters.py."
-        ),
+        help="Resume a partial build with --skip-existing.",
+    )
+    parser.add_argument(
+        "--sample-start",
+        default=None,
+        help="Optional WRDS lower date bound (YYYY-MM-DD) for validation runs.",
+    )
+    parser.add_argument(
+        "--sample-end",
+        default=None,
+        help="Optional WRDS upper date bound (YYYY-MM-DD) for validation runs.",
     )
     args = parser.parse_args()
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    ensure_output_tree()
 
     if not args.skip_build:
-        build_all_characters(args.wrds_user, skip_ibes=args.skip_ibes, resume=args.resume)
-        build_hxz_characters(args.wrds_user)
-        build_excess_returns(args.wrds_user)
+        build_all_characters(
+            args.wrds_user,
+            skip_ibes=args.skip_ibes,
+            resume=args.resume,
+            sample_start=args.sample_start,
+            sample_end=args.sample_end,
+        )
+        build_hxz_characters(args.wrds_user, CHARACTER_INDIVIDUAL_DIR)
+        build_excess_returns(
+            args.wrds_user,
+            sample_start=args.sample_start,
+            sample_end=args.sample_end,
+        )
 
     build_panels()
     print_summary()

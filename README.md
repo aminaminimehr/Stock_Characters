@@ -609,19 +609,59 @@ python Character_Builders/HXZ_CFP_Generalized/build_cash_flow_to_price.py --wrds
 
 ## Generated Outputs
 
-Primary full-panel outputs:
+Organized layout (created automatically by `run_full_pipeline.py`):
+
+```text
+outputs/
+  characteristics/
+    individual/          # one CSV per character (acc.csv, bm.csv, ...)
+  panels/
+    all_character_signal_panel.csv
+    complete_all_character_prediction_panel.csv   # primary complete panel
+    research_panel_1957_ranked.csv
+    excess_returns.csv
+    legacy/              # only if you explicitly build deprecated narrow panels
+  logs/
+    pipeline_run.log
+  diagnostics/
+    cache/               # e.g. daily_ff_factors.pkl for rvar resume
+    character_inventory_report.md
+    book_to_market_audit.md
+```
+
+**Primary research outputs**
 
 | File | Description |
 | --- | --- |
-| `outputs/all_character_signal_panel.csv` | All characters on `permno` / `signal_yyyymm` / `target_yyyymm` |
-| `outputs/complete_all_character_prediction_panel.csv` | Signal panel merged to next-month `excess_return` |
-| `outputs/research_panel_1957_ranked.csv` | 195701+ panel with winsorization, FF49 imputation, ranks in `[-1, 1]` |
-| `outputs/excess_returns.csv` | CRSP excess returns by `permno` / `target_yyyymm` |
+| `outputs/panels/all_character_signal_panel.csv` | All characters on `permno` / `signal_yyyymm` / `target_yyyymm` |
+| `outputs/panels/complete_all_character_prediction_panel.csv` | **Main** signal + return panel |
+| `outputs/panels/research_panel_1957_ranked.csv` | Winsorized, FF49 imputed, ranked `[-1, 1]` panel |
+| `outputs/panels/excess_returns.csv` | CRSP excess returns by `permno` / `target_yyyymm` |
 
-Narrower legacy files (not required for the full pipeline):
+**Deprecated (disabled by default)**
 
-- `outputs/complete_prediction_panel.csv` — smaller monthly/annual workflow
-- `outputs/annual_character_panel.csv`, `outputs/monthly_character_panel.csv`
+- `build_monthly_character_panel.py` / `build_annual_character_panel.py` — old HXZ-only narrow workflow
+- `outputs/panels/legacy/complete_prediction_panel.csv` — only via `--legacy-narrow-panel` flag
 
-Generated files are written to `outputs/` by default. The folder is tracked in
-Git, but generated CSVs inside it are ignored.
+If you have an existing flat `outputs/*.csv` tree from an earlier server run, migrate it once:
+
+```bash
+python scripts/migrate_outputs_layout.py
+```
+
+Audit helpers (read existing files; no WRDS):
+
+```bash
+python scripts/audit_character_inventory.py
+python scripts/audit_book_to_market.py --panel outputs/panels/complete_all_character_prediction_panel.csv
+```
+
+Sample validation run (optional, ~5–6 years):
+
+```bash
+export SAMPLE_START=2018-01-01
+export SAMPLE_END=2023-12-31
+bash run_full_pipeline.sh
+```
+
+Generated files are tracked in Git only via `.gitkeep` placeholders; CSVs are ignored.

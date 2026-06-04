@@ -13,11 +13,13 @@ cd "$ROOT"
 export PGPASSFILE="${PGPASSFILE:-${HOME}/.pgpass}"
 
 PYTHON="${STOCK_CHARACTERS_PYTHON:-python}"
-LOG="${ROOT}/outputs/pipeline_run.log"
-mkdir -p "${ROOT}/outputs"
+mkdir -p "${ROOT}/outputs/logs"
+LOG="${ROOT}/outputs/logs/pipeline_run.log"
 
 SKIP_IBES="${SKIP_IBES:-1}"
 RESUME="${RESUME:-0}"
+SAMPLE_START="${SAMPLE_START:-}"
+SAMPLE_END="${SAMPLE_END:-}"
 
 args=(--wrds-user "${WRDS_USER}")
 if [[ "${SKIP_IBES}" == "1" ]]; then
@@ -25,6 +27,12 @@ if [[ "${SKIP_IBES}" == "1" ]]; then
 fi
 if [[ "${RESUME}" == "1" ]]; then
   args+=(--resume)
+fi
+if [[ -n "${SAMPLE_START}" ]]; then
+  args+=(--sample-start "${SAMPLE_START}")
+fi
+if [[ -n "${SAMPLE_END}" ]]; then
+  args+=(--sample-end "${SAMPLE_END}")
 fi
 
 "${PYTHON}" Character_Panels/run_full_pipeline.py "${args[@]}" 2>&1 | tee -a "${LOG}"

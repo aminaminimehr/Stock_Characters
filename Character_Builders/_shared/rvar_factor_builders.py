@@ -5,14 +5,18 @@ import numpy as np
 import pandas as pd
 
 from _shared.green_builders import (
-    OUTPUT_DIR,
     connect_wrds,
     load_monthly_alignment_frame,
     raw_sql_with_retry,
 )
 
+import sys
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT))
+from output_paths import CACHE_DIR, CHARACTER_INDIVIDUAL_DIR, resolve_output_path  # noqa: E402
+
+OUTPUT_DIR = CHARACTER_INDIVIDUAL_DIR
 
 FF3_FACTORS = ["mktrf", "smb", "hml"]
 RVAR_SPECS = {
@@ -25,7 +29,8 @@ _MONTHLY_ALIGNMENT_CACHE = None
 
 
 def _daily_factor_cache_path(output_dir):
-    return Path(output_dir) / ".cache" / "daily_ff_factors.pkl"
+    _ = output_dir
+    return CACHE_DIR / "daily_ff_factors.pkl"
 
 
 def clear_rvar_caches():
@@ -39,6 +44,8 @@ def load_daily_factor_data(db, factors):
     Match Xin He / Dacheng Xiu Rvar_ff3.py: one dsf + factors_daily pull, then merge
     delisting returns in pandas (avoids a heavy per-row SQL join on dsf).
     """
+    from output_paths import sql_date_filter
+
     factor_cols = ", ".join(f"f.{factor}" for factor in factors)
     daily = raw_sql_with_retry(
         db,
@@ -47,15 +54,15 @@ def load_daily_factor_data(db, factors):
         FROM crsp.dsf AS d
         LEFT JOIN ff.factors_daily AS f
           ON d.date = f.date
-        WHERE d.date >= DATE '1959-01-01'
+        WHERE {sql_date_filter("date", "d")}
     """,
     )
     dlret = raw_sql_with_retry(
         db,
-        """
+        f"""
         SELECT permno, dlret, dlstdt
         FROM crsp.dsedelist
-        WHERE dlstdt >= DATE '1959-01-01'
+        WHERE {sql_date_filter("dlstdt")}
     """,
     )
     daily["date"] = pd.to_datetime(daily["date"])

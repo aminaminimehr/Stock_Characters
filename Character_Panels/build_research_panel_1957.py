@@ -6,9 +6,13 @@ import pandas as pd
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-OUTPUT_DIR = PROJECT_ROOT / "outputs"
-INPUT_FILE = OUTPUT_DIR / "complete_all_character_prediction_panel.csv"
-OUTPUT_FILE = OUTPUT_DIR / "research_panel_1957_ranked.csv"
+import sys
+
+sys.path.insert(0, str(PROJECT_ROOT))
+from output_paths import COMPLETE_ALL_PANEL_FILE, RESEARCH_PANEL_FILE  # noqa: E402
+
+INPUT_FILE = COMPLETE_ALL_PANEL_FILE
+OUTPUT_FILE = RESEARCH_PANEL_FILE
 
 try:
     from Imputation.industry_codes import add_fama_french_industry_code

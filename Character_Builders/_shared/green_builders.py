@@ -10,7 +10,18 @@ from _shared.ccm import add_ccm_arguments, attach_ccm_links, load_ccm_links
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-OUTPUT_DIR = PROJECT_ROOT / "outputs"
+import sys
+
+sys.path.insert(0, str(PROJECT_ROOT))
+from output_paths import (  # noqa: E402
+    CACHE_DIR,
+    CHARACTER_INDIVIDUAL_DIR,
+    MONTHLY_ALIGNMENT_STEMS,
+    OUTPUT_DIR,
+    ensure_output_tree,
+    resolve_output_path,
+    sql_date_filter,
+)
 
 
 ANNUAL_CHARACTER_INFO = {
@@ -328,7 +339,6 @@ def raw_sql_with_retry(db, sql, attempts=5, pause_seconds=120):
     raise last_exc
 
 
-MONTHLY_ALIGNMENT_STEMS = ("me", "mvel1", "mom1m", "dolvol", "beta", "turn")
 MONTHLY_ALIGNMENT_COLUMNS = [
     "permno",
     "permco",
@@ -347,9 +357,10 @@ def load_monthly_alignment_frame(output_dir=OUTPUT_DIR, db=None):
     Reuse monthly CRSP timing from an existing monthly character CSV when possible.
     Avoids re-querying crsp.msf during resume runs.
     """
-    output_dir = Path(output_dir)
+    from output_paths import character_csv_path
+
     for stem in MONTHLY_ALIGNMENT_STEMS:
-        path = output_dir / f"{stem}.csv"
+        path = character_csv_path(stem)
         if not path.exists():
             continue
         monthly = pd.read_csv(path)
@@ -408,7 +419,7 @@ def load_crsp_monthly(db, use_cache=True):
 
     crsp = raw_sql_with_retry(
         db,
-        """
+        f"""
         SELECT m.permno, m.permco, m.date, m.ret, m.retx, m.prc, m.shrout, m.vol,
                n.exchcd, n.shrcd, n.siccd
         FROM crsp.msf AS m
@@ -418,6 +429,7 @@ def load_crsp_monthly(db, use_cache=True):
          AND m.date <= COALESCE(n.nameendt, DATE '9999-12-31')
         WHERE n.shrcd IN (10, 11)
           AND n.exchcd IN (1, 2, 3)
+          AND {sql_date_filter("date", "m")}
     """,
     )
     crsp["date"] = pd.to_datetime(crsp["date"])
@@ -496,7 +508,8 @@ def build_all_monthly_characters(db, characters=None):
 
 
 def load_daily_monthly(db):
-    daily = db.raw_sql("""
+    daily = db.raw_sql(
+        f"""
         SELECT permno,
                DATE_TRUNC('month', date)::date AS month_start,
                MAX(ret) AS maxret,
@@ -509,8 +522,10 @@ def load_daily_monthly(db):
                COUNT(*)::double precision AS ndays,
                SUM(vol / NULLIF(shrout, 0))::double precision AS turn_sum
         FROM crsp.dsf
+        WHERE {sql_date_filter("date")}
         GROUP BY permno, DATE_TRUNC('month', date)::date
-    """)
+    """
+    )
     daily["month_start"] = pd.to_datetime(daily["month_start"])
     daily["source_yyyymm"] = daily["month_start"].dt.year * 100 + daily["month_start"].dt.month
     daily["zerotrade"] = (daily["countzero"] + ((1 / daily["turn_sum"]) / 480000)) * 21 / daily["ndays"]

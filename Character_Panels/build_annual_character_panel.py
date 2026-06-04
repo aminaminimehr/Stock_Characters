@@ -58,10 +58,25 @@ def build_annual_character_panel(bm, bmj, ope, cfp):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Combine existing local character files into an annual panel."
+        description=(
+            "DEPRECATED narrow HXZ annual panel. Use run_full_pipeline.py for the "
+            "full all-character workflow."
+        )
+    )
+    parser.add_argument(
+        "--allow-legacy",
+        action="store_true",
+        help="Allow building the deprecated annual_character_panel.csv.",
     )
     parser.add_argument("--output", default=OUTPUT_FILE)
     args = parser.parse_args()
+
+    if not args.allow_legacy:
+        raise SystemExit(
+            "build_annual_character_panel.py is deprecated.\n"
+            "Use: python Character_Panels/run_full_pipeline.py --wrds-user YOUR_WRDS_USERNAME --skip-ibes\n"
+            "If you truly need the old HXZ-only panel, rerun with --allow-legacy."
+        )
 
     bm, bmj, ope, cfp = load_individual_characters()
     annual_panel = build_annual_character_panel(bm, bmj, ope, cfp)

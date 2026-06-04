@@ -4,8 +4,10 @@ PDF_ready_for_MarkItDown/
 *.py[cod]
 *.log
 *.csv
-outputs/*
-!outputs/.gitkeep
+outputs/**
+!outputs/
+!outputs/**/
+!outputs/**/.gitkeep
 *chen_zimmerman*
 *Chen_Zimmerman*
 *OpenSourceAP*

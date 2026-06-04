@@ -1,14 +1,20 @@
 import argparse
+import sys
 from pathlib import Path
 
 import pandas as pd
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-OUTPUT_DIR = PROJECT_ROOT / "outputs"
-CHARACTER_PANEL_FILE = OUTPUT_DIR / "monthly_character_panel.csv"
-EXCESS_RETURN_FILE = OUTPUT_DIR / "excess_returns.csv"
-OUTPUT_FILE = OUTPUT_DIR / "complete_prediction_panel.csv"
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from output_paths import (  # noqa: E402
+    COMPLETE_ALL_PANEL_FILE,
+    EXCESS_RETURNS_FILE,
+    LEGACY_COMPLETE_PANEL_FILE,
+    LEGACY_MONTHLY_PANEL_FILE,
+    SIGNAL_PANEL_FILE,
+)
+
 MERGE_KEYS = ["permno", "target_yyyymm"]
 
 
@@ -24,9 +30,8 @@ def require_files(character_panel_file, excess_return_file):
     missing_text = "\n".join(f"- {path}" for path in missing)
     raise FileNotFoundError(
         "Missing local input files for the complete prediction panel.\n\n"
-        "Build the character panel and excess returns first:\n\n"
-        "python Character_Panels/build_monthly_character_panel.py\n"
-        "python Return_Builders/build_excess_returns.py --wrds-user YOUR_WRDS_USERNAME\n\n"
+        "Run the full pipeline first:\n\n"
+        "python Character_Panels/run_full_pipeline.py --wrds-user YOUR_WRDS_USERNAME --skip-ibes\n\n"
         f"Missing files:\n{missing_text}"
     )
 
@@ -62,18 +67,35 @@ def build_complete_prediction_panel(character_panel, excess_returns):
 
 def main():
     parser = argparse.ArgumentParser(
-        description=(
-            "Merge signal-month character rows to next-month CRSP excess returns."
-        )
+        description="Merge signal-month character rows to next-month CRSP excess returns."
     )
-    parser.add_argument("--characters", default=CHARACTER_PANEL_FILE)
-    parser.add_argument("--returns", default=EXCESS_RETURN_FILE)
-    parser.add_argument("--output", default=OUTPUT_FILE)
+    parser.add_argument("--characters", default=str(SIGNAL_PANEL_FILE))
+    parser.add_argument("--returns", default=str(EXCESS_RETURNS_FILE))
+    parser.add_argument("--output", default=str(COMPLETE_ALL_PANEL_FILE))
+    parser.add_argument(
+        "--legacy-narrow-panel",
+        action="store_true",
+        help=(
+            "Deprecated: merge the old HXZ-only monthly_character_panel into "
+            "panels/legacy/complete_prediction_panel.csv."
+        ),
+    )
     args = parser.parse_args()
 
-    character_path = Path(args.characters)
-    return_path = Path(args.returns)
-    output_path = Path(args.output)
+    if args.legacy_narrow_panel:
+        character_path = Path(args.characters) if args.characters != str(SIGNAL_PANEL_FILE) else LEGACY_MONTHLY_PANEL_FILE
+        return_path = Path(args.returns) if args.returns != str(EXCESS_RETURNS_FILE) else EXCESS_RETURNS_FILE
+        output_path = LEGACY_COMPLETE_PANEL_FILE
+        print(
+            "WARNING: --legacy-narrow-panel builds the deprecated narrow panel. "
+            "Use run_full_pipeline.py for the full all-character panel.",
+            flush=True,
+        )
+    else:
+        character_path = Path(args.characters)
+        return_path = Path(args.returns)
+        output_path = Path(args.output)
+
     if not character_path.is_absolute():
         character_path = PROJECT_ROOT / character_path
     if not return_path.is_absolute():
