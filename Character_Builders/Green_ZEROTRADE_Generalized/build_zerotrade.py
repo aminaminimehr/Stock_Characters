@@ -1,16 +1,18 @@
+import argparse
 import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from _shared.green_builders import connect_wrds, load_crsp_monthly
+from output_paths import resolve_output_path  # noqa: E402
 
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-OUTPUT_DIR = PROJECT_ROOT / "outputs"
+DEFAULT_OUTPUT = "zerotrade.csv"
 
 
 def load_monthly_zerotrade(db):
@@ -41,16 +43,12 @@ def build_zerotrade(db):
 
 
 if __name__ == "__main__":
-    import argparse
-
     parser = argparse.ArgumentParser(description="Build zerotrade from daily CRSP.")
     parser.add_argument("--wrds-user", default=None)
-    parser.add_argument("--output", default=OUTPUT_DIR / "zerotrade.csv")
+    parser.add_argument("--output", default=DEFAULT_OUTPUT)
     args = parser.parse_args()
 
-    output = Path(args.output)
-    if not output.is_absolute():
-        output = PROJECT_ROOT / output
+    output = resolve_output_path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
 
     db = connect_wrds(args.wrds_user)

@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Move legacy flat outputs/*.csv into the organized output tree."""
+"""One-time migration: move legacy flat outputs/*.csv into the organized output tree.
+
+Not required after normal pipeline runs. Fresh clones and future
+``run_full_pipeline.sh`` / ``run_full_pipeline.py`` runs write directly into
+``outputs/characteristics/individual/``, ``outputs/panels/``, etc.
+
+Run this only when upgrading a repository or server that still has old flat
+``outputs/*.csv`` files from before the layout refactor.
+"""
 import shutil
 import sys
 from pathlib import Path

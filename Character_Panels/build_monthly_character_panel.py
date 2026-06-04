@@ -1,27 +1,35 @@
 import argparse
+import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from output_paths import (  # noqa: E402
+    LEGACY_ANNUAL_PANEL_FILE,
+    LEGACY_MONTHLY_PANEL_FILE,
+    character_csv_path,
+    resolve_legacy_panel_path,
+)
+
 try:
     from .build_annual_character_panel import (
         OUTPUT_FILE as ANNUAL_OUTPUT_FILE,
-        PROJECT_ROOT,
         build_annual_character_panel,
         load_individual_characters,
     )
 except ImportError:
     from build_annual_character_panel import (
         OUTPUT_FILE as ANNUAL_OUTPUT_FILE,
-        PROJECT_ROOT,
         build_annual_character_panel,
         load_individual_characters,
     )
 
-
-OUTPUT_FILE = PROJECT_ROOT / "outputs" / "monthly_character_panel.csv"
-MVEL1_FILE = PROJECT_ROOT / "outputs" / "mvel1.csv"
+OUTPUT_FILE = LEGACY_MONTHLY_PANEL_FILE
+MVEL1_FILE = character_csv_path("mvel1")
 
 
 def add_one_month(yyyymm):
@@ -46,9 +54,6 @@ def require_mvel1_file():
 
 
 def expand_to_monthly_prediction_panel(annual_chars):
-    # A fiscal year ending in calendar year y is known for prediction at the
-    # end of June y+1. We therefore label the predictor month as June y+1
-    # through May y+2 and carry target_yyyymm as the next month's return month.
     monthly = annual_chars.copy()
     monthly["datadate"] = pd.to_datetime(monthly["datadate"])
     monthly["availability_year"] = monthly["datadate"].dt.year + 1
@@ -105,7 +110,7 @@ def add_mvel1(monthly_chars):
     required_columns = {"permno", "signal_yyyymm", "mvel1"}
     if not required_columns.issubset(mvel1.columns):
         raise ValueError(
-            "outputs/mvel1.csv does not have the current timing columns. "
+            f"{MVEL1_FILE} does not have the current timing columns. "
             "Rerun Character_Builders/Green_MVEL1_Generalized/build_mvel1.py."
         )
     mvel1 = mvel1[["permno", "signal_yyyymm", "mvel1"]]
@@ -123,9 +128,9 @@ def main():
     parser.add_argument(
         "--allow-legacy",
         action="store_true",
-        help="Allow building the deprecated narrow monthly_character_panel.csv.",
+        help="Allow building the deprecated monthly_character_panel.csv under panels/legacy/.",
     )
-    parser.add_argument("--output", default=OUTPUT_FILE)
+    parser.add_argument("--output", default=str(OUTPUT_FILE))
     args = parser.parse_args()
 
     if not args.allow_legacy:
@@ -139,9 +144,7 @@ def main():
     monthly_chars = expand_to_monthly_prediction_panel(annual_chars)
     monthly_chars = add_mvel1(monthly_chars)
 
-    output_path = Path(args.output)
-    if not output_path.is_absolute():
-        output_path = PROJECT_ROOT / output_path
+    output_path = resolve_legacy_panel_path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     monthly_chars.to_csv(output_path, index=False)
 

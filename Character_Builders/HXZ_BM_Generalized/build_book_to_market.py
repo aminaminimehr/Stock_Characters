@@ -5,9 +5,12 @@ from pathlib import Path
 import pandas as pd
 import wrds
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from _shared.ccm import add_ccm_arguments, attach_ccm_links, load_ccm_links
+from output_paths import resolve_output_path  # noqa: E402
 
 
 WRDS_USER = None
@@ -163,9 +166,7 @@ def main():
         db.close()
 
     bm = build_book_to_market(comp, december_firm_market_equity(crsp), link)
-    output_path = Path(args.output)
-    if not output_path.is_absolute():
-        output_path = Path(__file__).resolve().parents[2] / "outputs" / output_path
+    output_path = resolve_output_path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     bm.to_csv(output_path, index=False)
 

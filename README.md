@@ -643,10 +643,16 @@ outputs/
 - `build_monthly_character_panel.py` / `build_annual_character_panel.py` — old HXZ-only narrow workflow
 - `outputs/panels/legacy/complete_prediction_panel.csv` — only via `--legacy-narrow-panel` flag
 
-If you have an existing flat `outputs/*.csv` tree from an earlier server run, migrate it once:
+If you have an existing flat `outputs/*.csv` tree from an earlier server run, migrate it **once** (not required after normal future pipeline runs):
 
 ```bash
 python scripts/migrate_outputs_layout.py
+```
+
+Validate layout without a full WRDS build:
+
+```bash
+python scripts/validate_output_layout.py
 ```
 
 Audit helpers (read existing files; no WRDS):

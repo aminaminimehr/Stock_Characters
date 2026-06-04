@@ -67,11 +67,22 @@ def ensure_output_tree():
 
 
 def resolve_output_path(path, default_dir=CHARACTER_INDIVIDUAL_DIR):
+    """Resolve a writer path; bare filenames go to default_dir (individual chars by default)."""
     path = Path(path)
     if path.is_absolute():
         return path
     if len(path.parts) == 1:
         return default_dir / path
+    return PROJECT_ROOT / path
+
+
+def resolve_legacy_panel_path(path):
+    """Resolve deprecated narrow panel outputs under panels/legacy/."""
+    path = Path(path)
+    if path.is_absolute():
+        return path
+    if len(path.parts) == 1:
+        return LEGACY_PANELS_DIR / path
     return PROJECT_ROOT / path
 
 

@@ -1,18 +1,26 @@
 import argparse
+import sys
 from pathlib import Path
 
 import pandas as pd
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-OUTPUT_DIR = PROJECT_ROOT / "outputs"
-INPUT_FILES = {
-    "book_to_market": OUTPUT_DIR / "book_to_market.csv",
-    "book_to_june_market_equity": OUTPUT_DIR / "book_to_june_market_equity.csv",
-    "operating_profitability": OUTPUT_DIR / "operating_profitability.csv",
-    "cash_flow_to_price": OUTPUT_DIR / "cash_flow_to_price.csv",
-}
-OUTPUT_FILE = OUTPUT_DIR / "annual_character_panel.csv"
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from output_paths import (  # noqa: E402
+    LEGACY_ANNUAL_PANEL_FILE,
+    character_csv_path,
+    resolve_legacy_panel_path,
+)
+
+INPUT_STEMS = (
+    "book_to_market",
+    "book_to_june_market_equity",
+    "operating_profitability",
+    "cash_flow_to_price",
+)
+INPUT_FILES = {stem: character_csv_path(stem) for stem in INPUT_STEMS}
+OUTPUT_FILE = LEGACY_ANNUAL_PANEL_FILE
 MERGE_KEYS = ["permno", "permco", "gvkey", "datadate", "sic", "fyear"]
 
 
@@ -66,9 +74,9 @@ def main():
     parser.add_argument(
         "--allow-legacy",
         action="store_true",
-        help="Allow building the deprecated annual_character_panel.csv.",
+        help="Allow building the deprecated annual_character_panel.csv under panels/legacy/.",
     )
-    parser.add_argument("--output", default=OUTPUT_FILE)
+    parser.add_argument("--output", default=str(OUTPUT_FILE))
     args = parser.parse_args()
 
     if not args.allow_legacy:
@@ -81,9 +89,7 @@ def main():
     bm, bmj, ope, cfp = load_individual_characters()
     annual_panel = build_annual_character_panel(bm, bmj, ope, cfp)
 
-    output_path = Path(args.output)
-    if not output_path.is_absolute():
-        output_path = PROJECT_ROOT / output_path
+    output_path = resolve_legacy_panel_path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     annual_panel.to_csv(output_path, index=False)
 

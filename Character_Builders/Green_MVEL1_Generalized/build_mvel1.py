@@ -1,10 +1,15 @@
 import argparse
+import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import wrds
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from output_paths import resolve_output_path  # noqa: E402
 
 WRDS_USER = None
 OUTPUT_FILE = "mvel1.csv"
@@ -109,9 +114,7 @@ def main():
         db.close()
 
     mvel1 = build_mvel1(crsp)
-    output_path = Path(args.output)
-    if not output_path.is_absolute():
-        output_path = Path(__file__).resolve().parents[2] / "outputs" / output_path
+    output_path = resolve_output_path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     mvel1.to_csv(output_path, index=False)
 
