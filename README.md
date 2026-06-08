@@ -243,8 +243,8 @@ already exist in `outputs/`.
 
 | Status | Acronyms |
 | --- | --- |
-| Implemented through the shared Green annual builder | `acc`, `adm`, `agr`, `alm`, `ato`, `bm`, `bm_ia`, `cash`, `cashdebt`, `cfp`, `chcsho`, `chpm`, `depr`, `dy`, `ep`, `gma`, `grltnoa`, `herf`, `hire`, `lev`, `lgr`, `me_ia`, `noa`, `op`, `pctacc`, `pm`, `ps`, `rd_sale`, `rdm`, `roe`, `sgr`, `sp` |
-| Implemented through the shared Green monthly builder | `dolvol`, `me`, `mom1m`, `mom6m`, `mom12m`, `mom36m`, `mom60m`, `mvel1`, `seas1a`, `turn` |
+| Implemented through the annual builder | `acc`, `adm`, `agr`, `alm`, `ato`, `bm`, `bm_ia`, `cash`, `cashdebt`, `cfp`, `chcsho`, `chpm`, `depr`, `dy`, `ep`, `gma`, `grltnoa`, `herf`, `hire`, `lev`, `lgr`, `me_ia`, `noa`, `op`, `pctacc`, `pm`, `ps`, `rd_sale`, `rdm`, `roe`, `sgr`, `sp` |
+| Implemented through the monthly builder | `dolvol`, `me`, `mom1m`, `mom6m`, `mom12m`, `mom36m`, `mom60m`, `mvel1`, `seas1a`, `turn` |
 | Implemented through daily-CRSP monthly builders | `baspread`, `ill`, `maxret`, `rvar_mean`, `std_dolvol`, `std_turn`, `zerotrade` |
 | Implemented through quarterly Compustat builders | `chtx`, `cinvest`, `ni`, `nincr`, `rna`, `roa1`, `rsup`, `sue` |
 | Implemented with specialized factor / event / IBES builders | `abr`, `beta`, `re`, `rvar_capm`, `rvar_ff3` |
