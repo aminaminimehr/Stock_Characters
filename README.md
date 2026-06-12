@@ -13,8 +13,8 @@ organized around Green-style SAS definitions.
 - [About / Contact](#about--contact)
 - [Why This Repository Exists](#why-this-repository-exists)
 - [Reference Documentation](#reference-documentation)
-- [CRSP/Compustat Linking Policy](#crspcompustat-linking-policy)
 - [WRDS Access](#wrds-access)
+- [CRSP/Compustat Linking Policy](#crspcompustat-linking-policy)
 - [Requirements](#requirements)
 - [Runtime and Hardware](#runtime-and-hardware)
 - [Character Builders](#character-builders)
@@ -61,29 +61,35 @@ replication notes are welcome. Please open a GitHub issue or contact me at
 There are excellent public resources for empirical asset pricing data, including
 large predictor libraries and ready-to-use monthly signal files such as those
 used in the Gu-Kelly-Xiu and Chen-Zimmermann/Open Source Asset Pricing projects.
-This repository is meant to complement those resources rather than replace them.
+This repository is intended to complement those resources rather than replace
+them.
 
 The focus here is transparency in construction. Finished characteristic datasets
-are very useful, but they do not always expose implementation choices that
-matter for research: the exact accounting definition, the CRSP/Compustat link
-rule, the market-equity date, fiscal-year timing, treatment of multiple share
-classes, and which identifiers or industry codes are preserved for later
-imputation or industry adjustment.
+are extremely valuable, but they do not always expose implementation choices
+that can materially affect empirical results. Examples include the exact
+accounting definition, CRSP/Compustat linking rules, market-equity measurement
+dates, fiscal-year timing conventions, treatment of multiple share classes,
+handling of delisting returns, and which identifiers or industry classifications
+are preserved for later imputations or industry adjustments.
 
-For example, some public datasets prioritize broad coverage and final cleaned
-signals, while this project keeps intermediate identifiers such as `gvkey`,
-`permno`, `permco`, `datadate`, `fyear`, and `sic` in the raw character files.
-That makes it easier to audit the construction and to build later steps such as
-industry adjustments, missing-value imputations, and return alignment.
+For example, many public datasets prioritize broad coverage and final cleaned
+signals, whereas this project intentionally preserves intermediate identifiers
+such as `gvkey`, `permno`, `permco`, `datadate`, `fyear`, and `sic` whenever
+possible. This makes it easier to audit the construction process and to support
+downstream tasks such as industry adjustments, missing-value imputations, return
+alignment, and alternative research designs.
 
-This is especially useful when documentation layers emphasize different
-conventions, such as citing an original source paper in one place and describing
-an adapted construction elsewhere. In those cases, this repo aims to make the
-implemented choice explicit and reproducible.
+This level of transparency is particularly useful because empirical asset
+pricing implementations often involve subtle choices that are not fully captured
+in summary descriptions. In some cases, differences can arise between the main
+manuscript, supplementary materials, public code releases, and later
+documentation. When such discrepancies exist, this repository aims to make the
+implemented choice explicit, well-documented, and reproducible, while clearly
+citing the underlying source.
 
-The goal is a small, inspectable codebase where each characteristic states its
-definition, timing convention, and data-cleaning choices directly in code and
-documentation.
+The goal is a small, inspectable codebase where each characteristic documents
+its definition, timing convention, linking methodology, and data-cleaning
+choices directly in code and documentation.
 
 ---
 
@@ -104,6 +110,20 @@ empirical asset pricing resources:
 
 - Jeremiah Green's website: https://sites.google.com/site/jeremiahrgreenacctg/home
 - Green SAS code: https://drive.google.com/file/d/0BwwEXkCgXEdRQWZreUpKOHBXOUU/view?resourcekey=0-1xjZ8fAc0sTybVC6RADDCA
+
+---
+
+## WRDS Access
+
+The code does not store WRDS credentials. Use one of the standard local WRDS
+authentication methods:
+
+- a local `.pgpass` file,
+- WRDS/PostgreSQL environment variables,
+- or the optional `--wrds-user` argument where supported.
+
+Do not commit usernames, passwords, `.pgpass` files, downloaded WRDS data, or
+generated output CSVs to a public repository.
 
 ---
 
@@ -135,6 +155,32 @@ teaching/tooling examples such as Kai Chen's WRDS linking note and the
 `tidyfinance` WRDS CCM helper. The code keeps `P` ahead of `C` when duplicate
 links must be ordered.
 
+### Chen-Zimmermann / Open Source Asset Pricing
+
+The repository default matches the conservative CCM rule used in this codebase:
+
+```text
+linktype in ('LC', 'LU')
+linkprim in ('P', 'C')
+```
+
+This is implemented directly in `Character_Builders/_shared/ccm.py`.
+
+### Green SAS Code
+
+Green's public SAS program filters `crsp.ccmxpf_linktable` more broadly:
+
+```text
+linktype in ('LU', 'LC', 'LD', 'LF', 'LN', 'LO', 'LS', 'LX')
+```
+
+with `LINKDT` / `LINKENDDT` validity checks before merging Compustat to CRSP.
+To approximate that broader Green linking rule in this repository, pass:
+
+```powershell
+python Character_Builders/build_all_implemented_characters.py --wrds-user YOUR_WRDS_USERNAME --ccm-linktypes LU,LC,LD,LF,LN,LO,LS,LX --ccm-linkprim P,C
+```
+
 ### Linking Conventions
 
 The table below summarizes the relevant conventions and why this repository
@@ -143,11 +189,11 @@ makes the choice configurable.
 | Source or codebase | CCM choice visible in the referenced code/documentation | What that choice does | How this repo can match it |
 | --- | --- | --- | --- |
 | This repository | `linktype in ('LU', 'LC')`; `linkprim in ('P', 'C')` | Uses link-used and research-complete CCM links, while allowing both Compustat-primary and CRSP-primary matches. This is the default conservative rule used by the builders. | Default behavior. No extra flags needed. |
+| Chen-Zimmermann / Open Source Asset Pricing | `linktype in ('LC', 'LU')`; `linkprim in ('P', 'C')` | Conservative CCM filter aligned with the repository default in `_shared/ccm.py`. | Default behavior. |
 | WRDS/Kai Chen-style examples and `tidyfinance` helpers | Commonly use `LC/LU` with `P/C` | A conservative, teachable default that avoids many stale or secondary historical links while preserving CRSP-primary cases. | Default behavior. |
 | Fama-French public portfolio descriptions | Usually state the CRSP and Compustat inputs, but not the exact CCM `linktype`/`linkprim` filters | Replication must choose and report a CCM rule; the public descriptions alone do not fully determine the link table filter. | Start from the default, then validate against Fama-French benchmark moments. |
-| Green public SAS code | Uses `crsp.ccmxpf_linktable`; in the visible linking step, an explicit `linktype`/`linkprim` filter is not always shown before the date-valid CCM merge | Broader linking can increase coverage, but may include links that a conservative `LC/LU` filter would drop. | Pass a broader explicit list with `--ccm-linktypes`. |
-| Gu-Kelly-Xiu / Xin He style assistive code | Keeps linktypes whose first letter is `L` and `linkprim in ('P', 'C')` | Broadly accepts WRDS link-family records while still restricting to primary Compustat/CRSP link flags. | Use `--ccm-linktypes LU,LC,LD,LF,LN,LO,LS,LX --ccm-linkprim P,C`. |
-| Chen-Zimmermann Open Source Asset Pricing | Provides open signal code and downloadable data; the exact applicable linking rule should be checked in the current preparation scripts for the release being compared | Their project is designed for broad reproducible signal coverage, so comparisons should use the release-specific construction code rather than infer the rule from final data files. | Use this repo's CCM flags to run a conservative or broader variant, then compare against the chosen Open Source Asset Pricing release. |
+| Green public SAS code | `linktype in ('LU', 'LC', 'LD', 'LF', 'LN', 'LO', 'LS', 'LX')` with `LINKDT` / `LINKENDDT` date-validity filters on `crsp.ccmxpf_linktable` | Broader link-type coverage than the default `LC/LU` filter; can increase matched firms at the cost of including links a conservative filter would drop. | Use `--ccm-linktypes LU,LC,LD,LF,LN,LO,LS,LX --ccm-linkprim P,C`. |
+| Gu-Kelly-Xiu / Xin He style assistive code | Keeps linktypes whose first letter is `L` and `linkprim in ('P', 'C')` | Broadly accepts WRDS link-family records while still restricting to primary Compustat/CRSP link flags. | Same as Green-style broader rule above. |
 
 ### Builder Flags
 
@@ -166,35 +212,25 @@ python Character_Builders/build_all_implemented_characters.py --wrds-user YOUR_W
 
 ---
 
-## WRDS Access
-
-The code does not store WRDS credentials. Use one of the standard local WRDS
-authentication methods:
-
-- a local `.pgpass` file,
-- WRDS/PostgreSQL environment variables,
-- or the optional `--wrds-user` argument where supported.
-
-Do not commit usernames, passwords, `.pgpass` files, downloaded WRDS data, or
-generated output CSVs to a public repository.
-
----
-
 ## Requirements
 
-The project was developed with the following package versions:
+The project was developed with the following pinned versions for core numerics:
 
 ```text
 pandas==2.3.3
 numpy==2.4.1
-wrds==3.4.0
 ```
 
-Install them with:
+Install dependencies with:
 
 ```powershell
 pip install -r requirements.txt
 ```
+
+For WRDS access, do not pin to a fixed `wrds` package version in documentation.
+Use the most recent WRDS package available in your environment. WRDS
+occasionally changes package availability and authentication behavior, so a
+current install is generally preferable to an older pinned release.
 
 ---
 
@@ -216,9 +252,10 @@ the machine has less RAM and must rely more heavily on disk I/O. The slowest ste
 - and the final merge of many large CSV files into the all-character panel.
 
 These jobs also use **substantial memory**. Panel merges and some event-style
-builders can require **many gigabytes of RAM** at peak. A machine with at least
-**16 GB RAM** is a practical minimum; **32 GB or more** is safer for the full
-pipeline.
+builders can require **many gigabytes of RAM** at peak. **At least 64 GB RAM is
+recommended** for the full characteristic construction workflow. Full builds
+can be memory intensive; machines with less RAM may need batching, partial
+execution, or resume-friendly flags rather than a single uninterrupted run.
 
 If a run is interrupted, the builders support resume-friendly flags such as
 `--skip-existing`, `--skip-annual-monthly`, and `--skip-ibes`, and the panel
@@ -326,8 +363,14 @@ outputs and keep identifiers such as `permno`, `permco`, `gvkey`, `datadate`,
 `fyear`, and `sic` where applicable. Panel builders then assign prediction
 months, merge returns, and apply any broader sample rules.
 
-CRSP-based builders restrict the stock universe to common shares on NYSE, AMEX,
-and NASDAQ where monthly CRSP data are queried:
+Gu, Kelly, and Xiu state in their empirical asset pricing framework: "We include
+stocks with prices below $5, share codes beyond 10 and 11, and financial
+firms." That convention reflects the broader coverage used in their predictor
+library and machine-learning applications.
+
+This repository follows the same general empirical asset pricing framework, but
+by default it applies a narrower common-stock screen on NYSE, AMEX, and NASDAQ
+where monthly CRSP data are queried:
 
 ```text
 shrcd in (10, 11)
@@ -370,6 +413,8 @@ The repository handles these cases explicitly:
   underlying `datadate`.
 - Raw character files retain `datadate` and `fyear` so these decisions remain
   auditable.
+
+### Delisting Returns
 
 Return-side files include delisting returns when available. The excess-return
 builder also exposes an optional distress-delisting convention:
@@ -420,9 +465,10 @@ the month after winsorization and imputation. Ties receive average ranks. The
 final panel therefore keeps the original timing columns and next-month
 `excess_return`, while the characteristic columns are normalized predictors.
 If an entire characteristic is unavailable in an early month, the final ranked
-value is set to `0`, the neutral midpoint of the normalized interval. This keeps
-the 1957+ matrix rectangular without pretending that an unavailable
-cross-section had informative ranks.
+value is set to `0`, the neutral midpoint of the normalized interval. This
+follows the convention used in Gu, Kelly, and Xiu's empirical asset pricing
+framework. It keeps the 1957+ matrix rectangular without pretending that an
+unavailable cross-section had informative ranks.
 
 ---
 
@@ -547,16 +593,6 @@ successful WRDS pull.
 If WRDS still times out, wait and rerun the same resume command; transient
 connection drops are common on long server sessions.
 
-**Why Xin He / Dacheng Xiu scripts rarely hit this:** reference files such as
-`Supplementary_assistive_files/Python_codes/Dacheng_Xiu_or_Xin_he/Rvar_ff3.py` and
-`maxret_d.py` each run **one** `crsp.dsf` download, compute in Python (often with
-multiprocessing), and save a small `.feather` with `permno` / `date` / signal only.
-They **do not** query `crsp.msf` + `msenames`, and they **do not** run 60+ factors in
-one long-lived WRDS session. Our full pipeline adds monthly-panel metadata
-(`permco`, `sic`, `signal_yyyymm`, …) and batches many characteristics; that is
-why we cache monthly CRSP, cache daily factor pulls, and reuse `outputs/me.csv` on
-resume instead of re-downloading the same tables.
-
 To **rebuild panels only** from existing CSVs (no WRDS queries):
 
 ```powershell
@@ -642,7 +678,7 @@ outputs/
 - `build_monthly_character_panel.py` / `build_annual_character_panel.py` — old HXZ-only narrow workflow
 - `outputs/panels/legacy/complete_prediction_panel.csv` — only via `--legacy-narrow-panel` flag
 
-If you have an existing flat `outputs/*.csv` tree from an earlier server run, migrate it **once** (not required after normal future pipeline runs):
+If you have an existing flat `outputs/*.csv` tree from an older version of the repository, migrate it **once** (not required after normal future pipeline runs):
 
 ```bash
 python scripts/migrate_outputs_layout.py
