@@ -40,8 +40,7 @@ If you use the code or the construction definitions in academic work, please cit
   author       = {Aminimehr, Amin},
   title        = {Stock Characters: Reproducible Python Builders for Green-Style and HXZ-Style Signals},
   year         = {2026},
-  url          = {https://github.com/aminaminimehr/Stock_Characters},
-  note         = {Construction definitions follow Green (2016) SAS programs and Hou-Xue-Zhang (2020) portfolio documentation.}
+  url          = {https://github.com/aminaminimehr/Stock_Characters}
 }
 ```
 
