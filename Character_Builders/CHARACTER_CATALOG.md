@@ -86,6 +86,7 @@ monthly `signal_yyyymm` after the required lag is applied inside the builder.
 | `pchsaleinv` | Change in sales-to-inventory | Annual accounting | Implemented through shared Green builder: `Green_PCHSALEINV_Generalized` |
 | `pctacc` | Percent operating accruals | Annual/quarterly accounting | Implemented through shared Green builder: `Green_PCTACC_Generalized` |
 | `pm` | Profit margin | Annual/quarterly accounting | Implemented through shared Green builder: `Green_PM_Generalized` |
+| `quick` | Quick ratio | Annual accounting | Implemented through shared Green builder: `Green_QUICK_Generalized` |
 | `ps` | Performance score | Quarterly accounting | Implemented through shared Green builder: `Green_PS_Generalized` |
 | `rd_sale` | R&D to sales | Annual/quarterly accounting | Implemented through shared Green builder: `Green_RD_SALE_Generalized` |
 | `rdm` | R&D expense-to-market | Annual/quarterly accounting plus market equity | Implemented through shared Green builder: `Green_RDM_Generalized` |
@@ -100,7 +101,11 @@ monthly `signal_yyyymm` after the required lag is applied inside the builder.
 | `seas1a` | Seasonality | Monthly CRSP returns | Implemented through shared Green monthly builder: `Green_SEAS1A_Generalized` |
 | `sgr` | Sales growth | Annual/quarterly accounting | Implemented through shared Green builder: `Green_SGR_Generalized` |
 | `salecash` | Sales-to-cash | Annual accounting | Implemented through shared Green builder: `Green_SALECASH_Generalized` |
+| `saleinv` | Sales-to-inventory | Annual accounting | Implemented through shared Green builder: `Green_SALEINV_Generalized` |
+| `salerec` | Sales-to-receivables | Annual accounting | Implemented through shared Green builder: `Green_SALEREC_Generalized` |
+| `sin` | Sin stocks indicator | Annual accounting | Implemented through shared Green builder: `Green_SIN_Generalized` |
 | `sp` | Sales-to-price | Annual/quarterly accounting plus price | Implemented through shared Green builder: `Green_SP_Generalized` |
+| `tang` | Tangibility | Annual accounting | Implemented through shared Green builder: `Green_TANG_Generalized` |
 | `std_dolvol` | Standard deviation of dollar trading volume, rolling 3 months | Monthly/daily CRSP | Implemented through shared Green builder: `Green_STD_DOLVOL_Generalized` |
 | `std_turn` | Standard deviation of share turnover, rolling 3 months | Monthly/daily CRSP | Implemented through shared Green builder: `Green_STD_TURN_Generalized` |
 | `sue` | Unexpected quarterly earnings | Quarterly accounting | Implemented: `Green_SUE_Generalized` / `_shared/quarterly_builders.py` |

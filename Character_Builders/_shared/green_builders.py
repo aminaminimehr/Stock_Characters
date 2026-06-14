@@ -66,12 +66,17 @@ ANNUAL_CHARACTER_INFO = {
     "pchsaleinv": "Change in sales-to-inventory",
     "pm": "Profit margin",
     "ps": "Performance score",
+    "quick": "Quick ratio",
     "rd_sale": "R&D to sales",
     "rdm": "R&D expense-to-market",
     "roe": "Return on equity",
     "sgr": "Sales growth",
     "salecash": "Sales-to-cash",
+    "saleinv": "Sales-to-inventory",
+    "salerec": "Sales-to-receivables",
+    "sin": "Sin stocks indicator",
     "sp": "Sales-to-price",
+    "tang": "Tangibility",
 }
 
 MONTHLY_CHARACTER_INFO = {
@@ -104,6 +109,29 @@ SUPPORTED_CHARACTERS = {
 }
 
 PLANNED_CHARACTERS = {}
+
+GREEN_SIN_NAICS = {
+    "7132", "71312", "713210", "71329", "713290", "72112", "721120",
+}
+
+
+def _normalize_naics(naics):
+    if pd.isna(naics):
+        return ""
+    value = pd.to_numeric(naics, errors="coerce")
+    if pd.isna(value):
+        return str(naics).strip()
+    if float(value).is_integer():
+        return str(int(value))
+    return str(value).strip()
+
+
+def compute_sin(comp):
+    sic = pd.to_numeric(comp["sic"], errors="coerce")
+    sic_sin = ((sic >= 2100) & (sic <= 2199)) | ((sic >= 2080) & (sic <= 2085))
+    naics_str = comp["naics"].map(_normalize_naics)
+    naics_sin = naics_str.isin(GREEN_SIN_NAICS)
+    return indicator(sic_sin | naics_sin)
 
 
 def safe_divide(numerator, denominator):
@@ -250,7 +278,7 @@ def load_annual_orgcap_lookup(db):
 
 def load_annual_compustat(db):
     comp = db.raw_sql(f"""
-        SELECT c.gvkey, f.datadate, f.fyear, c.sic,
+        SELECT c.gvkey, f.datadate, f.fyear, c.sic, c.naics,
                f.sale, f.revt, f.cogs, f.xsga, f.dp, f.xrd, f.xad,
                f.ib, f.oancf, f.dvt, f.ni, f.txp, f.txt, f.xint, f.capx,
                f.rect, f.act, f.che, f.ppegt, f.invt, f.at, f.aco,
@@ -413,7 +441,15 @@ def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
     quick = safe_divide(act_i - comp["invt"], lct_i)
     lag_quick = safe_divide(lag_act_i - comp["lag_invt"], lag_lct_i)
     comp["pchquick"] = safe_divide(quick - lag_quick, lag_quick)
+    comp["quick"] = quick
     comp["salecash"] = safe_divide(comp["sale"], comp["che"])
+    comp["saleinv"] = safe_divide(comp["sale"], comp["invt"])
+    comp["salerec"] = safe_divide(comp["sale"], comp["rect"])
+    comp["tang"] = safe_divide(
+        comp["che"] + comp["rect"] * 0.715 + comp["invt"] * 0.547 + comp["ppent"] * 0.535,
+        comp["at"],
+    )
+    comp["sin"] = compute_sin(comp)
     if orgcap_lookup is not None:
         comp = comp.merge(orgcap_lookup, on=["gvkey", "datadate"], how="left")
     else:
