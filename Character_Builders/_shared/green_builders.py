@@ -42,9 +42,12 @@ ANNUAL_CHARACTER_INFO = {
     "chobklg": "Change in order backlog scaled by assets",
     "chinv": "Change in inventory",
     "chpm": "Industry-adjusted change in profit margin",
+    "convind": "Convertible debt indicator",
     "currat": "Current ratio",
     "depr": "Depreciation / PP&E",
     "dy": "Dividend yield",
+    "divi": "Dividend initiation",
+    "divo": "Dividend omission",
     "egr": "Growth in common shareholder equity",
     "ep": "Earnings-to-price",
     "gma": "Gross profitability",
@@ -64,21 +67,30 @@ ANNUAL_CHARACTER_INFO = {
     "pchcurrat": "Change in current ratio",
     "pchdepr": "Change in depreciation rate",
     "pchcapx": "Change in capital expenditures",
+    "pchgm_pchsale": "Change in gross margin minus change in sales",
     "pchquick": "Change in quick ratio",
+    "pchsale_pchinvt": "Change in sales minus change in inventory",
+    "pchsale_pchrect": "Change in sales minus change in receivables",
+    "pchsale_pchxsga": "Change in sales minus change in SG&A",
     "pchsaleinv": "Change in sales-to-inventory",
     "pm": "Profit margin",
     "ps": "Performance score",
     "quick": "Quick ratio",
+    "rd": "R&D increase indicator",
     "rd_sale": "R&D to sales",
     "rdm": "R&D expense-to-market",
     "realestate": "Real-estate holdings",
     "roe": "Return on equity",
+    "roic": "Return on invested capital",
     "sgr": "Sales growth",
     "salecash": "Sales-to-cash",
     "saleinv": "Sales-to-inventory",
     "salerec": "Sales-to-receivables",
+    "secured": "Secured debt",
+    "securedind": "Secured debt indicator",
     "sin": "Sin stocks indicator",
     "sp": "Sales-to-price",
+    "tb": "Industry-adjusted tax income to book income",
     "tang": "Tangibility",
 }
 
@@ -231,6 +243,17 @@ GREEN_CPI_BY_FYEAR = {
     2023: 304.702,
 }
 
+GREEN_TAX_RATE_BY_FYEAR = {
+    year: rate
+    for year, rate in [
+        *((y, 0.48) for y in range(1900, 1979)),
+        *((y, 0.46) for y in range(1979, 1987)),
+        (1987, 0.40),
+        *((y, 0.34) for y in range(1988, 1993)),
+        *((y, 0.35) for y in range(1993, 2100)),
+    ]
+}
+
 
 def _dedupe_annual_compustat(comp):
     comp["datadate"] = pd.to_datetime(comp["datadate"])
@@ -283,10 +306,11 @@ def load_annual_compustat(db):
     comp = db.raw_sql(f"""
         SELECT c.gvkey, f.datadate, f.fyear, c.sic, c.naics,
                f.sale, f.revt, f.cogs, f.xsga, f.dp, f.xrd, f.xad,
-               f.ib, f.oancf, f.dvt, f.ni, f.txp, f.txt, f.xint, f.capx, f.ob,
+               f.ebit, f.nopi, f.txt, f.txfo, f.txfed, f.txdi,
+               f.ib, f.oancf, f.dvt, f.ni, f.txp, f.xint, f.capx, f.ob,
                f.rect, f.act, f.che, f.ppegt, f.invt, f.at, f.aco,
                f.intan, f.ao, f.ppent, f.fatb, f.fatl,
-               f.lct, f.dlc, f.dltt, f.lt, f.ap, f.lco, f.lo,
+               f.lct, f.dlc, f.dltt, f.lt, f.dm, f.dcvt, f.dcpstk, f.cshrc, f.ap, f.lco, f.lo,
                f.ceq, f.seq, f.pstk, f.pstkl, f.pstkrv, f.txditc,
                f.scstkc, f.emp, f.csho, ABS(f.prcc_f) AS prcc_f
         FROM comp.company AS c
@@ -335,6 +359,7 @@ def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
         "at", "act", "che", "lct", "dlc", "txp", "dp", "ib", "csho", "lt",
         "sale", "revt", "cogs", "emp", "rect", "invt", "ppent", "ppegt", "aco",
         "intan", "ao", "ap", "lco", "lo", "ceq", "dltt", "ni", "capx", "ob",
+        "dvt", "xrd", "xsga",
     ]:
         if col in comp:
             comp[f"lag_{col}"] = lag(comp, col)
@@ -452,6 +477,65 @@ def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
         comp["che"] + comp["rect"] * 0.715 + comp["invt"] * 0.547 + comp["ppent"] * 0.535,
         comp["at"],
     )
+    comp["roic"] = safe_divide(
+        comp["ebit"] - comp["nopi"], comp["ceq"] + comp["lt"] - comp["che"]
+    )
+    sale_growth = safe_divide(comp["sale"] - comp["lag_sale"], comp["lag_sale"])
+    invt_growth = safe_divide(comp["invt"] - comp["lag_invt"], comp["lag_invt"])
+    rect_growth = safe_divide(comp["rect"] - comp["lag_rect"], comp["lag_rect"])
+    xsga_growth = safe_divide(comp["xsga"] - comp["lag_xsga"], comp["lag_xsga"])
+    gross_margin = comp["sale"] - comp["cogs"]
+    lag_gross_margin = comp["lag_sale"] - comp["lag_cogs"]
+    gross_margin_growth = safe_divide(gross_margin - lag_gross_margin, lag_gross_margin)
+    comp["pchsale_pchinvt"] = sale_growth - invt_growth
+    comp["pchsale_pchrect"] = sale_growth - rect_growth
+    comp["pchgm_pchsale"] = gross_margin_growth - sale_growth
+    comp["pchsale_pchxsga"] = sale_growth - xsga_growth
+    comp["divi"] = (
+        comp["dvt"].notna()
+        & (comp["dvt"] > 0)
+        & (comp["lag_dvt"].isna() | (comp["lag_dvt"] == 0))
+    ).astype(float)
+    comp["divo"] = (
+        (comp["dvt"].isna() | (comp["dvt"] == 0))
+        & comp["lag_dvt"].notna()
+        & (comp["lag_dvt"] > 0)
+    ).astype(float)
+    xrd_at = safe_divide(comp["xrd"], comp["at"])
+    lag_xrd_at = safe_divide(comp["lag_xrd"], comp["lag2_at"])
+    rd_growth = safe_divide(xrd_at - lag_xrd_at, lag_xrd_at).astype(float)
+    comp["rd"] = np.nan
+    valid_rd = rd_growth.notna()
+    comp.loc[valid_rd, "rd"] = np.where(rd_growth.loc[valid_rd] > 0.05, 1.0, 0.0)
+    comp["dc"] = np.nan
+    dc_mask1 = (
+        comp["dcvt"].isna()
+        & comp["dcpstk"].notna()
+        & comp["pstk"].notna()
+        & (comp["dcpstk"] > comp["pstk"])
+    )
+    comp.loc[dc_mask1, "dc"] = comp.loc[dc_mask1, "dcpstk"] - comp.loc[dc_mask1, "pstk"]
+    dc_mask2 = comp["dcvt"].isna() & comp["dcpstk"].notna() & comp["pstk"].isna()
+    comp.loc[dc_mask2, "dc"] = comp.loc[dc_mask2, "dcpstk"]
+    comp.loc[comp["dc"].isna(), "dc"] = comp["dcvt"]
+    comp["convind"] = (
+        (comp["dc"].notna() & (comp["dc"] != 0))
+        | (comp["cshrc"].notna() & (comp["cshrc"] != 0))
+    ).astype(float)
+    comp["securedind"] = (comp["dm"].notna() & (comp["dm"] != 0)).astype(float)
+    comp["secured"] = safe_divide(comp["dm"], comp["dltt"])
+    tax_rate = comp["fyear"].map(GREEN_TAX_RATE_BY_FYEAR)
+    tb_primary = safe_divide(comp["txfo"] + comp["txfed"], tax_rate)
+    tb_fallback = safe_divide(comp["txt"] - comp["txdi"], tax_rate)
+    tb_numerator = tb_primary.where(
+        comp["txfo"].notna() & comp["txfed"].notna(), tb_fallback
+    )
+    comp["tb_1"] = safe_divide(tb_numerator, comp["ib"])
+    tb_special = (
+        (comp["txfo"].fillna(0) + comp["txfed"].fillna(0) > 0)
+        | (comp["txt"] > comp["txdi"])
+    ) & (comp["ib"] <= 0)
+    comp.loc[tb_special, "tb_1"] = 1.0
     comp["sin"] = compute_sin(comp)
     comp["realestate"] = safe_divide(comp["fatb"] + comp["fatl"], comp["ppegt"])
     comp.loc[comp["ppegt"].isna(), "realestate"] = safe_divide(
@@ -487,6 +571,7 @@ def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
     comp["bm_ia"] = comp["bm"] - grouped["bm"].transform("mean")
     comp["chpm"] = comp["chpm"] - grouped["chpm"].transform("mean")
     comp["me_ia"] = comp["mve_f"] - grouped["mve_f"].transform("mean")
+    comp["tb"] = comp["tb_1"] - grouped["tb_1"].transform("mean")
     industry_sales = grouped["sale"].transform("sum")
     comp["sales_share_sq"] = (comp["sale"] / industry_sales.replace(0, np.nan)) ** 2
     comp["herf"] = grouped["sales_share_sq"].transform("sum")
@@ -496,6 +581,8 @@ def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
         "chpm", "ato", "cashdebt", "roe", "noa", "grltnoa", "ps",
         "invest", "egr", "chinv", "absacc", "pchdepr", "pchcurrat", "orgcap",
         "pchcapx", "pchsaleinv", "pchquick", "obklg", "chobklg",
+        "pchsale_pchinvt", "pchsale_pchrect", "pchgm_pchsale", "pchsale_pchxsga",
+        "divi", "divo", "rd",
     ]] = np.nan
     comp.loc[comp.groupby("gvkey").cumcount() < 2, "grcapx"] = np.nan
     return comp

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 
-from _shared.beta_builder import build_beta_character
+from _shared.beta_builder import build_beta_character, build_betasq_character
 from _shared.event_builders import build_abr_character
 from _shared.green_builders import (
     ANNUAL_CHARACTER_INFO,
@@ -114,6 +114,7 @@ def build_special_characters(
 ):
     special_jobs = [
         ("beta", lambda: build_beta_character(db, output_dir)),
+        ("betasq", lambda: build_betasq_character(db, output_dir)),
         ("abr", lambda: build_abr_character(db, ccm_linktypes, ccm_linkprim)),
     ]
     if not skip_ibes:

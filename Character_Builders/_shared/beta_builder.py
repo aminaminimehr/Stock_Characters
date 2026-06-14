@@ -52,6 +52,19 @@ def build_beta_character(db, output_dir=OUTPUT_DIR):
     return out[["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "sic", "exchcd", "shrcd", "beta"]]
 
 
+def build_betasq_character(db, output_dir=OUTPUT_DIR):
+    daily = load_daily_factor_data(db, ["mktrf"])
+    beta = compute_monthly_beta(daily, "beta")
+    beta["betasq"] = beta["beta"] ** 2
+
+    monthly = load_monthly_alignment_frame(output_dir, db=db)
+    out = monthly.merge(beta[["permno", "source_yyyymm", "betasq"]], on=["permno", "source_yyyymm"], how="left")
+    out = out[out["betasq"].replace([np.inf, -np.inf], np.nan).notna()].copy()
+    return out[
+        ["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "sic", "exchcd", "shrcd", "betasq"]
+    ]
+
+
 def run_beta_cli():
     parser = argparse.ArgumentParser(
         description="Build beta from rolling 3-month daily CAPM regressions."
