@@ -44,6 +44,7 @@ monthly `signal_yyyymm` after the required lag is applied inside the builder.
 | `bm_ia` | Industry-adjusted book-to-market | Annual accounting plus industry adjustment | Implemented through shared Green builder: `Green_BM_IA_Generalized` |
 | `cash` | Cash holdings | Annual/quarterly accounting | Implemented through shared Green builder: `Green_CASH_Generalized` |
 | `cashpr` | Cash productivity | Annual accounting | Implemented through shared Green builder: `Green_CASHPR_Generalized` |
+| `currat` | Current ratio | Annual accounting | Implemented through shared Green builder: `Green_CURRAT_Generalized` |
 | `cashdebt` | Cash to debt | Annual/quarterly accounting | Implemented through shared Green builder: `Green_CASHDEBT_Generalized` |
 | `cfp` | Cash-flow-to-price | Annual accounting plus December CRSP ME | Implemented: `HXZ_CFP_Generalized` |
 | `chcsho` | Change in shares outstanding | Annual/quarterly accounting | Implemented through shared Green builder: `Green_CHCSHO_Generalized` |
@@ -79,7 +80,10 @@ monthly `signal_yyyymm` after the required lag is applied inside the builder.
 | `op` | Operating profitability | Annual accounting | Implemented: `HXZ_OPE_Generalized` |
 | `orgcap` | Organizational capital | Annual accounting | Implemented through shared Green builder: `Green_ORGCAP_Generalized` |
 | `pchcurrat` | Change in current ratio | Annual accounting | Implemented through shared Green builder: `Green_PCHCURRAT_Generalized` |
+| `pchcapx` | Change in capital expenditures | Annual accounting | Implemented through shared Green builder: `Green_PCHCAPX_Generalized` |
 | `pchdepr` | Change in depreciation rate | Annual accounting | Implemented through shared Green builder: `Green_PCHDEPR_Generalized` |
+| `pchquick` | Change in quick ratio | Annual accounting | Implemented through shared Green builder: `Green_PCHQUICK_Generalized` |
+| `pchsaleinv` | Change in sales-to-inventory | Annual accounting | Implemented through shared Green builder: `Green_PCHSALEINV_Generalized` |
 | `pctacc` | Percent operating accruals | Annual/quarterly accounting | Implemented through shared Green builder: `Green_PCTACC_Generalized` |
 | `pm` | Profit margin | Annual/quarterly accounting | Implemented through shared Green builder: `Green_PM_Generalized` |
 | `ps` | Performance score | Quarterly accounting | Implemented through shared Green builder: `Green_PS_Generalized` |
@@ -95,6 +99,7 @@ monthly `signal_yyyymm` after the required lag is applied inside the builder.
 | `rvar_mean` | Daily return volatility from previous month; Green SAS column `retvol` | Monthly/daily CRSP | Implemented through shared Green builder: `Green_RVAR_MEAN_Generalized` |
 | `seas1a` | Seasonality | Monthly CRSP returns | Implemented through shared Green monthly builder: `Green_SEAS1A_Generalized` |
 | `sgr` | Sales growth | Annual/quarterly accounting | Implemented through shared Green builder: `Green_SGR_Generalized` |
+| `salecash` | Sales-to-cash | Annual accounting | Implemented through shared Green builder: `Green_SALECASH_Generalized` |
 | `sp` | Sales-to-price | Annual/quarterly accounting plus price | Implemented through shared Green builder: `Green_SP_Generalized` |
 | `std_dolvol` | Standard deviation of dollar trading volume, rolling 3 months | Monthly/daily CRSP | Implemented through shared Green builder: `Green_STD_DOLVOL_Generalized` |
 | `std_turn` | Standard deviation of share turnover, rolling 3 months | Monthly/daily CRSP | Implemented through shared Green builder: `Green_STD_TURN_Generalized` |

@@ -41,6 +41,7 @@ ANNUAL_CHARACTER_INFO = {
     "chcsho": "Change in shares outstanding",
     "chinv": "Change in inventory",
     "chpm": "Industry-adjusted change in profit margin",
+    "currat": "Current ratio",
     "depr": "Depreciation / PP&E",
     "dy": "Dividend yield",
     "egr": "Growth in common shareholder equity",
@@ -60,12 +61,16 @@ ANNUAL_CHARACTER_INFO = {
     "pctacc": "Percent operating accruals",
     "pchcurrat": "Change in current ratio",
     "pchdepr": "Change in depreciation rate",
+    "pchcapx": "Change in capital expenditures",
+    "pchquick": "Change in quick ratio",
+    "pchsaleinv": "Change in sales-to-inventory",
     "pm": "Profit margin",
     "ps": "Performance score",
     "rd_sale": "R&D to sales",
     "rdm": "R&D expense-to-market",
     "roe": "Return on equity",
     "sgr": "Sales growth",
+    "salecash": "Sales-to-cash",
     "sp": "Sales-to-price",
 }
 
@@ -393,6 +398,22 @@ def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
         comp.loc[impute_capx, "ppent"] - comp.loc[impute_capx, "lag_ppent"]
     )
     comp["grcapx"] = safe_divide(comp["capx"] - comp["lag2_capx"], comp["lag2_capx"])
+    comp["pchcapx"] = safe_divide(comp["capx"] - comp["lag_capx"], comp["lag_capx"])
+    act_i = comp["act"].where(comp["act"].notna(), comp["che"] + comp["rect"] + comp["invt"])
+    lct_i = comp["lct"].where(comp["lct"].notna(), comp["ap"])
+    lag_act_i = comp["lag_act"].where(
+        comp["lag_act"].notna(),
+        comp["lag_che"] + comp["lag_rect"] + comp["lag_invt"],
+    )
+    lag_lct_i = comp["lag_lct"].where(comp["lag_lct"].notna(), comp["lag_ap"])
+    comp["currat"] = safe_divide(act_i, lct_i)
+    sale_invt = safe_divide(comp["sale"], comp["invt"])
+    lag_sale_invt = safe_divide(comp["lag_sale"], comp["lag_invt"])
+    comp["pchsaleinv"] = safe_divide(sale_invt - lag_sale_invt, lag_sale_invt)
+    quick = safe_divide(act_i - comp["invt"], lct_i)
+    lag_quick = safe_divide(lag_act_i - comp["lag_invt"], lag_lct_i)
+    comp["pchquick"] = safe_divide(quick - lag_quick, lag_quick)
+    comp["salecash"] = safe_divide(comp["sale"], comp["che"])
     if orgcap_lookup is not None:
         comp = comp.merge(orgcap_lookup, on=["gvkey", "datadate"], how="left")
     else:
@@ -429,6 +450,7 @@ def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
         "agr", "gma", "chcsho", "lgr", "acc", "pctacc", "hire", "sgr",
         "chpm", "ato", "cashdebt", "roe", "noa", "grltnoa", "ps",
         "invest", "egr", "chinv", "absacc", "pchdepr", "pchcurrat", "orgcap",
+        "pchcapx", "pchsaleinv", "pchquick",
     ]] = np.nan
     comp.loc[comp.groupby("gvkey").cumcount() < 2, "grcapx"] = np.nan
     return comp

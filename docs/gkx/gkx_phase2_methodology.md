@@ -60,6 +60,23 @@ Phase 1 variables (`invest`, `egr`, `chinv`, `absacc`, `age`) are **not** modifi
 | **CPI table** | Green embedded CPI 1974–2015; repo extends through 2023 using BLS CPI-U annual averages for post-2015 fiscal years (documented in builder). |
 | **Ambiguity** | CPI extension beyond Green table is required for recent samples; follow Green recursion otherwise. |
 
+### CPI extension note (post-2015)
+
+Green SAS embeds a BLS CPI table through fiscal year 2015 (`Greens_code.sas` L299–345). For fiscal years **2016–2023**, this repo extends `GREEN_CPI_BY_FYEAR` in `Character_Builders/_shared/green_builders.py` using **BLS CPI-U All Items annual averages** (not seasonally adjusted), matching the same index concept Green uses for deflating SG&A. Values added:
+
+| fyear | CPI-U |
+|------:|------:|
+| 2016 | 240.007 |
+| 2017 | 245.120 |
+| 2018 | 251.107 |
+| 2019 | 255.657 |
+| 2020 | 258.811 |
+| 2021 | 270.970 |
+| 2022 | 292.655 |
+| 2023 | 304.702 |
+
+Source: U.S. Bureau of Labor Statistics CPI-U annual averages. If a fiscal year is missing from the map, `orgcap` SG&A deflation yields NaN for that row.
+
 ---
 
 ## 5. `pchcurrat` — Change in current ratio
