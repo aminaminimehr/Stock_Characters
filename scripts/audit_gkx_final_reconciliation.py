@@ -191,7 +191,7 @@ def reconcile() -> str:
         "",
         "## Verdict",
         "",
-        "**Answer: B.** The complete prediction panel has **94 merged columns**, but only "
+        f"**Answer: B.** The complete prediction panel has **{len(complete) + len(RETURN_COLS)} merged columns**, but only "
         f"**{len(complete)}** are characteristics. **{missing} of 94 GKX predictors remain missing**. "
         f"The panel also carries **{len(extras)} repository-only extras** and **duplicate implementations** "
         "for three GKX concepts (`bm`, `cfp`, `operprof`). We do **not** yet have all GKX predictors implemented.",
