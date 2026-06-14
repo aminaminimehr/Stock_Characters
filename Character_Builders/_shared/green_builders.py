@@ -36,6 +36,7 @@ ANNUAL_CHARACTER_INFO = {
     "bm_ia": "Industry-adjusted book-to-market",
     "cash": "Cash holdings",
     "cashdebt": "Cash to debt",
+    "cashpr": "Cash productivity",
     "cfp": "Cash-flow-to-price",
     "chcsho": "Change in shares outstanding",
     "chinv": "Change in inventory",
@@ -45,6 +46,7 @@ ANNUAL_CHARACTER_INFO = {
     "egr": "Growth in common shareholder equity",
     "ep": "Earnings-to-price",
     "gma": "Gross profitability",
+    "grcapx": "Growth in capital expenditures",
     "grltnoa": "Growth in long-term net operating assets",
     "herf": "Industry sales concentration",
     "hire": "Employee growth rate",
@@ -54,7 +56,10 @@ ANNUAL_CHARACTER_INFO = {
     "me_ia": "Industry-adjusted size",
     "noa": "Net operating assets",
     "op": "Operating profitability",
+    "orgcap": "Organizational capital",
     "pctacc": "Percent operating accruals",
+    "pchcurrat": "Change in current ratio",
+    "pchdepr": "Change in depreciation rate",
     "pm": "Profit margin",
     "ps": "Performance score",
     "rd_sale": "R&D to sales",
@@ -136,6 +141,60 @@ ANNUAL_COMPUSTAT_WHERE = """
           AND f.datadate >= DATE '1975-01-01'
 """
 
+# Green SAS CPI table (1974-2015) plus BLS CPI-U annual averages for later fiscal years.
+GREEN_CPI_BY_FYEAR = {
+    1974: 49.3,
+    1975: 53.8,
+    1976: 56.9,
+    1977: 60.6,
+    1978: 65.2,
+    1979: 72.6,
+    1980: 82.4,
+    1981: 90.9,
+    1982: 96.5,
+    1983: 99.6,
+    1984: 103.9,
+    1985: 107.6,
+    1986: 109.6,
+    1987: 113.6,
+    1988: 118.3,
+    1989: 124.0,
+    1990: 130.7,
+    1991: 136.2,
+    1992: 140.3,
+    1993: 144.5,
+    1994: 148.2,
+    1995: 152.4,
+    1996: 156.9,
+    1997: 160.5,
+    1998: 163.0,
+    1999: 166.6,
+    2000: 172.2,
+    2001: 177.1,
+    2002: 179.88,
+    2003: 183.96,
+    2004: 188.9,
+    2005: 195.3,
+    2006: 201.6,
+    2007: 207.342,
+    2008: 215.303,
+    2009: 214.537,
+    2010: 218.056,
+    2011: 224.939,
+    2012: 229.594,
+    2013: 229.17,
+    2014: 229.91,
+    2015: 236.53,
+    2016: 240.007,
+    2017: 245.120,
+    2018: 251.107,
+    2019: 255.657,
+    2020: 258.811,
+    2021: 270.970,
+    2022: 292.655,
+    2023: 304.702,
+}
+
 
 def _dedupe_annual_compustat(comp):
     comp["datadate"] = pd.to_datetime(comp["datadate"])
@@ -164,11 +223,31 @@ def load_annual_age_lookup(db):
     return age[["gvkey", "datadate", "age"]]
 
 
+def load_annual_orgcap_lookup(db):
+    """Green orgcap from full annual Compustat history (sample window ignored)."""
+    comp = db.raw_sql(f"""
+        SELECT c.gvkey, f.datadate, f.fyear, f.xsga, f.at
+        FROM comp.company AS c
+        JOIN comp.funda AS f
+          ON c.gvkey = f.gvkey
+        WHERE {ANNUAL_COMPUSTAT_WHERE}
+    """)
+    comp = _dedupe_annual_compustat(comp)
+    comp["lag_at"] = lag(comp, "at")
+    avg_at = (comp["at"] + comp["lag_at"]) / 2
+    comp["cpi"] = comp["fyear"].map(GREEN_CPI_BY_FYEAR)
+    comp["xsga_cpi"] = safe_divide(comp["xsga"], comp["cpi"])
+    comp = comp.groupby("gvkey", group_keys=False).apply(_accumulate_orgcap)
+    comp["orgcap"] = safe_divide(comp["_orgcap_1"], avg_at)
+    comp.loc[comp.groupby("gvkey").cumcount() == 0, "orgcap"] = np.nan
+    return comp[["gvkey", "datadate", "orgcap"]]
+
+
 def load_annual_compustat(db):
     comp = db.raw_sql(f"""
         SELECT c.gvkey, f.datadate, f.fyear, c.sic,
                f.sale, f.revt, f.cogs, f.xsga, f.dp, f.xrd, f.xad,
-               f.ib, f.oancf, f.dvt, f.ni, f.txp, f.txt, f.xint,
+               f.ib, f.oancf, f.dvt, f.ni, f.txp, f.txt, f.xint, f.capx,
                f.rect, f.act, f.che, f.ppegt, f.invt, f.at, f.aco,
                f.intan, f.ao, f.ppent,
                f.lct, f.dlc, f.dltt, f.lt, f.ap, f.lco, f.lo,
@@ -192,7 +271,24 @@ def add_book_equity(comp):
     return comp
 
 
-def compute_annual_characters(comp, age_lookup=None):
+def _accumulate_orgcap(group):
+    orgcap_1 = np.nan
+    values = []
+    for xsga_cpi in group["xsga_cpi"]:
+        if pd.isna(xsga_cpi):
+            values.append(np.nan)
+            continue
+        if pd.isna(orgcap_1):
+            orgcap_1 = xsga_cpi / 0.25
+        else:
+            orgcap_1 = orgcap_1 * 0.85 + xsga_cpi
+        values.append(orgcap_1)
+    group = group.copy()
+    group["_orgcap_1"] = values
+    return group
+
+
+def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
     comp = comp.copy()
     comp = add_book_equity(comp)
     comp["mve_f"] = comp["prcc_f"] * comp["csho"]
@@ -202,7 +298,7 @@ def compute_annual_characters(comp, age_lookup=None):
     for col in [
         "at", "act", "che", "lct", "dlc", "txp", "dp", "ib", "csho", "lt",
         "sale", "revt", "cogs", "emp", "rect", "invt", "ppent", "ppegt", "aco",
-        "intan", "ao", "ap", "lco", "lo", "ceq", "dltt", "ni",
+        "intan", "ao", "ap", "lco", "lo", "ceq", "dltt", "ni", "capx",
     ]:
         if col in comp:
             comp[f"lag_{col}"] = lag(comp, col)
@@ -245,8 +341,12 @@ def compute_annual_characters(comp, age_lookup=None):
     comp["chpm"] = safe_divide(comp["ib"], comp["sale"]) - safe_divide(comp["lag_ib"], comp["lag_sale"])
     comp["ato"] = safe_divide(comp["sale"], avg_at)
     comp["depr"] = safe_divide(comp["dp"], comp["ppent"])
+    depr_rate = safe_divide(comp["dp"], comp["ppent"])
+    lag_depr_rate = safe_divide(comp["lag_dp"], comp["lag_ppent"])
+    comp["pchdepr"] = safe_divide(depr_rate - lag_depr_rate, lag_depr_rate)
     comp["cashdebt"] = safe_divide(comp["ib"] + comp["dp"], avg_lt)
     comp["cash"] = safe_divide(comp["che"], comp["at"])
+    comp["cashpr"] = safe_divide(comp["mve_f"] + comp["dltt"] - comp["at"], comp["che"])
     comp["pm"] = safe_divide(comp["ib"], comp["sale"])
     comp["roe"] = safe_divide(comp["ib"], comp["lag_ceq"])
     comp["op"] = safe_divide(comp["revt"] - comp["cogs"] - comp["xsga0"] - comp["xint0"], comp["lag_ceq"])
@@ -284,6 +384,23 @@ def compute_annual_characters(comp, age_lookup=None):
     comp["egr"] = safe_divide(comp["ceq"] - comp["lag_ceq"], comp["lag_ceq"])
     comp["chinv"] = safe_divide(comp["invt"] - comp["lag_invt"], avg_at)
     comp["absacc"] = comp["acc"].abs()
+    currat = safe_divide(comp["act"], comp["lct"])
+    lag_currat = safe_divide(comp["lag_act"], comp["lag_lct"])
+    comp["pchcurrat"] = safe_divide(currat - lag_currat, lag_currat)
+    firm_count = comp.groupby("gvkey").cumcount()
+    impute_capx = comp["capx"].isna() & (firm_count >= 1)
+    comp.loc[impute_capx, "capx"] = (
+        comp.loc[impute_capx, "ppent"] - comp.loc[impute_capx, "lag_ppent"]
+    )
+    comp["grcapx"] = safe_divide(comp["capx"] - comp["lag2_capx"], comp["lag2_capx"])
+    if orgcap_lookup is not None:
+        comp = comp.merge(orgcap_lookup, on=["gvkey", "datadate"], how="left")
+    else:
+        comp["cpi"] = comp["fyear"].map(GREEN_CPI_BY_FYEAR)
+        comp["xsga_cpi"] = safe_divide(comp["xsga"], comp["cpi"])
+        comp = comp.groupby("gvkey", group_keys=False).apply(_accumulate_orgcap)
+        comp["orgcap"] = safe_divide(comp["_orgcap_1"], avg_at)
+        comp = comp.drop(columns=["_orgcap_1"], errors="ignore")
     if age_lookup is not None:
         comp = comp.merge(age_lookup, on=["gvkey", "datadate"], how="left")
     else:
@@ -311,8 +428,9 @@ def compute_annual_characters(comp, age_lookup=None):
     comp.loc[comp.groupby("gvkey").cumcount() == 0, [
         "agr", "gma", "chcsho", "lgr", "acc", "pctacc", "hire", "sgr",
         "chpm", "ato", "cashdebt", "roe", "noa", "grltnoa", "ps",
-        "invest", "egr", "chinv", "absacc",
+        "invest", "egr", "chinv", "absacc", "pchdepr", "pchcurrat", "orgcap",
     ]] = np.nan
+    comp.loc[comp.groupby("gvkey").cumcount() < 2, "grcapx"] = np.nan
     return comp
 
 
@@ -328,6 +446,7 @@ def build_annual_character(db, character, ccm_linktypes=None, ccm_linkprim=None)
     comp = compute_annual_characters(
         load_annual_compustat(db),
         age_lookup=load_annual_age_lookup(db),
+        orgcap_lookup=load_annual_orgcap_lookup(db),
     )
     link = load_ccm_links(db, ccm_linktypes, ccm_linkprim)
     comp = attach_permno(comp, link)

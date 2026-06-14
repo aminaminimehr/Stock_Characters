@@ -43,6 +43,7 @@ monthly `signal_yyyymm` after the required lag is applied inside the builder.
 | `bmj` | Book-to-June-end market equity | Annual accounting plus June CRSP price | Implemented: `HXZ_BMJ_Generalized` |
 | `bm_ia` | Industry-adjusted book-to-market | Annual accounting plus industry adjustment | Implemented through shared Green builder: `Green_BM_IA_Generalized` |
 | `cash` | Cash holdings | Annual/quarterly accounting | Implemented through shared Green builder: `Green_CASH_Generalized` |
+| `cashpr` | Cash productivity | Annual accounting | Implemented through shared Green builder: `Green_CASHPR_Generalized` |
 | `cashdebt` | Cash to debt | Annual/quarterly accounting | Implemented through shared Green builder: `Green_CASHDEBT_Generalized` |
 | `cfp` | Cash-flow-to-price | Annual accounting plus December CRSP ME | Implemented: `HXZ_CFP_Generalized` |
 | `chcsho` | Change in shares outstanding | Annual/quarterly accounting | Implemented through shared Green builder: `Green_CHCSHO_Generalized` |
@@ -56,6 +57,7 @@ monthly `signal_yyyymm` after the required lag is applied inside the builder.
 | `egr` | Growth in common shareholder equity | Annual accounting | Implemented through shared Green builder: `Green_EGR_Generalized` |
 | `ep` | Earnings-to-price | Annual/quarterly accounting plus price | Implemented through shared Green builder: `Green_EP_Generalized` |
 | `gma` | Gross profitability | Annual/quarterly accounting | Implemented through shared Green builder: `Green_GMA_Generalized` |
+| `grcapx` | Growth in capital expenditures | Annual accounting | Implemented through shared Green builder: `Green_GRCAPX_Generalized` |
 | `grltnoa` | Growth in long-term net operating assets | Annual/quarterly accounting | Implemented through shared Green builder: `Green_GRLTNOA_Generalized` |
 | `herf` | Industry sales concentration | Annual accounting plus industry aggregation | Implemented through shared Green builder: `Green_HERF_Generalized` |
 | `hire` | Employee growth rate | Annual accounting | Implemented through shared Green builder: `Green_HIRE_Generalized` |
@@ -75,6 +77,9 @@ monthly `signal_yyyymm` after the required lag is applied inside the builder.
 | `nincr` | Number of earnings increases | Quarterly accounting | Implemented: `Green_NINCR_Generalized` / `_shared/quarterly_builders.py` |
 | `noa` | Net operating assets | Annual/quarterly accounting | Implemented through shared Green builder: `Green_NOA_Generalized` |
 | `op` | Operating profitability | Annual accounting | Implemented: `HXZ_OPE_Generalized` |
+| `orgcap` | Organizational capital | Annual accounting | Implemented through shared Green builder: `Green_ORGCAP_Generalized` |
+| `pchcurrat` | Change in current ratio | Annual accounting | Implemented through shared Green builder: `Green_PCHCURRAT_Generalized` |
+| `pchdepr` | Change in depreciation rate | Annual accounting | Implemented through shared Green builder: `Green_PCHDEPR_Generalized` |
 | `pctacc` | Percent operating accruals | Annual/quarterly accounting | Implemented through shared Green builder: `Green_PCTACC_Generalized` |
 | `pm` | Profit margin | Annual/quarterly accounting | Implemented through shared Green builder: `Green_PM_Generalized` |
 | `ps` | Performance score | Quarterly accounting | Implemented through shared Green builder: `Green_PS_Generalized` |

@@ -18,6 +18,7 @@ from _shared.green_builders import (
     compute_annual_characters,
     connect_wrds,
     load_annual_age_lookup,
+    load_annual_orgcap_lookup,
     load_annual_compustat,
     load_ccm_links,
     load_crsp_monthly,
@@ -49,6 +50,7 @@ def build_annual_characters(
     comp = compute_annual_characters(
         load_annual_compustat(db),
         age_lookup=load_annual_age_lookup(db),
+        orgcap_lookup=load_annual_orgcap_lookup(db),
     )
     comp = attach_permno(comp, load_ccm_links(db, ccm_linktypes, ccm_linkprim))
 
