@@ -29,3 +29,9 @@ All five characteristics present in signal and complete prediction panels.
 - Industry adjustment follows Green SAS (`sic2` × `fyear`, mean demean), not Dacheng FF49.
 - Existing `chpm` column unchanged; additive `chpmia` GKX column added.
 - Phase 1–6 variables not otherwise modified.
+
+## datashare.csv comparison
+
+See [`gkx_phase7_datashare_validation.md`](gkx_phase7_datashare_validation.md).
+
+All five variables exist in datashare. Under the 2018–2023 sample build, level Pearson correlations are moderate to weak; winsorized Pearson and Spearman are stronger for several variables. Gaps are attributed to **truncated-sample industry means** and **truncated firm history** (especially `chatoia`), not formula bugs. **Formulas unchanged.**
