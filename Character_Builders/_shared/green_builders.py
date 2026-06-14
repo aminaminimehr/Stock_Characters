@@ -125,6 +125,45 @@ def attach_permno(comp, link):
     return attach_ccm_links(comp, link)
 
 
+ANNUAL_COMPUSTAT_WHERE = """
+          f.indfmt = 'INDL'
+          AND f.datafmt = 'STD'
+          AND f.popsrc = 'D'
+          AND f.consol = 'C'
+          AND f.at IS NOT NULL
+          AND f.prcc_f IS NOT NULL
+          AND f.ni IS NOT NULL
+          AND f.datadate >= DATE '1975-01-01'
+"""
+
+
+def _dedupe_annual_compustat(comp):
+    comp["datadate"] = pd.to_datetime(comp["datadate"])
+    if "sic" in comp.columns:
+        comp["sic2"] = pd.to_numeric(comp["sic"], errors="coerce") // 100
+    if "datadate" in comp.columns:
+        comp["calendar_year"] = comp["datadate"].dt.year
+    return (
+        comp.sort_values(["gvkey", "datadate"])
+        .drop_duplicates(["gvkey", "datadate"], keep="last")
+        .sort_values(["gvkey", "datadate"])
+    )
+
+
+def load_annual_age_lookup(db):
+    """Green age from full annual Compustat history (sample window ignored)."""
+    age = db.raw_sql(f"""
+        SELECT c.gvkey, f.datadate
+        FROM comp.company AS c
+        JOIN comp.funda AS f
+          ON c.gvkey = f.gvkey
+        WHERE {ANNUAL_COMPUSTAT_WHERE}
+    """)
+    age = _dedupe_annual_compustat(age)
+    age["age"] = age.groupby("gvkey").cumcount() + 1
+    return age[["gvkey", "datadate", "age"]]
+
+
 def load_annual_compustat(db):
     comp = db.raw_sql(f"""
         SELECT c.gvkey, f.datadate, f.fyear, c.sic,
@@ -138,25 +177,10 @@ def load_annual_compustat(db):
         FROM comp.company AS c
         JOIN comp.funda AS f
           ON c.gvkey = f.gvkey
-        WHERE f.indfmt = 'INDL'
-          AND f.datafmt = 'STD'
-          AND f.popsrc = 'D'
-          AND f.consol = 'C'
-          AND f.at IS NOT NULL
-          AND f.prcc_f IS NOT NULL
-          AND f.ni IS NOT NULL
-          AND f.datadate >= DATE '1975-01-01'
+        WHERE {ANNUAL_COMPUSTAT_WHERE}
           AND {sql_date_filter("f.datadate")}
     """)
-    comp["datadate"] = pd.to_datetime(comp["datadate"])
-    comp["sic2"] = pd.to_numeric(comp["sic"], errors="coerce") // 100
-    comp["calendar_year"] = comp["datadate"].dt.year
-    comp = (
-        comp.sort_values(["gvkey", "datadate"])
-        .drop_duplicates(["gvkey", "datadate"], keep="last")
-        .sort_values(["gvkey", "datadate"])
-    )
-    return comp
+    return _dedupe_annual_compustat(comp)
 
 
 def add_book_equity(comp):
@@ -168,7 +192,7 @@ def add_book_equity(comp):
     return comp
 
 
-def compute_annual_characters(comp):
+def compute_annual_characters(comp, age_lookup=None):
     comp = comp.copy()
     comp = add_book_equity(comp)
     comp["mve_f"] = comp["prcc_f"] * comp["csho"]
@@ -260,7 +284,10 @@ def compute_annual_characters(comp):
     comp["egr"] = safe_divide(comp["ceq"] - comp["lag_ceq"], comp["lag_ceq"])
     comp["chinv"] = safe_divide(comp["invt"] - comp["lag_invt"], avg_at)
     comp["absacc"] = comp["acc"].abs()
-    comp["age"] = comp.groupby("gvkey").cumcount() + 1
+    if age_lookup is not None:
+        comp = comp.merge(age_lookup, on=["gvkey", "datadate"], how="left")
+    else:
+        comp["age"] = comp.groupby("gvkey").cumcount() + 1
     comp["ps"] = (
         indicator(comp["ni"] > 0)
         + indicator(comp["oancf"] > 0)
@@ -298,7 +325,10 @@ def write_character(df, character, output_dir):
 
 
 def build_annual_character(db, character, ccm_linktypes=None, ccm_linkprim=None):
-    comp = compute_annual_characters(load_annual_compustat(db))
+    comp = compute_annual_characters(
+        load_annual_compustat(db),
+        age_lookup=load_annual_age_lookup(db),
+    )
     link = load_ccm_links(db, ccm_linktypes, ccm_linkprim)
     comp = attach_permno(comp, link)
     comp = comp.rename(columns={character: "character_value"})

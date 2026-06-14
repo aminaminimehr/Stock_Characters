@@ -86,11 +86,13 @@ HXZ `Technical_Document_Factors_HXZ.md` documents q-factor inputs (e.g. investme
 | **Frequency** | Annual (monotonic within firm; first year = 1) |
 | **Ambiguity** | Low — use `groupby(gvkey).cumcount() + 1` on sorted annual panel |
 
+**Sample-window rule (important):** `age` must be computed from the **full** annual Compustat history (`datadate ≥ 1975`, no `STOCK_CHARACTERS_SAMPLE_*` filter). The optional sample window applies only when loading the main annual panel for other characteristics and when writing outputs — not when assigning `age`. Implementation: `load_annual_age_lookup()` pulls only `gvkey`/`datadate` without sample bounds, computes Green `count`, then merges onto the sample-filtered panel by `(gvkey, datadate)`.
+
 ---
 
 ## Shared implementation notes
 
 - First fiscal year per `gvkey`: lag-based variables (`invest`, `egr`, `chinv`, `absacc`) set to missing (consistent with existing Green annual first-row rule).
-- `age` is valid from first observation (= 1).
+- `age` is valid from first observation (= 1) and uses full Compustat history even under sample-mode builds.
 - Output columns in raw CSV: `permno`, `permco`, `gvkey`, `datadate`, `sic`, `fyear`, `{character}`.
 - Panel merge adds `signal_yyyymm`, `target_yyyymm` via `expand_annual_file` in `build_all_character_panel.py`.

@@ -17,6 +17,7 @@ from _shared.green_builders import (
     build_monthly_character,
     compute_annual_characters,
     connect_wrds,
+    load_annual_age_lookup,
     load_annual_compustat,
     load_ccm_links,
     load_crsp_monthly,
@@ -45,7 +46,10 @@ ANNUAL_ID_COLUMNS = ["permno", "permco", "gvkey", "datadate", "sic", "fyear"]
 def build_annual_characters(
     db, output_dir, ccm_linktypes=None, ccm_linkprim=None, skip_existing=False
 ):
-    comp = compute_annual_characters(load_annual_compustat(db))
+    comp = compute_annual_characters(
+        load_annual_compustat(db),
+        age_lookup=load_annual_age_lookup(db),
+    )
     comp = attach_permno(comp, load_ccm_links(db, ccm_linktypes, ccm_linkprim))
 
     for character in ANNUAL_CHARACTER_INFO:
