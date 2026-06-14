@@ -11,20 +11,20 @@ Characteristic columns exclude merge metadata (`permno`, `signal_yyyymm`, etc.) 
 | Metric | Count |
 | --- | ---: |
 | Total GKX/datashare predictors | 94 |
-| Exact name matches (in both panels) | 71 |
+| Exact name matches (in both panels) | 76 |
 | Implemented under different name (alias) | 7 |
 | Partially matched (alias + parallel variant) | 2 |
-| **GKX predictors covered** | **80** |
-| **GKX predictors still missing** | **14** |
+| **GKX predictors covered** | **85** |
+| **GKX predictors still missing** | **9** |
 | Repository-only extras (signal panel) | 18 |
-| Signal panel characteristic columns | 101 |
-| Complete panel characteristic columns | 101 |
-| Complete panel merged columns incl. return fields | 107 |
-| Unique economic concepts in signal panel | 101 |
+| Signal panel characteristic columns | 106 |
+| Complete panel characteristic columns | 106 |
+| Complete panel merged columns incl. return fields | 112 |
+| Unique economic concepts in signal panel | 106 |
 
 ## Verdict
 
-**Answer: B.** The complete prediction panel has **107 merged columns**, but only **101** are characteristics. **14 of 94 GKX predictors remain missing**. The panel also carries **18 repository-only extras** and **duplicate implementations** for three GKX concepts (`bm`, `cfp`, `operprof`). We do **not** yet have all GKX predictors implemented.
+**Answer: B.** The complete prediction panel has **112 merged columns**, but only **106** are characteristics. **9 of 94 GKX predictors remain missing**. The panel also carries **18 repository-only extras** and **duplicate implementations** for three GKX concepts (`bm`, `cfp`, `operprof`). We do **not** yet have all GKX predictors implemented.
 
 ## GKX predictor reconciliation
 
@@ -44,13 +44,13 @@ Characteristic columns exclude merge metadata (`permno`, `signal_yyyymm`, etc.) 
 | `cashdebt` | `cashdebt` | exact match | Character_Builders/_shared/green_builders.py (annual) | — |
 | `cashpr` | `cashpr` | exact match | Character_Builders/_shared/green_builders.py (annual) | — |
 | `cfp` | `cfp, cash_flow_to_price` | partially matched | Character_Builders/_shared/green_builders.py (annual); Character_Builders/HXZ_CFP_Generalized | GKX/Green column plus HXZ parallel variant in panel |
-| `cfp_ia` | `—` | missing | — | — |
-| `chatoia` | `—` | missing | — | — |
+| `cfp_ia` | `cfp_ia` | exact match | Character_Builders/_shared/green_builders.py (annual) | — |
+| `chatoia` | `chatoia` | exact match | Character_Builders/_shared/green_builders.py (annual) | — |
 | `chcsho` | `chcsho` | exact match | Character_Builders/_shared/green_builders.py (annual) | — |
-| `chempia` | `—` | missing | — | — |
+| `chempia` | `chempia` | exact match | Character_Builders/_shared/green_builders.py (annual) | — |
 | `chinv` | `chinv` | exact match | Character_Builders/_shared/green_builders.py (annual) | — |
 | `chmom` | `—` | missing | — | — |
-| `chpmia` | `—` | missing | — | — |
+| `chpmia` | `chpmia` | exact match | Character_Builders/_shared/green_builders.py (annual) | — |
 | `chtx` | `chtx` | exact match | Character_Builders/_shared/quarterly_builders.py | — |
 | `cinvest` | `cinvest` | exact match | Character_Builders/_shared/quarterly_builders.py | — |
 | `convind` | `convind` | exact match | Character_Builders/_shared/green_builders.py (annual) | — |
@@ -85,7 +85,7 @@ Characteristic columns exclude merge metadata (`permno`, `signal_yyyymm`, etc.) 
 | `nincr` | `nincr` | exact match | Character_Builders/_shared/quarterly_builders.py | — |
 | `operprof` | `op, operating_profitability` | implemented under different name | Character_Builders/_shared/green_builders.py (annual); Character_Builders/HXZ_OPE_Generalized | GKX column name not in panel |
 | `orgcap` | `orgcap` | exact match | Character_Builders/_shared/green_builders.py (annual) | — |
-| `pchcapx_ia` | `—` | missing | — | — |
+| `pchcapx_ia` | `pchcapx_ia` | exact match | Character_Builders/_shared/green_builders.py (annual) | — |
 | `pchcurrat` | `pchcurrat` | exact match | Character_Builders/_shared/green_builders.py (annual) | — |
 | `pchdepr` | `pchdepr` | exact match | Character_Builders/_shared/green_builders.py (annual) | — |
 | `pchgm_pchsale` | `pchgm_pchsale` | exact match | Character_Builders/_shared/green_builders.py (annual) | — |

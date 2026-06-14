@@ -49,10 +49,14 @@ monthly `signal_yyyymm` after the required lag is applied inside the builder.
 | `currat` | Current ratio | Annual accounting | Implemented through shared Green builder: `Green_CURRAT_Generalized` |
 | `cashdebt` | Cash to debt | Annual/quarterly accounting | Implemented through shared Green builder: `Green_CASHDEBT_Generalized` |
 | `cfp` | Cash-flow-to-price | Annual accounting plus December CRSP ME | Implemented: `HXZ_CFP_Generalized` |
+| `cfp_ia` | Industry-adjusted cash-flow-to-price | Annual accounting | Implemented through shared Green builder: `Green_CFP_IA_Generalized` |
 | `chcsho` | Change in shares outstanding | Annual/quarterly accounting | Implemented through shared Green builder: `Green_CHCSHO_Generalized` |
 | `chinv` | Change in inventory | Annual accounting | Implemented through shared Green builder: `Green_CHINV_Generalized` |
 | `chobklg` | Change in order backlog scaled by assets | Annual accounting | Implemented through shared Green builder: `Green_CHOBKLG_Generalized` |
 | `chpm` | Industry-adjusted change in profit margin | Annual/quarterly accounting plus industry adjustment | Implemented through shared Green builder: `Green_CHPM_Generalized` |
+| `chpmia` | Industry-adjusted change in profit margin (GKX) | Annual accounting | Implemented through shared Green builder: `Green_CHPMIA_Generalized` |
+| `chatoia` | Industry-adjusted change in asset turnover | Annual accounting | Implemented through shared Green builder: `Green_CHATOIA_Generalized` |
+| `chempia` | Industry-adjusted employee growth | Annual accounting | Implemented through shared Green builder: `Green_CHEMPIA_Generalized` |
 | `chtx` | Change in tax expense | Quarterly accounting | Implemented: `Green_CHTX_Generalized` / `_shared/quarterly_builders.py` |
 | `cinvest` | Corporate investment | Quarterly accounting | Implemented: `Green_CINVEST_Generalized` / `_shared/quarterly_builders.py` |
 | `depr` | Depreciation / PP&E | Annual/quarterly accounting | Implemented through shared Green builder: `Green_DEPR_Generalized` |
@@ -87,6 +91,7 @@ monthly `signal_yyyymm` after the required lag is applied inside the builder.
 | `orgcap` | Organizational capital | Annual accounting | Implemented through shared Green builder: `Green_ORGCAP_Generalized` |
 | `pchcurrat` | Change in current ratio | Annual accounting | Implemented through shared Green builder: `Green_PCHCURRAT_Generalized` |
 | `pchcapx` | Change in capital expenditures | Annual accounting | Implemented through shared Green builder: `Green_PCHCAPX_Generalized` |
+| `pchcapx_ia` | Industry-adjusted change in capital expenditures | Annual accounting | Implemented through shared Green builder: `Green_PCHCAPX_IA_Generalized` |
 | `pchgm_pchsale` | Change in gross margin minus change in sales | Annual accounting | Implemented through shared Green builder: `Green_PCHGM_PCHSALE_Generalized` |
 | `pchsale_pchinvt` | Change in sales minus change in inventory | Annual accounting | Implemented through shared Green builder: `Green_PCHSALE_PCHINVT_Generalized` |
 | `pchsale_pchrect` | Change in sales minus change in receivables | Annual accounting | Implemented through shared Green builder: `Green_PCHSALE_PCHRECT_Generalized` |

@@ -38,10 +38,14 @@ ANNUAL_CHARACTER_INFO = {
     "cashdebt": "Cash to debt",
     "cashpr": "Cash productivity",
     "cfp": "Cash-flow-to-price",
+    "cfp_ia": "Industry-adjusted cash-flow-to-price",
     "chcsho": "Change in shares outstanding",
     "chobklg": "Change in order backlog scaled by assets",
     "chinv": "Change in inventory",
     "chpm": "Industry-adjusted change in profit margin",
+    "chpmia": "Industry-adjusted change in profit margin (GKX name)",
+    "chatoia": "Industry-adjusted change in asset turnover",
+    "chempia": "Industry-adjusted employee growth",
     "convind": "Convertible debt indicator",
     "currat": "Current ratio",
     "depr": "Depreciation / PP&E",
@@ -67,6 +71,7 @@ ANNUAL_CHARACTER_INFO = {
     "pchcurrat": "Change in current ratio",
     "pchdepr": "Change in depreciation rate",
     "pchcapx": "Change in capital expenditures",
+    "pchcapx_ia": "Industry-adjusted change in capital expenditures",
     "pchgm_pchsale": "Change in gross margin minus change in sales",
     "pchquick": "Change in quick ratio",
     "pchsale_pchinvt": "Change in sales minus change in inventory",
@@ -568,21 +573,31 @@ def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
     )
 
     grouped = comp.groupby(["fyear", "sic2"], dropna=False)
+    comp["chato"] = safe_divide(comp["sale"], avg_at) - safe_divide(
+        comp["lag_sale"], (comp["lag_at"] + comp["lag2_at"]) / 2
+    )
+    comp["cfp_ia"] = comp["cfp"] - grouped["cfp"].transform("mean")
+    comp["chatoia"] = comp["chato"] - grouped["chato"].transform("mean")
+    comp["chempia"] = comp["hire"] - grouped["hire"].transform("mean")
+    chpm_group_mean = grouped["chpm"].transform("mean")
+    comp["chpmia"] = comp["chpm"] - chpm_group_mean
+    comp["pchcapx_ia"] = comp["pchcapx"] - grouped["pchcapx"].transform("mean")
     comp["bm_ia"] = comp["bm"] - grouped["bm"].transform("mean")
-    comp["chpm"] = comp["chpm"] - grouped["chpm"].transform("mean")
+    comp["chpm"] = comp["chpm"] - chpm_group_mean
     comp["me_ia"] = comp["mve_f"] - grouped["mve_f"].transform("mean")
     comp["tb"] = comp["tb_1"] - grouped["tb_1"].transform("mean")
     industry_sales = grouped["sale"].transform("sum")
     comp["sales_share_sq"] = (comp["sale"] / industry_sales.replace(0, np.nan)) ** 2
     comp["herf"] = grouped["sales_share_sq"].transform("sum")
 
+    comp.loc[comp.groupby("gvkey").cumcount() < 2, ["chato", "chatoia"]] = np.nan
     comp.loc[comp.groupby("gvkey").cumcount() == 0, [
         "agr", "gma", "chcsho", "lgr", "acc", "pctacc", "hire", "sgr",
         "chpm", "ato", "cashdebt", "roe", "noa", "grltnoa", "ps",
         "invest", "egr", "chinv", "absacc", "pchdepr", "pchcurrat", "orgcap",
         "pchcapx", "pchsaleinv", "pchquick", "obklg", "chobklg",
         "pchsale_pchinvt", "pchsale_pchrect", "pchgm_pchsale", "pchsale_pchxsga",
-        "divi", "divo", "rd",
+        "divi", "divo", "rd", "chpmia", "chempia", "pchcapx_ia",
     ]] = np.nan
     comp.loc[comp.groupby("gvkey").cumcount() < 2, "grcapx"] = np.nan
     return comp
