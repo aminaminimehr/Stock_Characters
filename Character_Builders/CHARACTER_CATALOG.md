@@ -31,7 +31,9 @@ monthly `signal_yyyymm` after the required lag is applied inside the builder.
 | --- | --- | --- | --- |
 | `abr` | Cumulative abnormal returns around earnings announcement dates | Quarterly/event | Implemented: `Green_ABR_Generalized` / `_shared/event_builders.py` |
 | `acc` | Operating accruals | Annual/quarterly accounting | Implemented through shared Green builder: `Green_ACC_Generalized` |
+| `absacc` | Absolute accruals | Annual accounting | Implemented through shared Green builder: `Green_ABSACC_Generalized` |
 | `adm` | Advertising expense-to-market | Annual accounting | Implemented through shared Green builder: `Green_ADM_Generalized` |
+| `age` | Years since first Compustat coverage | Annual accounting | Implemented through shared Green builder: `Green_AGE_Generalized` |
 | `agr` | Asset growth | Annual/quarterly accounting | Implemented through shared Green builder: `Green_AGR_Generalized` |
 | `alm` | Asset liquidity | Annual/quarterly accounting | Implemented through shared Green builder: `Green_ALM_Generalized` |
 | `ato` | Asset turnover | Annual/quarterly accounting | Implemented through shared Green builder: `Green_ATO_Generalized` |
@@ -44,17 +46,20 @@ monthly `signal_yyyymm` after the required lag is applied inside the builder.
 | `cashdebt` | Cash to debt | Annual/quarterly accounting | Implemented through shared Green builder: `Green_CASHDEBT_Generalized` |
 | `cfp` | Cash-flow-to-price | Annual accounting plus December CRSP ME | Implemented: `HXZ_CFP_Generalized` |
 | `chcsho` | Change in shares outstanding | Annual/quarterly accounting | Implemented through shared Green builder: `Green_CHCSHO_Generalized` |
+| `chinv` | Change in inventory | Annual accounting | Implemented through shared Green builder: `Green_CHINV_Generalized` |
 | `chpm` | Industry-adjusted change in profit margin | Annual/quarterly accounting plus industry adjustment | Implemented through shared Green builder: `Green_CHPM_Generalized` |
 | `chtx` | Change in tax expense | Quarterly accounting | Implemented: `Green_CHTX_Generalized` / `_shared/quarterly_builders.py` |
 | `cinvest` | Corporate investment | Quarterly accounting | Implemented: `Green_CINVEST_Generalized` / `_shared/quarterly_builders.py` |
 | `depr` | Depreciation / PP&E | Annual/quarterly accounting | Implemented through shared Green builder: `Green_DEPR_Generalized` |
 | `dolvol` | Dollar trading volume | Monthly CRSP | Implemented through shared Green builder: `Green_DOLVOL_Generalized` |
 | `dy` | Dividend yield | Annual accounting | Implemented through shared Green annual builder: `Green_DY_Generalized` |
+| `egr` | Growth in common shareholder equity | Annual accounting | Implemented through shared Green builder: `Green_EGR_Generalized` |
 | `ep` | Earnings-to-price | Annual/quarterly accounting plus price | Implemented through shared Green builder: `Green_EP_Generalized` |
 | `gma` | Gross profitability | Annual/quarterly accounting | Implemented through shared Green builder: `Green_GMA_Generalized` |
 | `grltnoa` | Growth in long-term net operating assets | Annual/quarterly accounting | Implemented through shared Green builder: `Green_GRLTNOA_Generalized` |
 | `herf` | Industry sales concentration | Annual accounting plus industry aggregation | Implemented through shared Green builder: `Green_HERF_Generalized` |
 | `hire` | Employee growth rate | Annual accounting | Implemented through shared Green builder: `Green_HIRE_Generalized` |
+| `invest` | Capital expenditures and inventory | Annual accounting | Implemented through shared Green builder: `Green_INVEST_Generalized` |
 | `ill` | Illiquidity, rolling 3 months | Monthly/daily CRSP | Implemented through shared Green builder: `Green_ILL_Generalized` |
 | `lev` | Leverage | Annual/quarterly accounting | Implemented through shared Green builder: `Green_LEV_Generalized` |
 | `lgr` | Growth in long-term debt | Annual/quarterly accounting | Implemented through shared Green builder: `Green_LGR_Generalized` |

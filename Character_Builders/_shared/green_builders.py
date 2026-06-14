@@ -25,8 +25,10 @@ from output_paths import (  # noqa: E402
 
 
 ANNUAL_CHARACTER_INFO = {
+    "absacc": "Absolute accruals",
     "acc": "Operating accruals",
     "adm": "Advertising expense-to-market",
+    "age": "Years since first Compustat coverage",
     "agr": "Asset growth",
     "alm": "Asset liquidity",
     "ato": "Asset turnover",
@@ -36,14 +38,17 @@ ANNUAL_CHARACTER_INFO = {
     "cashdebt": "Cash to debt",
     "cfp": "Cash-flow-to-price",
     "chcsho": "Change in shares outstanding",
+    "chinv": "Change in inventory",
     "chpm": "Industry-adjusted change in profit margin",
     "depr": "Depreciation / PP&E",
     "dy": "Dividend yield",
+    "egr": "Growth in common shareholder equity",
     "ep": "Earnings-to-price",
     "gma": "Gross profitability",
     "grltnoa": "Growth in long-term net operating assets",
     "herf": "Industry sales concentration",
     "hire": "Employee growth rate",
+    "invest": "Capital expenditures and inventory",
     "lev": "Leverage",
     "lgr": "Growth in long-term debt",
     "me_ia": "Industry-adjusted size",
@@ -121,7 +126,7 @@ def attach_permno(comp, link):
 
 
 def load_annual_compustat(db):
-    comp = db.raw_sql("""
+    comp = db.raw_sql(f"""
         SELECT c.gvkey, f.datadate, f.fyear, c.sic,
                f.sale, f.revt, f.cogs, f.xsga, f.dp, f.xrd, f.xad,
                f.ib, f.oancf, f.dvt, f.ni, f.txp, f.txt, f.xint,
@@ -141,6 +146,7 @@ def load_annual_compustat(db):
           AND f.prcc_f IS NOT NULL
           AND f.ni IS NOT NULL
           AND f.datadate >= DATE '1975-01-01'
+          AND {sql_date_filter("f.datadate")}
     """)
     comp["datadate"] = pd.to_datetime(comp["datadate"])
     comp["sic2"] = pd.to_numeric(comp["sic"], errors="coerce") // 100
@@ -171,7 +177,7 @@ def compute_annual_characters(comp):
 
     for col in [
         "at", "act", "che", "lct", "dlc", "txp", "dp", "ib", "csho", "lt",
-        "sale", "revt", "cogs", "emp", "rect", "invt", "ppent", "aco",
+        "sale", "revt", "cogs", "emp", "rect", "invt", "ppent", "ppegt", "aco",
         "intan", "ao", "ap", "lco", "lo", "ceq", "dltt", "ni",
     ]:
         if col in comp:
@@ -244,6 +250,17 @@ def compute_annual_characters(comp):
         ),
         avg_at,
     )
+    ppegt_delta = comp["ppegt"] - comp["lag_ppegt"]
+    ppent_delta = comp["ppent"] - comp["lag_ppent"]
+    invt_delta = comp["invt"] - comp["lag_invt"]
+    comp["invest"] = safe_divide(ppegt_delta + invt_delta, comp["lag_at"])
+    comp.loc[comp["ppegt"].isna(), "invest"] = safe_divide(
+        ppent_delta + invt_delta, comp["lag_at"]
+    )
+    comp["egr"] = safe_divide(comp["ceq"] - comp["lag_ceq"], comp["lag_ceq"])
+    comp["chinv"] = safe_divide(comp["invt"] - comp["lag_invt"], avg_at)
+    comp["absacc"] = comp["acc"].abs()
+    comp["age"] = comp.groupby("gvkey").cumcount() + 1
     comp["ps"] = (
         indicator(comp["ni"] > 0)
         + indicator(comp["oancf"] > 0)
@@ -267,6 +284,7 @@ def compute_annual_characters(comp):
     comp.loc[comp.groupby("gvkey").cumcount() == 0, [
         "agr", "gma", "chcsho", "lgr", "acc", "pctacc", "hire", "sgr",
         "chpm", "ato", "cashdebt", "roe", "noa", "grltnoa", "ps",
+        "invest", "egr", "chinv", "absacc",
     ]] = np.nan
     return comp
 
