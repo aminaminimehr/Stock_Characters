@@ -39,6 +39,7 @@ ANNUAL_CHARACTER_INFO = {
     "cashpr": "Cash productivity",
     "cfp": "Cash-flow-to-price",
     "chcsho": "Change in shares outstanding",
+    "chobklg": "Change in order backlog scaled by assets",
     "chinv": "Change in inventory",
     "chpm": "Industry-adjusted change in profit margin",
     "currat": "Current ratio",
@@ -56,6 +57,7 @@ ANNUAL_CHARACTER_INFO = {
     "lgr": "Growth in long-term debt",
     "me_ia": "Industry-adjusted size",
     "noa": "Net operating assets",
+    "obklg": "Order backlog scaled by assets",
     "op": "Operating profitability",
     "orgcap": "Organizational capital",
     "pctacc": "Percent operating accruals",
@@ -69,6 +71,7 @@ ANNUAL_CHARACTER_INFO = {
     "quick": "Quick ratio",
     "rd_sale": "R&D to sales",
     "rdm": "R&D expense-to-market",
+    "realestate": "Real-estate holdings",
     "roe": "Return on equity",
     "sgr": "Sales growth",
     "salecash": "Sales-to-cash",
@@ -280,9 +283,9 @@ def load_annual_compustat(db):
     comp = db.raw_sql(f"""
         SELECT c.gvkey, f.datadate, f.fyear, c.sic, c.naics,
                f.sale, f.revt, f.cogs, f.xsga, f.dp, f.xrd, f.xad,
-               f.ib, f.oancf, f.dvt, f.ni, f.txp, f.txt, f.xint, f.capx,
+               f.ib, f.oancf, f.dvt, f.ni, f.txp, f.txt, f.xint, f.capx, f.ob,
                f.rect, f.act, f.che, f.ppegt, f.invt, f.at, f.aco,
-               f.intan, f.ao, f.ppent,
+               f.intan, f.ao, f.ppent, f.fatb, f.fatl,
                f.lct, f.dlc, f.dltt, f.lt, f.ap, f.lco, f.lo,
                f.ceq, f.seq, f.pstk, f.pstkl, f.pstkrv, f.txditc,
                f.scstkc, f.emp, f.csho, ABS(f.prcc_f) AS prcc_f
@@ -331,7 +334,7 @@ def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
     for col in [
         "at", "act", "che", "lct", "dlc", "txp", "dp", "ib", "csho", "lt",
         "sale", "revt", "cogs", "emp", "rect", "invt", "ppent", "ppegt", "aco",
-        "intan", "ao", "ap", "lco", "lo", "ceq", "dltt", "ni", "capx",
+        "intan", "ao", "ap", "lco", "lo", "ceq", "dltt", "ni", "capx", "ob",
     ]:
         if col in comp:
             comp[f"lag_{col}"] = lag(comp, col)
@@ -450,6 +453,12 @@ def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
         comp["at"],
     )
     comp["sin"] = compute_sin(comp)
+    comp["realestate"] = safe_divide(comp["fatb"] + comp["fatl"], comp["ppegt"])
+    comp.loc[comp["ppegt"].isna(), "realestate"] = safe_divide(
+        comp["fatb"] + comp["fatl"], comp["ppent"]
+    )
+    comp["obklg"] = safe_divide(comp["ob"], avg_at)
+    comp["chobklg"] = safe_divide(comp["ob"] - comp["lag_ob"], avg_at)
     if orgcap_lookup is not None:
         comp = comp.merge(orgcap_lookup, on=["gvkey", "datadate"], how="left")
     else:
@@ -486,7 +495,7 @@ def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
         "agr", "gma", "chcsho", "lgr", "acc", "pctacc", "hire", "sgr",
         "chpm", "ato", "cashdebt", "roe", "noa", "grltnoa", "ps",
         "invest", "egr", "chinv", "absacc", "pchdepr", "pchcurrat", "orgcap",
-        "pchcapx", "pchsaleinv", "pchquick",
+        "pchcapx", "pchsaleinv", "pchquick", "obklg", "chobklg",
     ]] = np.nan
     comp.loc[comp.groupby("gvkey").cumcount() < 2, "grcapx"] = np.nan
     return comp

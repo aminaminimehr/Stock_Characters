@@ -49,6 +49,7 @@ monthly `signal_yyyymm` after the required lag is applied inside the builder.
 | `cfp` | Cash-flow-to-price | Annual accounting plus December CRSP ME | Implemented: `HXZ_CFP_Generalized` |
 | `chcsho` | Change in shares outstanding | Annual/quarterly accounting | Implemented through shared Green builder: `Green_CHCSHO_Generalized` |
 | `chinv` | Change in inventory | Annual accounting | Implemented through shared Green builder: `Green_CHINV_Generalized` |
+| `chobklg` | Change in order backlog scaled by assets | Annual accounting | Implemented through shared Green builder: `Green_CHOBKLG_Generalized` |
 | `chpm` | Industry-adjusted change in profit margin | Annual/quarterly accounting plus industry adjustment | Implemented through shared Green builder: `Green_CHPM_Generalized` |
 | `chtx` | Change in tax expense | Quarterly accounting | Implemented: `Green_CHTX_Generalized` / `_shared/quarterly_builders.py` |
 | `cinvest` | Corporate investment | Quarterly accounting | Implemented: `Green_CINVEST_Generalized` / `_shared/quarterly_builders.py` |
@@ -77,6 +78,7 @@ monthly `signal_yyyymm` after the required lag is applied inside the builder.
 | `ni` | Net stock issues | Quarterly accounting | Implemented: `Green_NI_Generalized` / `_shared/quarterly_builders.py` |
 | `nincr` | Number of earnings increases | Quarterly accounting | Implemented: `Green_NINCR_Generalized` / `_shared/quarterly_builders.py` |
 | `noa` | Net operating assets | Annual/quarterly accounting | Implemented through shared Green builder: `Green_NOA_Generalized` |
+| `obklg` | Order backlog scaled by assets | Annual accounting | Implemented through shared Green builder: `Green_OBKLG_Generalized` |
 | `op` | Operating profitability | Annual accounting | Implemented: `HXZ_OPE_Generalized` |
 | `orgcap` | Organizational capital | Annual accounting | Implemented through shared Green builder: `Green_ORGCAP_Generalized` |
 | `pchcurrat` | Change in current ratio | Annual accounting | Implemented through shared Green builder: `Green_PCHCURRAT_Generalized` |
@@ -90,6 +92,7 @@ monthly `signal_yyyymm` after the required lag is applied inside the builder.
 | `ps` | Performance score | Quarterly accounting | Implemented through shared Green builder: `Green_PS_Generalized` |
 | `rd_sale` | R&D to sales | Annual/quarterly accounting | Implemented through shared Green builder: `Green_RD_SALE_Generalized` |
 | `rdm` | R&D expense-to-market | Annual/quarterly accounting plus market equity | Implemented through shared Green builder: `Green_RDM_Generalized` |
+| `realestate` | Real-estate holdings | Annual accounting | Implemented through shared Green builder: `Green_REALESTATE_Generalized` |
 | `re` | Revisions in analyst earnings forecasts | Monthly IBES/analyst | Implemented: `Green_RE_Generalized` / `_shared/ibes_builders.py` |
 | `rna` | Return on net operating assets | Quarterly accounting | Implemented: `Green_RNA_Generalized` / `_shared/quarterly_builders.py` |
 | `roa1` | Return on assets | Quarterly accounting | Implemented: `Green_ROA1_Generalized` / `_shared/quarterly_builders.py` |
