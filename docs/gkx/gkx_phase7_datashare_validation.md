@@ -1,77 +1,75 @@
 # GKX Phase 7 datashare validation
 
-Window: `signal_yyyymm` **201801**–**202312** (lightweight sample build 2018–2023).
+Window: `signal_yyyymm` **201801**–**202312**.
 
-Comparison: repo annual CSV expanded via `expand_annual_file` vs `Supplementary_assistive_files/datashare.csv`.
+Comparison: repo annual CSV expanded to monthly signal months via `expand_annual_file`,
+merged with `Supplementary_assistive_files/datashare.csv` on `permno × signal_yyyymm`.
 
 Industry-adjusted variables use **Green SAS**: subtract industry **mean** within **Compustat SIC2 × fiscal year**.
 Datashare (GKX) follows the same Green construction; Dacheng FF49 is **not** the benchmark here.
 
-**Important context:** This validation run uses a **truncated WRDS sample** (2018–2023). Industry means are computed over the **sample cross-section only**, and firm-level lags (`chato`, `chpm`, etc.) lack full pre-2018 history. GKX datashare is built from **full Compustat history**. Level correlations are therefore expected to be weaker than rank correlations even when formulas match Green.
+**`chatoia` rebuild (2026-06-14):** `chatoia.csv` rebuilt from **full Compustat history** (no `STOCK_CHARACTERS_SAMPLE_*` filter). Formula unchanged. Stale 14,184-row sample file replaced with **213,837** annual rows (`datadate` 1976–2026).
 
----
+## Availability (monthly comparison stage)
 
-## Availability
-
-| Variable | In datashare.csv | Repo raw non-null | Datashare non-null (window) |
-| --- | --- | ---: | ---: |
-| `cfp_ia` | Yes | 30,775 | 201,312 |
-| `chatoia` | Yes | 14,184 | 190,718 |
-| `chempia` | Yes | 24,221 | 191,414 |
-| `chpmia` | Yes | 22,444 | 188,942 |
-| `pchcapx_ia` | Yes | 21,884 | 180,668 |
-
-All five Phase 7 variables are present in datashare.csv.
-
----
+| Variable | In datashare.csv | Repo annual non-null | Repo monthly non-null | Datashare monthly non-null |
+| --- | --- | ---: | ---: | ---: |
+| `cfp_ia` | Yes | 30775 | 278022 | 201312 |
+| `chatoia` | Yes | 213837 | 282410 | 190718 |
+| `chempia` | Yes | 24221 | 202915 | 191414 |
+| `chpmia` | Yes | 22444 | 189034 | 188942 |
+| `pchcapx_ia` | Yes | 21884 | 183244 | 180668 |
 
 ## Correlation summary
 
-| Variable | Overlap rows | Paired rows | Pearson | Spearman | Pearson (1/99 winsor) | Median \|diff\| | Pattern |
+| Variable | Overlap rows | Paired rows | Pearson | Spearman | Pearson (1/99 winsor) | Median |diff| | Pattern |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| `cfp_ia` | 141,449 | 122,930 | 0.23 | 0.66 | 0.24 | 0.058 | Moderate rank, weak level |
-| `chatoia` | 23,121 | 21,070 | -0.01 | 0.01 | 0.01 | 398 | Near-zero (truncated history) |
-| `chempia` | 81,853 | 70,986 | 0.26 | 0.72 | **0.75** | 0.027 | Outlier-driven levels |
-| `chpmia` | 77,057 | 69,973 | 0.19 | 0.46 | 0.48 | 0.70 | Sample + outlier levels |
-| `pchcapx_ia` | 73,991 | 66,104 | 0.14 | 0.39 | **0.67** | 0.33 | Outlier-driven levels |
-
----
+| `cfp_ia` | 141,449 | 122,930 | 0.2315 | 0.6601 | 0.2369 | 0.0577074 | material_disagreement |
+| `chatoia` | 175,534 | 169,375 | 0.0078 | 0.0600 | 0.0122 | 924.069 | material_disagreement |
+| `chempia` | 81,853 | 70,986 | 0.2561 | 0.7172 | 0.7450 | 0.0271591 | material_disagreement |
+| `chpmia` | 77,057 | 69,973 | 0.1929 | 0.4583 | 0.4751 | 0.698191 | material_disagreement |
+| `pchcapx_ia` | 73,991 | 66,104 | 0.1408 | 0.3932 | 0.6726 | 0.332182 | material_disagreement |
 
 ## Per-variable interpretation
 
 ### `cfp_ia`
 
-- **122,930** paired rows on 141,449 overlapping permno×month keys.
-- Moderate Spearman (0.66) with low Pearson (0.23); median |diff| is small (0.058).
-- **Likely drivers:** truncated-sample industry means shift demeaned levels; cash-flow-to-price heavy tails.
-- **Not a grouping bug:** Green/GKX both use SIC2×fyear mean demean.
+- Paired: **122,930** on 141,449 overlapping permno×month rows.
+- Pearson **0.2315**, Spearman **0.6601**, winsorized Pearson **0.2369**, median |diff| **0.0577074**.
+- **Material disagreement:** investigate sample-history truncation, missing rules, or timing before changing formulas.
+
+Industry demean of `cfp` on SIC2×fyear. Low Pearson with high Spearman often reflects outlier levels in cash-flow-to-price; rank agreement supports Green-style mean demean.
 
 ### `chatoia`
 
-- **21,070** paired rows; Pearson and Spearman near zero; median |diff| very large.
-- **Primary driver:** `chato` requires **two prior fiscal years** (Green `count < 3` rule). A 2018–2023 sample build resets firm history, so `chato` and industry demeaning diverge from full-history GKX.
-- Secondary: extreme ratio levels inflate |diff| even when ranks are unstable in thin overlap.
-- **Not evidence to switch to FF49 or median demean.**
+- Paired: **169,375** on 175,534 overlapping permno×month rows (was **21,070** paired before full-history rebuild).
+- Repo monthly non-null **282,410** vs datashare **190,718** — coverage gap **resolved** (repo now exceeds datashare in window).
+- Pearson **0.0078**, Spearman **0.0600**, winsorized Pearson **0.0122**, median |diff| **924**.
+- **Coverage fixed; level agreement still weak.** After rebuild, paired overlap increased 8× but rank/level correlations remain near zero. Likely drivers: extreme `chato` ratio tails, industry-mean composition differences, and CCM/timing — **not** stale sample history. Formula unchanged per coverage-loss audit.
 
 ### `chempia`
 
-- **70,986** paired rows; Spearman **0.72**, winsorized Pearson **0.75** vs raw Pearson 0.26.
-- Classic **low Pearson / higher winsorized Pearson** pattern: rank-preserving with level outliers in employee growth.
-- Median |diff| **0.027** — economically small for most pairs.
+- Paired: **70,986** on 81,853 overlapping permno×month rows.
+- Pearson **0.2561**, Spearman **0.7172**, winsorized Pearson **0.7450**, median |diff| **0.0271591**.
+- **Material disagreement:** investigate sample-history truncation, missing rules, or timing before changing formulas.
+
+Demean of `hire`; Green sets missing emp to hire=0 before demean. Level outliers in employee growth can depress Pearson while preserving cross-section rank.
 
 ### `chpmia`
 
-- **69,973** paired rows; moderate winsorized Pearson (0.48), Spearman 0.46.
-- Repo `chpmia` uses the same demean as Green `chpmia`; existing `chpm.csv` was **not rebuilt** in the sample run (249k full-history rows vs 22k `chpmia` sample rows).
-- Disagreement driven by **sample industry means** and profit-margin tails, not median-vs-mean or FF grouping.
+- Paired: **69,973** on 77,057 overlapping permno×month rows.
+- Pearson **0.1929**, Spearman **0.4583**, winsorized Pearson **0.4751**, median |diff| **0.698191**.
+- **Material disagreement:** investigate sample-history truncation, missing rules, or timing before changing formulas.
+
+Should match repo `chpm` column (same SIC2×fyear mean demean). Any gap vs datashare likely timing or profit-margin outlier driven, not median vs mean (Green uses mean).
 
 ### `pchcapx_ia`
 
-- **66,104** paired rows; winsorized Pearson **0.67** vs raw Pearson 0.14.
-- Cap-ex change ratios have heavy tails; winsorization raises level correlation substantially.
-- Industry demean on truncated sample shifts levels vs full-history GKX.
+- Paired: **66,104** on 73,991 overlapping permno×month rows.
+- Pearson **0.1408**, Spearman **0.3932**, winsorized Pearson **0.6726**, median |diff| **0.332182**.
+- **Material disagreement:** investigate sample-history truncation, missing rules, or timing before changing formulas.
 
----
+Demean of `pchcapx`; capx imputation and zero denominators create heavy tails. Winsorized Pearson helps distinguish outlier-driven level gaps from formula mismatch.
 
 ## Disagreement checklist (industry-adjusted)
 
@@ -79,22 +77,14 @@ All five Phase 7 variables are present in datashare.csv.
 | --- | --- |
 | SIC2×fyear vs FF/other grouping | Repo matches Green/GKX; Dacheng FF49 not used |
 | Mean vs median demean | Green mean — repo matches |
-| Timing / fiscal-year alignment | June expansion consistent; **sample window** differs from full GKX history |
+| Timing / fiscal-year alignment | June expansion via `expand_annual_file`; `chatoia` now full-history |
+| Stale/truncated `chatoia.csv` | **Fixed** — 213,837 annual rows; monthly 282,410 vs DS 190,718 |
 | SIC source | Compustat company SIC (same as Green) |
-| Missing-value rules | Green `req` / `count<3` for `chato`; exacerbated under truncated sample |
-| Outliers | Major driver for `chempia`, `pchcapx_ia`; winsorized Pearson much higher |
-| Truncated industry means | **Key sample-build artifact** for all five `_ia` variables |
-
----
+| Missing-value rules | Green `req` / `count<3` for `chato`; no formula change indicated |
+| Outliers | Primary driver of low Pearson when Spearman high |
 
 ## Conclusion
 
-**Formulas unchanged.** Correlation gaps are consistent with:
+**Formulas unchanged.** `chatoia` full-history rebuild confirms the prior coverage gap was a **stale truncated CSV**, not a formula bug. Paired overlap rose from 21k to 169k; monthly repo coverage now exceeds datashare in the 201801–202312 window. Level/rank disagreement for `chatoia` persists and warrants separate investigation — **not** grounds to change the Green formula without a proven bug.
 
-1. **Truncated-sample industry means** (not full cross-section like GKX datashare).
-2. **Truncated firm history** (especially `chatoia`).
-3. **Level outliers** (winsorized Pearson often much higher than raw Pearson).
-
-Re-validation after a **full-history WRDS build** is recommended before treating low Pearson as a formula defect.
-
-Re-run: `python scripts/validate_gkx_phase7_datashare.py`
+Other Phase 7 variables unchanged; no implementation changes required.

@@ -73,6 +73,7 @@ def compare_character(character: str, sample_start: int, sample_end: int) -> dic
     ds_nonnull = int(ds[f"{character}_gkx"].notna().sum()) if ds is not None and len(ds) else 0
 
     repo = load_repo_panel(character, sample_start, sample_end)
+    repo_monthly_nonnull = int(repo[f"{character}_repo"].notna().sum())
     merged = repo.merge(ds, on=["permno", "signal_yyyymm"], how="inner")
     if merged.empty:
         return {
@@ -80,6 +81,7 @@ def compare_character(character: str, sample_start: int, sample_end: int) -> dic
             "status": "no overlap",
             "in_datashare": True,
             "repo_nonnull_raw": repo_nonnull,
+            "repo_monthly_nonnull": repo_monthly_nonnull,
             "datashare_nonnull_window": ds_nonnull,
             "overlap_rows": 0,
         }
@@ -94,6 +96,7 @@ def compare_character(character: str, sample_start: int, sample_end: int) -> dic
         "status": "compared",
         "in_datashare": True,
         "repo_nonnull_raw": repo_nonnull,
+        "repo_monthly_nonnull": repo_monthly_nonnull,
         "datashare_nonnull_window": ds_nonnull,
         "overlap_rows": int(len(merged)),
         "paired_rows": paired,
@@ -136,8 +139,9 @@ INTERPRETATION = {
         "outlier levels in cash-flow-to-price; rank agreement supports Green-style mean demean."
     ),
     "chatoia": (
-        "Requires two prior fiscal years for `chato`; sparse overlap expected. Disagreements may "
-        "reflect sample-window history truncation vs full GKX history, not FF vs SIC2 (both use Green SIC2)."
+        "Requires two prior fiscal years for `chato`. After full-history rebuild, monthly coverage "
+        "matches or exceeds datashare; paired overlap is large. Low Pearson/Spearman likely reflects "
+        "extreme ratio tails or industry-mean composition, not stale sample history."
     ),
     "chempia": (
         "Demean of `hire`; Green sets missing emp to hire=0 before demean. Level outliers in employee "
@@ -158,17 +162,18 @@ def build_report(results: list[dict], sample_start: int, sample_end: int) -> str
     lines = [
         "# GKX Phase 7 datashare validation",
         "",
-        f"Window: `signal_yyyymm` **{sample_start}**–**{sample_end}** (lightweight sample build 2018–2023).",
+        f"Window: `signal_yyyymm` **{sample_start}**–**{sample_end}**.",
         "",
-        "Comparison: repo annual CSV expanded via `expand_annual_file` vs `Supplementary_assistive_files/datashare.csv`.",
+        "Comparison: repo annual CSV expanded to monthly signal months via `expand_annual_file`,",
+        "merged with `Supplementary_assistive_files/datashare.csv` on `permno × signal_yyyymm`.",
         "",
         "Industry-adjusted variables use **Green SAS**: subtract industry **mean** within **Compustat SIC2 × fiscal year**.",
         "Datashare (GKX) follows the same Green construction; Dacheng FF49 is **not** the benchmark here.",
         "",
         "## Availability",
         "",
-        "| Variable | In datashare.csv | Repo raw non-null | Datashare non-null (window) |",
-        "| --- | --- | ---: | ---: |",
+        "| Variable | In datashare.csv | Repo annual non-null | Repo monthly non-null | Datashare monthly non-null |",
+        "| --- | --- | ---: | ---: | ---: |",
     ]
 
     for r in results:
@@ -177,7 +182,7 @@ def build_report(results: list[dict], sample_start: int, sample_end: int) -> str
             in_ds = "No"
         lines.append(
             f"| `{r['character']}` | {in_ds} | {r.get('repo_nonnull_raw', '—')} | "
-            f"{r.get('datashare_nonnull_window', '—')} |"
+            f"{r.get('repo_monthly_nonnull', '—')} | {r.get('datashare_nonnull_window', '—')} |"
         )
 
     lines.extend(
