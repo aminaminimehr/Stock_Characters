@@ -19,7 +19,7 @@ from wrds_utils import (
 
 QUARTERLY_SQL = """
 SELECT
-    SUBSTR(REPLACE(c.cusip, ' ', ''), 1, 6) AS cnum,
+    SUBSTR(REPLACE(f.cusip, ' ', ''), 1, 6) AS cnum,
     c.gvkey, f.fyearq, f.fqtr, f.datadate, f.rdq,
     SUBSTR(c.sic, 1, 2) AS sic2,
     f.ibq, f.saleq, f.txtq, f.revtq, f.cogsq, f.xsgaq,
