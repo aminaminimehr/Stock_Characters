@@ -139,9 +139,8 @@ INTERPRETATION = {
         "outlier levels in cash-flow-to-price; rank agreement supports Green-style mean demean."
     ),
     "chatoia": (
-        "Requires two prior fiscal years for `chato`. After full-history rebuild, monthly coverage "
-        "matches or exceeds datashare; paired overlap is large. Low Pearson/Spearman likely reflects "
-        "extreme ratio tails or industry-mean composition, not stale sample history."
+        "Post lookup-merge fix (4a3fd82): Spearman 0.775 vs datashare, 0.828 vs Green SAS. "
+        "Low Pearson with high Spearman reflects ratio tails; formula and build path now match Green/GKX."
     ),
     "chempia": (
         "Demean of `hire`; Green sets missing emp to hire=0 before demean. Level outliers in employee "
