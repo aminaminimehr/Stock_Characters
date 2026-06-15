@@ -548,29 +548,6 @@ def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
     )
     comp["obklg"] = safe_divide(comp["ob"], avg_at)
     comp["chobklg"] = safe_divide(comp["ob"] - comp["lag_ob"], avg_at)
-    if orgcap_lookup is not None:
-        comp = comp.merge(orgcap_lookup, on=["gvkey", "datadate"], how="left")
-    else:
-        comp["cpi"] = comp["fyear"].map(GREEN_CPI_BY_FYEAR)
-        comp["xsga_cpi"] = safe_divide(comp["xsga"], comp["cpi"])
-        comp = comp.groupby("gvkey", group_keys=False).apply(_accumulate_orgcap)
-        comp["orgcap"] = safe_divide(comp["_orgcap_1"], avg_at)
-        comp = comp.drop(columns=["_orgcap_1"], errors="ignore")
-    if age_lookup is not None:
-        comp = comp.merge(age_lookup, on=["gvkey", "datadate"], how="left")
-    else:
-        comp["age"] = comp.groupby("gvkey").cumcount() + 1
-    comp["ps"] = (
-        indicator(comp["ni"] > 0)
-        + indicator(comp["oancf"] > 0)
-        + indicator(safe_divide(comp["ni"], comp["at"]) > safe_divide(comp["lag_ni"], comp["lag_at"]))
-        + indicator(comp["oancf"] > comp["ni"])
-        + indicator(safe_divide(comp["dltt"], comp["at"]) < safe_divide(comp["lag_dltt"], comp["lag_at"]))
-        + indicator(safe_divide(comp["act"], comp["lct"]) > safe_divide(comp["lag_act"], comp["lag_lct"]))
-        + indicator(safe_divide(comp["sale"] - comp["cogs"], comp["sale"]) > safe_divide(comp["lag_sale"] - comp["lag_cogs"], comp["lag_sale"]))
-        + indicator(safe_divide(comp["sale"], comp["at"]) > safe_divide(comp["lag_sale"], comp["lag_at"]))
-        + indicator(comp["scstkc"].fillna(0) == 0)
-    )
 
     grouped = comp.groupby(["fyear", "sic2"], dropna=False)
     comp["chato"] = safe_divide(comp["sale"], avg_at) - safe_divide(
@@ -593,13 +570,42 @@ def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
     comp.loc[comp.groupby("gvkey").cumcount() < 2, ["chato", "chatoia"]] = np.nan
     comp.loc[comp.groupby("gvkey").cumcount() == 0, [
         "agr", "gma", "chcsho", "lgr", "acc", "pctacc", "hire", "sgr",
-        "chpm", "ato", "cashdebt", "roe", "noa", "grltnoa", "ps",
-        "invest", "egr", "chinv", "absacc", "pchdepr", "pchcurrat", "orgcap",
+        "chpm", "ato", "cashdebt", "roe", "noa", "grltnoa",
+        "invest", "egr", "chinv", "absacc", "pchdepr", "pchcurrat",
         "pchcapx", "pchsaleinv", "pchquick", "obklg", "chobklg",
         "pchsale_pchinvt", "pchsale_pchrect", "pchgm_pchsale", "pchsale_pchxsga",
         "divi", "divo", "rd", "chpmia", "chempia", "pchcapx_ia",
     ]] = np.nan
     comp.loc[comp.groupby("gvkey").cumcount() < 2, "grcapx"] = np.nan
+
+    if orgcap_lookup is not None:
+        orgcap_lookup = orgcap_lookup.drop_duplicates(["gvkey", "datadate"], keep="last")
+        comp = comp.merge(orgcap_lookup, on=["gvkey", "datadate"], how="left")
+        comp.loc[comp.groupby("gvkey").cumcount() == 0, "orgcap"] = np.nan
+    else:
+        comp["cpi"] = comp["fyear"].map(GREEN_CPI_BY_FYEAR)
+        comp["xsga_cpi"] = safe_divide(comp["xsga"], comp["cpi"])
+        comp = comp.groupby("gvkey", group_keys=False).apply(_accumulate_orgcap)
+        comp["orgcap"] = safe_divide(comp["_orgcap_1"], avg_at)
+        comp = comp.drop(columns=["_orgcap_1"], errors="ignore")
+        comp.loc[comp.groupby("gvkey").cumcount() == 0, "orgcap"] = np.nan
+    if age_lookup is not None:
+        age_lookup = age_lookup.drop_duplicates(["gvkey", "datadate"], keep="last")
+        comp = comp.merge(age_lookup, on=["gvkey", "datadate"], how="left")
+    else:
+        comp["age"] = comp.groupby("gvkey").cumcount() + 1
+    comp["ps"] = (
+        indicator(comp["ni"] > 0)
+        + indicator(comp["oancf"] > 0)
+        + indicator(safe_divide(comp["ni"], comp["at"]) > safe_divide(comp["lag_ni"], comp["lag_at"]))
+        + indicator(comp["oancf"] > comp["ni"])
+        + indicator(safe_divide(comp["dltt"], comp["at"]) < safe_divide(comp["lag_dltt"], comp["lag_at"]))
+        + indicator(safe_divide(comp["act"], comp["lct"]) > safe_divide(comp["lag_act"], comp["lag_lct"]))
+        + indicator(safe_divide(comp["sale"] - comp["cogs"], comp["sale"]) > safe_divide(comp["lag_sale"] - comp["lag_cogs"], comp["lag_sale"]))
+        + indicator(safe_divide(comp["sale"], comp["at"]) > safe_divide(comp["lag_sale"], comp["lag_at"]))
+        + indicator(comp["scstkc"].fillna(0) == 0)
+    )
+    comp.loc[comp.groupby("gvkey").cumcount() == 0, "ps"] = np.nan
     return comp
 
 
