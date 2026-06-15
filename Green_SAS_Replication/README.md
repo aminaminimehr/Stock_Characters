@@ -20,9 +20,12 @@ pip install -r Green_SAS_Replication/requirements.txt
 
 Default sample window: `2018-01-01` to `2023-12-31`.
 
+WRDS login: use `--wrds-user YOUR_USER`, or set `WRDS_USERNAME` (password via prompt or `WRDS_PASSWORD` if configured in your WRDS setup). Non-interactive shells (CI, agents) require an explicit username.
+
 ```bash
 cd Green_SAS_Replication
-python green_replication_pipeline.py --sample-start 2018-01-01 --sample-end 2023-12-31
+python green_replication_pipeline.py --wrds-user YOUR_USER --smoke-test
+python green_replication_pipeline.py --wrds-user YOUR_USER --sample-start 2018-01-01 --sample-end 2023-12-31
 ```
 
 Outputs:
@@ -42,6 +45,7 @@ Outputs:
 | `--validate-only` | Compare existing output to Green SAS `.sas7bdat` |
 | `--no-wrds` | Skip WRDS (requires checkpoints / final output) |
 | `--wrds-user` | Optional WRDS username |
+| `--smoke-test` | One-connection WRDS connectivity check (`SELECT 1`), then exit |
 
 ## Pipeline stages
 

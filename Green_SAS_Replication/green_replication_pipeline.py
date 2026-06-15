@@ -28,7 +28,7 @@ from modules.ibes_stubs import apply_ibes_stubs  # noqa: E402
 from modules.quarterly_compustat import merge_quarterly_to_monthly, run_quarterly_compustat  # noqa: E402
 from modules.validation import run_validation, write_validation_reports  # noqa: E402
 from modules.winsorization import winsorize_green  # noqa: E402
-from wrds_utils import connect_wrds, load_checkpoint, save_checkpoint  # noqa: E402
+from wrds_utils import connect_wrds, load_checkpoint, run_wrds_smoke_test, safe_close_wrds, save_checkpoint  # noqa: E402
 
 
 def apply_final_filters(df):
@@ -132,8 +132,7 @@ def run_pipeline(args) -> None:
                 continue
             run_stage(stage, db, args)
     finally:
-        if db is not None:
-            db.close()
+        safe_close_wrds(db)
 
     if args.validate_only or not args.skip_validation:
         validate_output(args)
@@ -228,10 +227,18 @@ def main():
     parser.add_argument("--validate-only", action="store_true")
     parser.add_argument("--skip-validation", action="store_true")
     parser.add_argument("--no-wrds", action="store_true")
+    parser.add_argument(
+        "--smoke-test",
+        action="store_true",
+        help="Verify WRDS connectivity with a single SELECT 1 query, then exit.",
+    )
     args = parser.parse_args()
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
+
+    if args.smoke_test:
+        raise SystemExit(run_wrds_smoke_test(args.wrds_user))
 
     if args.validate_only:
         validate_output(args)

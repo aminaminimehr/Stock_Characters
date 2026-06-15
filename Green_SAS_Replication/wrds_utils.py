@@ -1,6 +1,7 @@
 """WRDS connection helpers and SAS-compatible date utilities."""
 from __future__ import annotations
 
+import os
 import time
 from typing import Callable
 
@@ -10,9 +11,83 @@ import wrds
 
 from config import GREEN_CCM_LINKTYPES
 
+_WRDS_SESSION: wrds.Connection | None = None
+_WRDS_SESSION_USER: str | None = None
 
-def connect_wrds(wrds_user: str | None = None) -> wrds.Connection:
-    return wrds.Connection(wrds_username=wrds_user) if wrds_user else wrds.Connection()
+
+def _resolve_wrds_user(wrds_user: str | None) -> str | None:
+    return wrds_user or os.environ.get("WRDS_USERNAME")
+
+
+def connect_wrds(wrds_user: str | None = None, *, force_new: bool = False) -> wrds.Connection:
+    """Return a single shared WRDS connection per process (avoids repeated library-list loads)."""
+    global _WRDS_SESSION, _WRDS_SESSION_USER
+
+    user = _resolve_wrds_user(wrds_user)
+    if (
+        not force_new
+        and _WRDS_SESSION is not None
+        and _WRDS_SESSION_USER == user
+        and _connection_is_open(_WRDS_SESSION)
+    ):
+        return _WRDS_SESSION
+
+    safe_close_wrds(_WRDS_SESSION)
+    _WRDS_SESSION = wrds.Connection(wrds_username=user) if user else wrds.Connection()
+    _WRDS_SESSION_USER = user
+    return _WRDS_SESSION
+
+
+def _connection_is_open(db: wrds.Connection | None) -> bool:
+    if db is None:
+        return False
+    conn = getattr(db, "connection", None)
+    if conn is None:
+        return False
+    closed = getattr(conn, "closed", None)
+    return not closed if closed is not None else True
+
+
+def safe_close_wrds(db: wrds.Connection | None = None) -> None:
+    """Close WRDS connection without raising if already closed or partially initialized."""
+    global _WRDS_SESSION, _WRDS_SESSION_USER
+
+    target = db if db is not None else _WRDS_SESSION
+    if target is None:
+        return
+    try:
+        if _connection_is_open(target):
+            target.close()
+    except Exception:  # noqa: BLE001
+        pass
+    finally:
+        if db is None or db is _WRDS_SESSION:
+            _WRDS_SESSION = None
+            _WRDS_SESSION_USER = None
+
+
+def run_wrds_smoke_test(wrds_user: str | None = None) -> int:
+    """Open one WRDS connection, run a tiny query, close safely. Returns 0 on success."""
+    db = None
+    try:
+        print("WRDS smoke test: connecting...", flush=True)
+        db = connect_wrds(wrds_user, force_new=True)
+        print("WRDS smoke test: running query...", flush=True)
+        result = db.raw_sql("SELECT 1 AS x")
+        if result is None or len(result) != 1:
+            print("WRDS smoke test FAILED: expected 1 row from SELECT 1", flush=True)
+            return 1
+        value = result.iloc[0]["x"]
+        if int(value) != 1:
+            print(f"WRDS smoke test FAILED: expected x=1, got {value!r}", flush=True)
+            return 1
+        print("WRDS smoke test PASSED", flush=True)
+        return 0
+    except Exception as exc:  # noqa: BLE001
+        print(f"WRDS smoke test FAILED: {exc}", flush=True)
+        return 1
+    finally:
+        safe_close_wrds(db)
 
 
 def sql_date_literal(d: str) -> str:
@@ -38,11 +113,8 @@ def retry_wrds_query(db: wrds.Connection, fn: Callable, attempts: int = 3, pause
             if attempt == attempts:
                 break
             time.sleep(pause)
-            try:
-                db.close()
-            except Exception:  # noqa: BLE001
-                pass
-            db = connect_wrds()
+            safe_close_wrds(db)
+            db = connect_wrds(force_new=True)
     raise last_exc  # type: ignore[misc]
 
 
