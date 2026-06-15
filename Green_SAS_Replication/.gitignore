@@ -1,0 +1,5 @@
+outputs/checkpoints/
+outputs/*.parquet
+outputs/*.pkl
+outputs/*.csv
+!outputs/.gitkeep
