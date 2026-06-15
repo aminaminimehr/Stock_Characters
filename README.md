@@ -389,10 +389,18 @@ statistics such as maximum daily return, bid-ask spread, turnover volatility,
 and return volatility out of the contemporaneous return month being predicted.
 
 Annual accounting builders preserve the actual Compustat `datadate` in their
-raw files. The monthly prediction panel applies the repository's public June
-availability convention: fiscal-year information ending in calendar year `y`
-is used from June `y+1` through May `y+2`, with `target_yyyymm` identifying the
-next return month.
+raw files. The monthly prediction panel applies **source-specific timing**:
+
+- **Green-derived annual characteristics** (from `green_builders.py`) use Green
+  SAS rolling availability: fiscal `datadate` is eligible from month `datadate+7`
+  through month `datadate+19`, with the latest fiscal report kept per
+  `permno × signal_yyyymm` (`Character_Panels/timing.py`).
+- **HXZ / Fama-French builders** keep the June convention: fiscal year ending in
+  calendar year `y` is used from June `y+1` through May `y+2`.
+- Pass `--legacy-june-annual` to `build_all_character_panel.py` to restore the
+  old June flat expansion for all annual CSVs.
+
+`target_yyyymm` identifies the next return month in all cases.
 
 ### Duplicate Reports And Fiscal-Year Changes
 

@@ -16,14 +16,24 @@ The final monthly panel should use:
 For prediction work, keep characteristics aligned on `signal_yyyymm`; create or
 merge the dependent excess return using `target_yyyymm`.
 
-Annual accounting characteristics use the June availability convention. A fiscal
-year ending in calendar year `y` is placed from June `y+1` through May `y+2`.
-If fiscal-year-end changes create overlapping annual observations for the same
-`permno` and signal month, panel construction keeps the observation with the
-latest Compustat `datadate`.
-Quarterly characteristics should use the documented reporting/availability lag.
-Monthly and daily-rolled CRSP characteristics should be placed at their explicit
-monthly `signal_yyyymm` after the required lag is applied inside the builder.
+**Green-derived annual characteristics** (72 variables from `green_builders.py`)
+use Green SAS rolling monthly timing at panel merge:
+
+`intnx('MONTH', datadate, 7) <= CRSP month-end < intnx('MONTH', datadate, 20)`,
+
+keeping the latest fiscal `datadate` per `permno × signal_yyyymm`. Implemented in
+`Character_Panels/timing.py` (`expand_annual_file_green`).
+
+**HXZ / Fama-French standalone builders** (`book_to_market`, `cash_flow_to_price`,
+`operating_profitability`, `book_to_june_market_equity`) keep the documented
+**June** availability convention via `expand_annual_file_june`.
+
+Legacy June expansion for all annual CSVs: `build_all_character_panel.py --legacy-june-annual`.
+
+Quarterly characteristics use the documented reporting/availability lag inside
+`quarterly_builders.py`. Monthly and daily-rolled CRSP characteristics are placed
+at their explicit monthly `signal_yyyymm` after the required lag is applied inside
+the builder.
 
 ## Status Table
 

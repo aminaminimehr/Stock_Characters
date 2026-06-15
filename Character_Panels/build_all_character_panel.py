@@ -1,9 +1,7 @@
 import argparse
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 import sys
@@ -16,10 +14,26 @@ from output_paths import (  # noqa: E402
     SIGNAL_PANEL_FILE,
     iter_character_csv_paths,
 )
+from Character_Panels.timing import (  # noqa: E402
+    MONTHLY_KEYS,
+    TimingConvention,
+    build_crsp_month_index_from_panels,
+    classify_stem,
+    expand_annual_file,
+    expand_annual_file_june,
+    expand_annual_file_green,
+)
 
-MONTHLY_KEYS = ["permno", "signal_yyyymm", "target_yyyymm"]
-ANNUAL_ID_COLUMNS = ["permno", "permco", "gvkey", "datadate", "sic", "fyear"]
-NON_CHARACTER_FILES = {f"{stem}.csv" for stem in NON_CHARACTER_STEMS}
+# Re-export for legacy script imports.
+ANNUAL_ID_COLUMNS = [
+    "permno",
+    "permco",
+    "gvkey",
+    "datadate",
+    "sic",
+    "fyear",
+]
+
 KNOWN_NON_CHARACTER_COLUMNS = {
     "permno",
     "permco",
@@ -44,14 +58,7 @@ KNOWN_NON_CHARACTER_COLUMNS = {
     "june_price",
 }
 
-
-def add_one_month(yyyymm):
-    year = yyyymm // 100
-    month = yyyymm % 100
-    next_month = month + 1
-    next_year = year + (next_month == 13)
-    next_month = 1 if next_month == 13 else next_month
-    return next_year * 100 + next_month
+NON_CHARACTER_FILES = {f"{stem}.csv" for stem in NON_CHARACTER_STEMS}
 
 
 def infer_character_columns(df):
@@ -63,42 +70,30 @@ def infer_character_columns(df):
     ]
 
 
-def expand_annual_file(df, character_columns):
-    df = df.copy()
-    df["datadate"] = pd.to_datetime(df["datadate"])
-    availability_year = df["datadate"].dt.year + 1
-
-    repeated = df.loc[df.index.repeat(12), ANNUAL_ID_COLUMNS + character_columns].copy()
-    month_offsets = np.tile(np.arange(12), len(df))
-    first_signal_month = availability_year.to_numpy().repeat(12) * 12 + 5
-    month_index = first_signal_month + month_offsets
-    repeated["signal_yyyymm"] = (month_index // 12) * 100 + (month_index % 12 + 1)
-    repeated["target_yyyymm"] = repeated["signal_yyyymm"].map(add_one_month)
-    repeated = (
-        repeated.sort_values(["permno", "signal_yyyymm", "datadate"])
-        .drop_duplicates(["permno", "signal_yyyymm"], keep="last")
-    )
-
-    keep = MONTHLY_KEYS + ["permco", "gvkey", "sic"] + character_columns
-    return repeated[keep]
-
-
-def normalize_character_file(path):
+def normalize_character_file(path, crsp_month_index=None, force_june_annual=False):
     df = pd.read_csv(path)
     character_columns = infer_character_columns(df)
     if not character_columns:
         return None
 
-    if set(MONTHLY_KEYS).issubset(df.columns):
+    stem = Path(path).stem
+    convention = classify_stem(stem, df.columns)
+    if convention is None:
+        return None
+
+    if convention == TimingConvention.MONTHLY_NATIVE:
         keep = MONTHLY_KEYS + [
             column for column in ["permco", "gvkey", "sic"] if column in df.columns
         ] + character_columns
         return df[keep]
 
-    if {"permno", "datadate"}.issubset(df.columns):
-        return expand_annual_file(df, character_columns)
+    if force_june_annual:
+        return expand_annual_file_june(df, character_columns)
 
-    return None
+    if convention == TimingConvention.GREEN_ANNUAL_ROLLING:
+        return expand_annual_file_green(df, character_columns, crsp_month_index=crsp_month_index)
+
+    return expand_annual_file_june(df, character_columns)
 
 
 def coalesce_metadata(panels):
@@ -157,26 +152,50 @@ def merge_panels(panels):
     return final
 
 
-def build_all_character_panel(input_dir=None):
+def _load_monthly_native_panels(paths):
+    panels = []
+    for path in paths:
+        if path.name in NON_CHARACTER_FILES:
+            continue
+        header = pd.read_csv(path, nrows=0)
+        if set(MONTHLY_KEYS).issubset(header.columns):
+            panels.append(pd.read_csv(path, usecols=["permno", "signal_yyyymm"]))
+    return panels
+
+
+def _load_crsp_month_index(paths):
+    """CRSP month universe for Green annual expansion (prefer me.csv)."""
+    me_path = CHARACTER_INDIVIDUAL_DIR / "me.csv"
+    if me_path.exists():
+        return pd.read_csv(me_path, usecols=["permno", "signal_yyyymm"]).drop_duplicates()
+    monthly_native = _load_monthly_native_panels(paths)
+    return build_crsp_month_index_from_panels(monthly_native)
+
+
+def build_all_character_panel(input_dir=None, force_june_annual=False):
     if input_dir is None:
         paths = list(iter_character_csv_paths())
     else:
         input_dir = Path(input_dir)
         paths = sorted(input_dir.glob("*.csv"))
         if input_dir == CHARACTER_INDIVIDUAL_DIR and LEGACY_FLAT_OUTPUT_DIR.exists():
-            legacy = {
-                p.name
-                for p in paths
-            }
+            legacy = {p.name for p in paths}
             for path in sorted(LEGACY_FLAT_OUTPUT_DIR.glob("*.csv")):
                 if path.name not in legacy and path.name not in NON_CHARACTER_FILES:
                     paths.append(path)
+
+    crsp_month_index = _load_crsp_month_index(paths)
+
     panels = []
     skipped = []
     for path in paths:
         if path.name in NON_CHARACTER_FILES:
             continue
-        panel = normalize_character_file(path)
+        panel = normalize_character_file(
+            path,
+            crsp_month_index=crsp_month_index,
+            force_june_annual=force_june_annual,
+        )
         if panel is None:
             skipped.append(path.name)
             continue
@@ -196,9 +215,17 @@ def main():
     )
     parser.add_argument("--input-dir", default=None)
     parser.add_argument("--output", default=str(SIGNAL_PANEL_FILE))
+    parser.add_argument(
+        "--legacy-june-annual",
+        action="store_true",
+        help="Force June flat expansion for all annual CSVs (legacy behavior).",
+    )
     args = parser.parse_args()
 
-    panel, skipped = build_all_character_panel(args.input_dir)
+    panel, skipped = build_all_character_panel(
+        args.input_dir,
+        force_june_annual=args.legacy_june_annual,
+    )
 
     output_path = Path(args.output)
     if not output_path.is_absolute():
