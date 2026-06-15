@@ -49,8 +49,16 @@ def fetch_quarterly_compustat(db: wrds.Connection, sample_start: str | None, sam
     return df.sort_values(["gvkey", "datadate"]).drop_duplicates(["gvkey", "datadate"], keep="first")
 
 
+def _bool_to_int(left: pd.Series, right: pd.Series) -> pd.Series:
+    """SAS-safe comparison indicator: missing -> 0 (false)."""
+    return left.gt(right).fillna(False).astype(int)
+
+
 def build_quarterly_characteristics(raw: pd.DataFrame) -> pd.DataFrame:
     df = raw.copy()
+    for col in df.columns:
+        if col not in {"gvkey", "cnum", "sic2", "datadate", "rdq"}:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
     g = df.groupby("gvkey", sort=False)
     df["count"] = g.cumcount() + 1
 
@@ -119,37 +127,23 @@ def build_quarterly_characteristics(raw: pd.DataFrame) -> pd.DataFrame:
     l6 = g["ibq"].shift(6)
     l7 = g["ibq"].shift(7)
     l8 = g["ibq"].shift(8)
+    b01 = _bool_to_int(ibq, l1)
+    b12 = _bool_to_int(l1, l2)
+    b23 = _bool_to_int(l2, l3)
+    b34 = _bool_to_int(l3, l4)
+    b45 = _bool_to_int(l4, l5)
+    b56 = _bool_to_int(l5, l6)
+    b67 = _bool_to_int(l6, l7)
+    b78 = _bool_to_int(l7, l8)
     df["nincr"] = (
-        (ibq > l1).astype(int)
-        + (ibq > l1).astype(int) * (l1 > l2).astype(int)
-        + (ibq > l1).astype(int) * (l1 > l2).astype(int) * (l2 > l3).astype(int)
-        + (ibq > l1).astype(int) * (l1 > l2).astype(int) * (l2 > l3).astype(int) * (l3 > l4).astype(int)
-        + (ibq > l1).astype(int)
-        * (l1 > l2).astype(int)
-        * (l2 > l3).astype(int)
-        * (l3 > l4).astype(int)
-        * (l4 > l5).astype(int)
-        + (ibq > l1).astype(int)
-        * (l1 > l2).astype(int)
-        * (l2 > l3).astype(int)
-        * (l3 > l4).astype(int)
-        * (l4 > l5).astype(int)
-        * (l5 > l6).astype(int)
-        + (ibq > l1).astype(int)
-        * (l1 > l2).astype(int)
-        * (l2 > l3).astype(int)
-        * (l3 > l4).astype(int)
-        * (l4 > l5).astype(int)
-        * (l5 > l6).astype(int)
-        * (l6 > l7).astype(int)
-        + (ibq > l1).astype(int)
-        * (l1 > l2).astype(int)
-        * (l2 > l3).astype(int)
-        * (l3 > l4).astype(int)
-        * (l4 > l5).astype(int)
-        * (l5 > l6).astype(int)
-        * (l6 > l7).astype(int)
-        * (l7 > l8).astype(int)
+        b01
+        + b01 * b12
+        + b01 * b12 * b23
+        + b01 * b12 * b23 * b34
+        + b01 * b12 * b23 * b34 * b45
+        + b01 * b12 * b23 * b34 * b45 * b56
+        + b01 * b12 * b23 * b34 * b45 * b56 * b67
+        + b01 * b12 * b23 * b34 * b45 * b56 * b67 * b78
     )
 
     df.loc[df.groupby("gvkey").head(1).index, ["roaq", "roeq"]] = np.nan
@@ -159,10 +153,10 @@ def build_quarterly_characteristics(raw: pd.DataFrame) -> pd.DataFrame:
     med = df.groupby(["fyearq", "fqtr", "sic2"], dropna=False)[["roavol", "sgrvol"]].transform("median")
     med.columns = ["md_roavol", "md_sgrvol"]
     df = pd.concat([df, med], axis=1)
-    df["m7"] = np.where(df["roavol"] < df["md_roavol"], 1, 0)
-    df["m8"] = np.where(df["sgrvol"] < df["md_sgrvol"], 1, 0)
+    df["m7"] = np.where(df["roavol"].lt(df["md_roavol"]).fillna(False), 1, 0)
+    df["m8"] = np.where(df["sgrvol"].lt(df["md_sgrvol"]).fillna(False), 1, 0)
 
-  # SUE without IBES: che/mveq (SAS fallback L685)
+    # SUE without IBES: che/mveq (SAS fallback L685)
     df["sue"] = df["che"] / df["mveq"]
 
     return df
