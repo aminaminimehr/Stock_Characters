@@ -29,6 +29,11 @@ def _debug(msg: str) -> None:
         print(f"[WRDS DEBUG] {msg}", flush=True)
 
 
+def debug_log(msg: str) -> None:
+    """Public alias for module-level WRDS/CCM diagnostic logging."""
+    _debug(msg)
+
+
 def _resolve_wrds_user(wrds_user: str | None) -> str | None:
     return wrds_user or os.environ.get("WRDS_USERNAME")
 
