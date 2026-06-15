@@ -54,6 +54,41 @@ def _bool_to_int(left: pd.Series, right: pd.Series) -> pd.Series:
     return left.gt(right).fillna(False).astype(int)
 
 
+def _safe_float(x) -> float | None:
+    """Finite float scalar, or None for missing / non-finite values."""
+    if x is None:
+        return None
+    try:
+        if pd.isna(x):
+            return None
+    except (TypeError, ValueError):
+        return None
+    try:
+        val = float(x)
+    except (TypeError, ValueError):
+        return None
+    if not np.isfinite(val):
+        return None
+    return val
+
+
+def _series_mean(series: pd.Series) -> float | None:
+    if series.empty:
+        return None
+    return _safe_float(series.mean())
+
+
+def _series_sum(series: pd.Series) -> float | None:
+    if series.empty:
+        return None
+    return _safe_float(series.sum())
+
+
+def _is_missing_or_zero(x) -> bool:
+    val = _safe_float(x)
+    return val is None or val == 0.0
+
+
 def build_quarterly_characteristics(raw: pd.DataFrame) -> pd.DataFrame:
     df = raw.copy()
     for col in df.columns:
@@ -181,6 +216,8 @@ def add_daily_earnings_variables(db: wrds.Connection, quarterly: pd.DataFrame) -
         """),
     )
     dsf["date"] = pd.to_datetime(dsf["date"])
+    dsf["vol"] = pd.to_numeric(dsf["vol"], errors="coerce")
+    dsf["ret"] = pd.to_numeric(dsf["ret"], errors="coerce")
 
     records = []
     for _, row in df[["permno", "datadate", "rdq"]].drop_duplicates().iterrows():
@@ -191,14 +228,18 @@ def add_daily_earnings_variables(db: wrds.Connection, quarterly: pd.DataFrame) -
         win_evt_end = intnx_weekday(pd.Series([rdq]), 1).iloc[0]
         sub = dsf[dsf["permno"] == row["permno"]]
         pre = sub[(sub["date"] >= win_pre_start) & (sub["date"] <= win_pre_end)]
-        avgvol = pre["vol"].mean() if not pre.empty else np.nan
         evt = sub[(sub["date"] >= win_evt_start) & (sub["date"] <= win_evt_end)]
-        if evt.empty or not np.isfinite(avgvol) or avgvol == 0:
+
+        avgvol = _series_mean(pre["vol"])
+        evt_vol_mean = _series_mean(evt["vol"])
+        if _is_missing_or_zero(avgvol) or evt_vol_mean is None:
             aeavol = np.nan
-            ear = np.nan
         else:
-            aeavol = (evt["vol"].mean() - avgvol) / avgvol
-            ear = evt["ret"].sum()
+            aeavol = (evt_vol_mean - avgvol) / avgvol
+
+        ear_val = _series_sum(evt["ret"])
+        ear = np.nan if ear_val is None else ear_val
+
         records.append(
             {
                 "permno": row["permno"],
