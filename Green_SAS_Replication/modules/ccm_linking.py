@@ -11,7 +11,7 @@ def screen_exchange_history(db: wrds.Connection, comp_linked: pd.DataFrame) -> p
     """Replicate mseall exchange window join and filters."""
     mse = retry_wrds_query(
         db,
-        lambda: db.raw_sql("""
+        lambda conn: conn.raw_sql("""
             SELECT date, permno, exchcd, shrcd, siccd
             FROM crsp.mseall
             WHERE exchcd IN (1, 2, 3) OR shrcd IN (10, 11, 12)

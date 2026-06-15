@@ -17,7 +17,7 @@ def build_daily_monthly_aggregates(db: wrds.Connection, permnos: list[int], samp
         ids = ",".join(str(p) for p in permnos[i : i + 3000])
         part = retry_wrds_query(
             db,
-            lambda id_list=ids: db.raw_sql(f"""
+            lambda conn, id_list=ids: conn.raw_sql(f"""
                 SELECT permno, date, ret, vol, shrout, ABS(prc) AS prc, askhi, bidlo
                 FROM crsp.dsf
                 WHERE permno IN ({id_list})
@@ -122,7 +122,7 @@ def estimate_beta_block(db: wrds.Connection, panel: pd.DataFrame, sample_start: 
         ids = ",".join(str(p) for p in permnos[i : i + 2000])
         part = retry_wrds_query(
             db,
-            lambda id_list=ids: db.raw_sql(f"""
+            lambda conn, id_list=ids: conn.raw_sql(f"""
                 SELECT permno, date, ret
                 FROM crsp.dsf
                 WHERE permno IN ({id_list}) AND {date_filter}

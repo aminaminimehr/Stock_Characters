@@ -11,7 +11,7 @@ from wrds_utils import month_end, retry_wrds_query, sql_between_date
 
 ANNUAL_RAW_SQL = """
 SELECT
-    SUBSTR(REPLACE(c.cusip, ' ', ''), 1, 6) AS cnum,
+    SUBSTR(REPLACE(f.cusip, ' ', ''), 1, 6) AS cnum,
     c.gvkey,
     f.datadate,
     f.fyear,
@@ -71,7 +71,7 @@ def fetch_annual_compustat(db: wrds.Connection, sample_start: str | None, sample
     sql = ANNUAL_RAW_SQL
     if date_filter != "1=1":
         sql = sql.replace("AND f.consol = 'C'", f"AND f.consol = 'C'\n  AND {date_filter}")
-    df = retry_wrds_query(db, lambda: db.raw_sql(sql))
+    df = retry_wrds_query(db, lambda conn: conn.raw_sql(sql))
     df["datadate"] = pd.to_datetime(df["datadate"])
     df = df.sort_values(["gvkey", "datadate"]).drop_duplicates(["gvkey", "datadate"], keep="first")
     return df
@@ -80,6 +80,10 @@ def fetch_annual_compustat(db: wrds.Connection, sample_start: str | None, sample
 def build_annual_characteristics(raw: pd.DataFrame) -> pd.DataFrame:
     """Replicate SAS data -> data2 -> orgcap pipeline."""
     df = raw.copy()
+    for col in df.columns:
+        if col in {"gvkey", "cnum", "sic", "sic2", "naics", "splticrm", "datadate"}:
+            continue
+        df[col] = pd.to_numeric(df[col], errors="coerce")
     g = df.groupby("gvkey", sort=False)
 
     df["count"] = g.cumcount() + 1
@@ -96,7 +100,7 @@ def build_annual_characteristics(raw: pd.DataFrame) -> pd.DataFrame:
     df.loc[m1, "dc"] = df.loc[m1, "dcpstk"] - df.loc[m1, "pstk"]
     m2 = df["dcvt"].isna() & df["dcpstk"].notna() & df["pstk"].isna()
     df.loc[m2, "dc"] = df.loc[m2, "dcpstk"]
-    df.loc[df["dc"].isna(), "dc"] = df.loc[df["dc"].isna(), "dcvt"]
+    df.loc[df["dc"].isna(), "dc"] = df.loc[df["dc"].isna(), "dcvt"].astype(float)
 
     df["xint0"] = df["xint"].fillna(0)
     df["xsga0"] = df["xsga"].fillna(0)
@@ -274,22 +278,26 @@ def build_annual_characteristics(raw: pd.DataFrame) -> pd.DataFrame:
         )
     ) / avg_at
     df["chdrc"] = (df["dr"] - lag_dr) / avg_at
-    lag_xrd_at = lag_xrd / lag_at
-    df["rd"] = np.where(((df["xrd"] / df["at"]) - lag_xrd_at) / lag_xrd_at > 0.05, 1, 0)
+    lag_xrd_at = (lag_xrd / lag_at).astype(float)
+    rd_ratio = (((df["xrd"] / df["at"]) - lag_xrd_at) / lag_xrd_at).astype(float)
+    df["rd"] = np.where(rd_ratio > 0.05, 1, 0)
     df["rdbias"] = (df["xrd"] / lag_xrd - 1) - df["ib"] / lag_ceq
     df["roe"] = df["ib"] / lag_ceq
     df["operprof"] = (df["revt"] - df["cogs"] - df["xsga0"] - df["xint0"]) / lag_ceq
 
+    def _score(mask: pd.Series) -> pd.Series:
+        return mask.fillna(False).astype(int)
+
     df["ps"] = (
-        (df["ni"] > 0).astype(int)
-        + (df["oancf"] > 0).astype(int)
-        + ((df["ni"] / df["at"]) > (lag_ni / lag_at)).astype(int)
-        + (df["oancf"] > df["ni"]).astype(int)
-        + ((df["dltt"] / df["at"]) < (lag_dltt / lag_at)).astype(int)
-        + ((df["act"] / df["lct"]) > (lag_act / lag_lct)).astype(int)
-        + (((df["sale"] - df["cogs"]) / df["sale"]) > ((lag_sale - lag_cogs) / lag_sale)).astype(int)
-        + ((df["sale"] / df["at"]) > (lag_sale / lag_at)).astype(int)
-        + (df["scstkc"] == 0).astype(int)
+        _score(df["ni"] > 0)
+        + _score(df["oancf"] > 0)
+        + _score((df["ni"] / df["at"]) > (lag_ni / lag_at))
+        + _score(df["oancf"] > df["ni"])
+        + _score((df["dltt"] / df["at"]) < (lag_dltt / lag_at))
+        + _score((df["act"] / df["lct"]) > (lag_act / lag_lct))
+        + _score(((df["sale"] - df["cogs"]) / df["sale"]) > ((lag_sale - lag_cogs) / lag_sale))
+        + _score((df["sale"] / df["at"]) > (lag_sale / lag_at))
+        + _score(df["scstkc"] == 0)
     )
 
     tr = _tax_rate(df["fyear"])
@@ -337,12 +345,12 @@ def build_annual_characteristics(raw: pd.DataFrame) -> pd.DataFrame:
     )
     med.columns = ["md_roa", "md_cfroa", "md_xrdint", "md_capxint", "md_xadint"]
     df = pd.concat([df, med], axis=1)
-    df["m1"] = np.where(df["roa"] > df["md_roa"], 1, 0)
-    df["m2"] = np.where(df["cfroa"] > df["md_cfroa"], 1, 0)
-    df["m3"] = np.where(df["oancf"] > df["ni"], 1, 0)
-    df["m4"] = np.where(df["xrdint"] > df["md_xrdint"], 1, 0)
-    df["m5"] = np.where(df["capxint"] > df["md_capxint"], 1, 0)
-    df["m6"] = np.where(df["xadint"] > df["md_xadint"], 1, 0)
+    df["m1"] = np.where(df["roa"].gt(df["md_roa"]).fillna(False), 1, 0)
+    df["m2"] = np.where(df["cfroa"].gt(df["md_cfroa"]).fillna(False), 1, 0)
+    df["m3"] = np.where(df["oancf"].gt(df["ni"]).fillna(False), 1, 0)
+    df["m4"] = np.where(df["xrdint"].gt(df["md_xrdint"]).fillna(False), 1, 0)
+    df["m5"] = np.where(df["capxint"].gt(df["md_capxint"]).fillna(False), 1, 0)
+    df["m6"] = np.where(df["xadint"].gt(df["md_xadint"]).fillna(False), 1, 0)
 
     df = df.sort_values(["gvkey", "datadate"]).drop_duplicates(["gvkey", "datadate"], keep="first")
 
@@ -386,7 +394,7 @@ def run_annual_compustat(
     raw = fetch_annual_compustat(db, sample_start, sample_end)
     rates = retry_wrds_query(
         db,
-        lambda: db.raw_sql("SELECT gvkey, datadate, splticrm FROM comp.adsprate"),
+        lambda conn: conn.raw_sql("SELECT gvkey, datadate, splticrm FROM comp.adsprate"),
     )
     rates["datadate"] = pd.to_datetime(rates["datadate"])
     rates["fyear"] = rates["datadate"].dt.year

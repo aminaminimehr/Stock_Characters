@@ -28,7 +28,7 @@ from modules.ibes_stubs import apply_ibes_stubs  # noqa: E402
 from modules.quarterly_compustat import merge_quarterly_to_monthly, run_quarterly_compustat  # noqa: E402
 from modules.validation import run_validation, write_validation_reports  # noqa: E402
 from modules.winsorization import winsorize_green  # noqa: E402
-from wrds_utils import connect_wrds, load_checkpoint, run_wrds_smoke_test, safe_close_wrds, save_checkpoint  # noqa: E402
+from wrds_utils import connect_wrds, load_checkpoint, run_wrds_smoke_test, safe_close_wrds, save_checkpoint, set_wrds_debug  # noqa: E402
 
 
 def apply_final_filters(df):
@@ -120,7 +120,7 @@ def run_pipeline(args) -> None:
     if args.stage:
         if args.stage not in stages:
             raise ValueError(f"Stage must be one of {stages}")
-        stages = stages[stages.index(args.stage) :]
+        stages = [args.stage]
 
     db = None if args.no_wrds else connect_wrds(args.wrds_user)
     try:
@@ -132,7 +132,7 @@ def run_pipeline(args) -> None:
                 continue
             run_stage(stage, db, args)
     finally:
-        safe_close_wrds(db)
+        safe_close_wrds()
 
     if args.validate_only or not args.skip_validation:
         validate_output(args)
@@ -232,7 +232,14 @@ def main():
         action="store_true",
         help="Verify WRDS connectivity with a single SELECT 1 query, then exit.",
     )
+    parser.add_argument(
+        "--debug-wrds",
+        action="store_true",
+        help="Print WRDS connection lifecycle and raw_sql calls.",
+    )
     args = parser.parse_args()
+
+    set_wrds_debug(args.debug_wrds)
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)

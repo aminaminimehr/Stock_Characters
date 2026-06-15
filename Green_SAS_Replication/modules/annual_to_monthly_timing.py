@@ -46,7 +46,7 @@ def align_annual_to_monthly(
     permno_list = ",".join(str(p) for p in permnos[:5000])
     msf = retry_wrds_query(
         db,
-        lambda: db.raw_sql(f"""
+        lambda conn: conn.raw_sql(f"""
             SELECT permno, date, ret, ABS(prc) AS prc, shrout, vol
             FROM crsp.msf
             WHERE permno IN ({permno_list})
@@ -58,7 +58,7 @@ def align_annual_to_monthly(
             chunk_ids = ",".join(str(p) for p in permnos[i : i + 5000])
             extra = retry_wrds_query(
                 db,
-                lambda ids=chunk_ids: db.raw_sql(f"""
+                lambda conn, ids=chunk_ids: conn.raw_sql(f"""
                     SELECT permno, date, ret, ABS(prc) AS prc, shrout, vol
                     FROM crsp.msf
                     WHERE permno IN ({ids}) AND {date_filter}
@@ -75,7 +75,7 @@ def align_annual_to_monthly(
 
     mse = retry_wrds_query(
         db,
-        lambda: db.raw_sql(f"""
+        lambda conn: conn.raw_sql(f"""
             SELECT permno, date, dlret, dlstcd, exchcd
             FROM crsp.mseall
             WHERE permno IN ({permno_list})

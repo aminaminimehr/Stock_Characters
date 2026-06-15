@@ -43,7 +43,7 @@ def fetch_quarterly_compustat(db: wrds.Connection, sample_start: str | None, sam
     sql = QUARTERLY_SQL
     if date_filter != "1=1":
         sql = sql + f"\n  AND {date_filter}"
-    df = retry_wrds_query(db, lambda: db.raw_sql(sql))
+    df = retry_wrds_query(db, lambda conn: conn.raw_sql(sql))
     df["datadate"] = pd.to_datetime(df["datadate"])
     df["rdq"] = pd.to_datetime(df["rdq"])
     return df.sort_values(["gvkey", "datadate"]).drop_duplicates(["gvkey", "datadate"], keep="first")
@@ -180,7 +180,7 @@ def add_daily_earnings_variables(db: wrds.Connection, quarterly: pd.DataFrame) -
     permno_list = ",".join(str(p) for p in permnos[:3000])
     dsf = retry_wrds_query(
         db,
-        lambda: db.raw_sql(f"""
+        lambda conn: conn.raw_sql(f"""
             SELECT permno, date, vol, ret
             FROM crsp.dsf
             WHERE permno IN ({permno_list})
