@@ -122,6 +122,15 @@ authentication methods:
 - WRDS/PostgreSQL environment variables,
 - or the optional `--wrds-user` argument where supported.
 
+Environment-variable username fallback is now:
+
+- `WRDS_USERNAME` (preferred)
+- `WRDS_USER` (legacy alias)
+
+This fallback is used by the shared WRDS connector in `Character_Builders/_shared/green_builders.py`,
+so fresh machines can run non-interactively without username prompts when one
+of those variables is set.
+
 Do not commit usernames, passwords, `.pgpass` files, downloaded WRDS data, or
 generated output CSVs to a public repository.
 
@@ -542,7 +551,7 @@ bash run_full_pipeline.sh
 ```powershell
 cd Stock_Characters
 pip install -r requirements.txt
-$env:WRDS_USER = "your_wrds_username"
+$env:WRDS_USERNAME = "your_wrds_username"   # preferred
 $env:PGPASSFILE = "$env:APPDATA\postgresql\pgpass.conf"
 .\run_full_pipeline.ps1
 ```
@@ -553,6 +562,18 @@ Replace `YOUR_WRDS_USERNAME` with your actual WRDS login (for example `aminamini
 
 ```powershell
 python Character_Panels/run_full_pipeline.py --wrds-user aminaminimehr --skip-ibes
+```
+
+### Build only key disagreement characters
+
+If you only want to regenerate the commonly audited subset (`ear`/`abr`,
+`beta`, `betasq`, `nincr`, `pchcapx_ia`, and `operating_profitability`) on a
+new machine, first ensure WRDS auth is configured, then run:
+
+```powershell
+python Character_Builders/build_all_implemented_characters.py --skip-ibes --skip-existing --wrds-user YOUR_WRDS_USERNAME
+python Character_Builders/HXZ_OPE_Generalized/build_operating_profitability.py --wrds-user YOUR_WRDS_USERNAME --output outputs/characteristics/individual/operating_profitability.csv
+python Character_Panels/build_all_character_panel.py --output outputs/panels/all_character_signal_panel.csv
 ```
 
 #### What the full pipeline runs, in order

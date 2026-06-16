@@ -9,7 +9,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
-: "${WRDS_USER:?Set WRDS_USER to your WRDS PostgreSQL username}"
+: "${WRDS_USER:=${WRDS_USERNAME:-}}"
+: "${WRDS_USER:?Set WRDS_USERNAME or WRDS_USER to your WRDS PostgreSQL username}"
 export PGPASSFILE="${PGPASSFILE:-${HOME}/.pgpass}"
 
 PYTHON="${STOCK_CHARACTERS_PYTHON:-python}"

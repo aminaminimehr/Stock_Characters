@@ -6,7 +6,7 @@ if (-not $env:PGPASSFILE) {
 }
 
 $Python = if ($env:STOCK_CHARACTERS_PYTHON) { $env:STOCK_CHARACTERS_PYTHON } else { "python" }
-$WrdsUser = if ($env:WRDS_USER) { $env:WRDS_USER } else { "YOUR_WRDS_USERNAME" }
+$WrdsUser = if ($env:WRDS_USERNAME) { $env:WRDS_USERNAME } elseif ($env:WRDS_USER) { $env:WRDS_USER } else { "YOUR_WRDS_USERNAME" }
 $Root = $PSScriptRoot
 $Log = Join-Path $Root "outputs\logs\pipeline_run.log"
 
@@ -14,7 +14,7 @@ Set-Location $Root
 New-Item -ItemType Directory -Force -Path (Split-Path $Log) | Out-Null
 
 if ($WrdsUser -eq "YOUR_WRDS_USERNAME") {
-    Write-Error "Set `$env:WRDS_USER or edit `$WrdsUser in run_full_pipeline.ps1"
+    Write-Error "Set `$env:WRDS_USERNAME (or `$env:WRDS_USER) or edit `$WrdsUser in run_full_pipeline.ps1"
 }
 
 $args = @("Character_Panels/run_full_pipeline.py", "--wrds-user", $WrdsUser, "--skip-ibes")
