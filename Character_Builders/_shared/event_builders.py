@@ -6,11 +6,7 @@ import pandas as pd
 
 from _shared.ccm import add_ccm_arguments, attach_ccm_links, load_ccm_links
 from _shared.green_builders import OUTPUT_DIR, connect_wrds, load_crsp_monthly, raw_sql_with_retry
-from _shared.quarterly_builders import (
-    intnx_month,
-    intnx_weekday,
-    load_quarterly_compustat,
-)
+from _shared.quarterly_builders import load_quarterly_compustat
 
 # Green SAS EAR monthly mapping (Related_to_Dachengs_EAPVML_paper.sas L1274):
 #   intnx('MONTH', a.date, -12) <= b.datadate <= intnx('MONTH', a.date, -3, 'E')
@@ -20,6 +16,18 @@ EAR_MONTH_END_LAG = -3
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _intnx_month(ts: pd.Series, n: int, alignment: str = "end") -> pd.Series:
+    """SAS-like intnx('MONTH', date, n [, 'beg'|'end']) helper local to EAR builder."""
+    shifted = pd.to_datetime(ts) + pd.DateOffset(months=n)
+    if alignment == "beg":
+        return shifted.dt.to_period("M").dt.to_timestamp("s")
+    return shifted.dt.to_period("M").dt.to_timestamp("h")
+
+
+def _intnx_weekday(ts: pd.Series, n: int) -> pd.Series:
+    return pd.to_datetime(ts) + pd.tseries.offsets.BDay(n)
 
 
 def _compute_ear_events(comp: pd.DataFrame, db) -> pd.DataFrame:
@@ -48,8 +56,8 @@ def _compute_ear_events(comp: pd.DataFrame, db) -> pd.DataFrame:
     records = []
     for _, row in df[["permno", "datadate", "rdq"]].drop_duplicates().iterrows():
         rdq = row["rdq"]
-        win_start = intnx_weekday(pd.Series([rdq]), -1).iloc[0]
-        win_end = intnx_weekday(pd.Series([rdq]), 1).iloc[0]
+        win_start = _intnx_weekday(pd.Series([rdq]), -1).iloc[0]
+        win_end = _intnx_weekday(pd.Series([rdq]), 1).iloc[0]
         sub = dsf[(dsf["permno"] == int(row["permno"])) & (dsf["date"] >= win_start) & (dsf["date"] <= win_end)]
         ear = sub["ret"].sum(skipna=True)
         if pd.isna(ear):
@@ -80,8 +88,8 @@ def build_ear_character(db, ccm_linktypes=None, ccm_linkprim=None):
     monthly["permno"] = pd.to_numeric(monthly["permno"], errors="coerce").astype("int64")
 
     left = monthly.copy()
-    left["win_start"] = intnx_month(left["date"], EAR_MONTH_START_LAG, "end")
-    left["win_end"] = intnx_month(left["date"], EAR_MONTH_END_LAG, "end")
+    left["win_start"] = _intnx_month(left["date"], EAR_MONTH_START_LAG, "end")
+    left["win_end"] = _intnx_month(left["date"], EAR_MONTH_END_LAG, "end")
     merged = left.merge(events, on="permno", how="left")
     in_window = merged["datadate"].notna() & (merged["datadate"] >= merged["win_start"]) & (
         merged["datadate"] <= merged["win_end"]
