@@ -75,7 +75,9 @@ def count_panel_characters(path):
     return [c for c in df.columns if c not in PANEL_META]
 
 
-def build_all_characters(wrds_user, skip_ibes=False, resume=False, sample_start=None, sample_end=None):
+def build_all_characters(
+    wrds_user, skip_ibes=False, resume=False, sample_start=None, sample_end=None, workers=None
+):
     cmd = [
         PYTHON,
         "Character_Builders/build_all_implemented_characters.py",
@@ -92,6 +94,8 @@ def build_all_characters(wrds_user, skip_ibes=False, resume=False, sample_start=
         cmd.extend(["--sample-start", sample_start])
     if sample_end:
         cmd.extend(["--sample-end", sample_end])
+    if workers is not None:
+        cmd.extend(["--workers", str(workers)])
     run(cmd)
 
 
@@ -218,6 +222,15 @@ def main():
         default=None,
         help="Optional WRDS upper date bound (YYYY-MM-DD) for validation runs.",
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help=(
+            "Parallel workers for beta/rvar daily-window builders. "
+            "Default: STOCK_CHARACTERS_WORKERS or min(cpu, 8)."
+        ),
+    )
     args = parser.parse_args()
 
     ensure_output_tree()
@@ -229,6 +242,7 @@ def main():
             resume=args.resume,
             sample_start=args.sample_start,
             sample_end=args.sample_end,
+            workers=args.workers,
         )
         build_hxz_characters(args.wrds_user, CHARACTER_INDIVIDUAL_DIR)
         build_excess_returns(

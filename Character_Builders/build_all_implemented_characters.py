@@ -111,10 +111,11 @@ def build_special_characters(
     ccm_linkprim=None,
     skip_ibes=False,
     skip_existing=False,
+    workers=None,
 ):
     special_jobs = [
-        ("beta", lambda: build_beta_character(db, output_dir)),
-        ("betasq", lambda: build_betasq_character(db, output_dir)),
+        ("beta", lambda: build_beta_character(db, output_dir, workers=workers)),
+        ("betasq", lambda: build_betasq_character(db, output_dir, workers=workers)),
         ("abr", lambda: build_abr_character(db, ccm_linktypes, ccm_linkprim)),
     ]
     if not skip_ibes:
@@ -135,17 +136,17 @@ def build_special_characters(
         clear_rvar_caches()
         for name in rvar_pending:
             write_character(
-                build_factor_rvar(db, name, RVAR_SPECS[name], output_dir),
+                build_factor_rvar(db, name, RVAR_SPECS[name], output_dir, workers=workers),
                 name,
                 output_dir,
             )
         clear_rvar_caches()
 
 
-def build_daily_monthly_characters(db, output_dir, skip_existing=False):
+def build_daily_monthly_characters(db, output_dir, skip_existing=False, workers=None):
     from _shared.green_builders import load_monthly_alignment_frame
 
-    daily = load_daily_monthly(db)
+    daily = load_daily_monthly(db, workers=workers)
     monthly = load_monthly_alignment_frame(output_dir, db=db)
 
     for character in DAILY_MONTHLY_CHARACTER_INFO:
@@ -210,6 +211,15 @@ def main():
         default=None,
         help="Optional WRDS upper date (YYYY-MM-DD). Also reads STOCK_CHARACTERS_SAMPLE_END.",
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help=(
+            "Parallel worker count for slow daily-window builders (beta, rvar_capm, rvar_ff3). "
+            "Default: STOCK_CHARACTERS_WORKERS env or min(cpu, 8). Use 1 for debugging."
+        ),
+    )
     args = parser.parse_args()
 
     if args.sample_start:
@@ -254,10 +264,11 @@ def main():
                     args.ccm_linkprim,
                     skip_ibes=args.skip_ibes,
                     skip_existing=args.skip_existing,
+                    workers=args.workers,
                 )
         if args.only_daily or not args.skip_daily:
             build_daily_monthly_characters(
-                db, output_dir, skip_existing=args.skip_existing
+                db, output_dir, skip_existing=args.skip_existing, workers=args.workers
             )
     finally:
         clear_monthly_crsp_cache()

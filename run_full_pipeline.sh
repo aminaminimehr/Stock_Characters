@@ -35,5 +35,8 @@ fi
 if [[ -n "${SAMPLE_END}" ]]; then
   args+=(--sample-end "${SAMPLE_END}")
 fi
+if [[ -n "${STOCK_CHARACTERS_WORKERS:-}" ]]; then
+  args+=(--workers "${STOCK_CHARACTERS_WORKERS}")
+fi
 
 "${PYTHON}" Character_Panels/run_full_pipeline.py "${args[@]}" 2>&1 | tee -a "${LOG}"

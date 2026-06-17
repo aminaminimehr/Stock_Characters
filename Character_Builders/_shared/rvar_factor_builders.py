@@ -9,6 +9,7 @@ from _shared.green_builders import (
     load_monthly_alignment_frame,
     raw_sql_with_retry,
 )
+from _shared.parallel_daily_windows import run_permno_parallel
 
 import sys
 
@@ -127,10 +128,13 @@ def residual_variance(y, x):
     return np.var(resid, ddof=1)
 
 
-def compute_monthly_residual_variance(daily, factors, character):
+def _compute_rvar_chunk(args: tuple) -> pd.DataFrame:
+    """Top-level worker: 3-month rolling residual variance for one permno chunk."""
+    permno_chunk, daily, factors, character = args
+    subset = daily[daily["permno"].isin(permno_chunk)]
     rows = []
     factor_array_cols = ["exret", *factors]
-    for permno, group in daily.groupby("permno", sort=False):
+    for permno, group in subset.groupby("permno", sort=False):
         group = group.sort_values("date")
         month_codes, month_starts = np.unique(group["source_yyyymm"].to_numpy(), return_index=True)
         month_ends = np.r_[month_starts[1:], len(group)]
@@ -142,12 +146,32 @@ def compute_monthly_residual_variance(daily, factors, character):
             rvar = residual_variance(values[:, 0], values[:, 1:])
             if np.isfinite(rvar):
                 rows.append((permno, month, rvar))
+    if not rows:
+        return pd.DataFrame(columns=["permno", "source_yyyymm", character])
     return pd.DataFrame(rows, columns=["permno", "source_yyyymm", character])
 
 
-def build_factor_rvar(db, character, factors, output_dir=OUTPUT_DIR):
+def compute_monthly_residual_variance(
+    daily: pd.DataFrame, factors: list[str], character: str, workers: int | None = None
+) -> pd.DataFrame:
+    permnos = daily["permno"].dropna().astype(int).unique()
+    frames = run_permno_parallel(
+        permnos,
+        _compute_rvar_chunk,
+        lambda chunk: (chunk, daily[daily["permno"].isin(chunk)], factors, character),
+        workers=workers,
+        label=f"{character} residual variance",
+    )
+    if not frames:
+        return pd.DataFrame(columns=["permno", "source_yyyymm", character])
+    return pd.concat(frames, ignore_index=True)
+
+
+def build_factor_rvar(
+    db, character, factors, output_dir=OUTPUT_DIR, workers: int | None = None
+):
     daily = get_daily_ff_factor_data(db, output_dir)
-    rvar = compute_monthly_residual_variance(daily, factors, character)
+    rvar = compute_monthly_residual_variance(daily, factors, character, workers=workers)
     print(f"Computed monthly residual-variance rows for {character}: {len(rvar):,}")
 
     monthly = get_monthly_alignment(db, output_dir)
@@ -165,6 +189,12 @@ def run_factor_rvar_cli(character, description, factors):
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--wrds-user", default=None)
     parser.add_argument("--output", default=OUTPUT_DIR / f"{character}.csv")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help="Parallel worker count (default: STOCK_CHARACTERS_WORKERS or min(cpu, 8)).",
+    )
     args = parser.parse_args()
 
     output = Path(args.output)
@@ -176,7 +206,9 @@ def run_factor_rvar_cli(character, description, factors):
     db = connect_wrds(args.wrds_user)
     try:
         clear_rvar_caches()
-        result = build_factor_rvar(db, character, factors, output_dir)
+        result = build_factor_rvar(
+            db, character, factors, output_dir, workers=args.workers
+        )
     finally:
         db.close()
         clear_rvar_caches()

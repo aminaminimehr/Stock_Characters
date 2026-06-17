@@ -21,5 +21,6 @@ $args = @("Character_Panels/run_full_pipeline.py", "--wrds-user", $WrdsUser, "--
 if ($env:RESUME -eq "1") { $args += "--resume" }
 if ($env:SAMPLE_START) { $args += @("--sample-start", $env:SAMPLE_START) }
 if ($env:SAMPLE_END) { $args += @("--sample-end", $env:SAMPLE_END) }
+if ($env:STOCK_CHARACTERS_WORKERS) { $args += @("--workers", $env:STOCK_CHARACTERS_WORKERS) }
 
 & $Python @args 2>&1 | Tee-Object -FilePath $Log -Append
