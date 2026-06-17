@@ -5,6 +5,8 @@ import pandas as pd
 
 DEFAULT_CCM_LINKTYPES = ("LU", "LC")
 DEFAULT_CCM_LINKPRIM = ("P", "C")
+# Green SAS L410-412 (broader linktype set, no linkprim filter).
+GREEN_CCM_LINKTYPES = ("LU", "LC", "LD", "LF", "LN", "LO", "LS", "LX")
 
 
 def parse_ccm_codes(value, default):
@@ -60,6 +62,35 @@ def load_ccm_links(db, linktypes=None, linkprim=None):
     link["linkdt"] = pd.to_datetime(link["linkdt"])
     link["linkenddt"] = pd.to_datetime(link["linkenddt"])
     return link
+
+
+def load_ccm_links_green(db):
+    """Green SAS link table filter (no linkprim restriction)."""
+    codes = sql_code_list(GREEN_CCM_LINKTYPES)
+    link = db.raw_sql(f"""
+        SELECT gvkey, lpermno AS permno, lpermco AS permco, linkdt, linkenddt, linktype
+        FROM crsp.ccmxpf_linktable
+        WHERE linktype IN ({codes})
+          AND (EXTRACT(YEAR FROM linkdt) <= 2015 OR linkdt IS NULL)
+          AND (EXTRACT(YEAR FROM linkenddt) >= 1950 OR linkenddt IS NULL)
+          AND lpermno IS NOT NULL
+    """)
+    link["linkdt"] = pd.to_datetime(link["linkdt"])
+    link["linkenddt"] = pd.to_datetime(link["linkenddt"])
+    link["permno"] = pd.to_numeric(link["permno"], errors="coerce").astype("Int64")
+    return link.sort_values(["gvkey", "linkdt"])
+
+
+def attach_ccm_links_green(comp, link):
+    """Green SAS L414-417: open-ended link dates treated as missing."""
+    merged = comp.merge(link, on="gvkey", how="inner")
+    linkdt_ok = merged["linkdt"].isna() | (merged["linkdt"] <= merged["datadate"])
+    linkend_ok = merged["linkenddt"].isna() | (merged["datadate"] <= merged["linkenddt"])
+    out = merged[linkdt_ok & linkend_ok & merged["permno"].notna()].copy()
+    out["permno"] = pd.to_numeric(out["permno"], errors="coerce").astype("int64")
+    if "permco" in out.columns:
+        out["permco"] = pd.to_numeric(out["permco"], errors="coerce").astype("Int64")
+    return out.drop(columns=["linkdt", "linkenddt", "linktype"], errors="ignore")
 
 
 def attach_ccm_links(comp, link):

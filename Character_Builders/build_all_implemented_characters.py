@@ -4,8 +4,14 @@ from pathlib import Path
 
 import numpy as np
 
-from _shared.beta_builder import build_beta_character, build_betasq_character
-from _shared.event_builders import build_abr_character
+from _shared.beta_builder import (
+    build_beta_character,
+    build_betasq_character,
+    build_idiovol_character,
+    build_pricedelay_character,
+)
+from _shared.event_builders import build_abr_character, build_aeavol_character, build_ear_character
+from _shared.ms_builder import build_ms_character
 from _shared.green_builders import (
     ANNUAL_CHARACTER_INFO,
     DAILY_MONTHLY_CHARACTER_INFO,
@@ -20,7 +26,7 @@ from _shared.green_builders import (
     load_annual_age_lookup,
     load_annual_orgcap_lookup,
     load_annual_compustat,
-    load_ccm_links,
+    load_green_ccm_links,
     load_crsp_monthly,
     load_daily_monthly,
     write_character,
@@ -52,7 +58,7 @@ def build_annual_characters(
         age_lookup=load_annual_age_lookup(db),
         orgcap_lookup=load_annual_orgcap_lookup(db),
     )
-    comp = attach_permno(comp, load_ccm_links(db, ccm_linktypes, ccm_linkprim))
+    comp = attach_permno(comp, load_green_ccm_links(db, ccm_linktypes, ccm_linkprim))
 
     for character in ANNUAL_CHARACTER_INFO:
         if skip_existing and (output_dir / f"{character}.csv").exists():
@@ -116,7 +122,12 @@ def build_special_characters(
     special_jobs = [
         ("beta", lambda: build_beta_character(db, output_dir, workers=workers)),
         ("betasq", lambda: build_betasq_character(db, output_dir, workers=workers)),
+        ("idiovol", lambda: build_idiovol_character(db, output_dir, workers=workers)),
+        ("pricedelay", lambda: build_pricedelay_character(db, output_dir, workers=workers)),
+        ("ear", lambda: build_ear_character(db, ccm_linktypes, ccm_linkprim, workers=workers)),
         ("abr", lambda: build_abr_character(db, ccm_linktypes, ccm_linkprim, workers=workers)),
+        ("aeavol", lambda: build_aeavol_character(db, ccm_linktypes, ccm_linkprim, workers=workers)),
+        ("ms", lambda: build_ms_character(db, ccm_linktypes, ccm_linkprim, use_ibes=not skip_ibes, workers=workers)),
     ]
     if not skip_ibes:
         special_jobs.insert(2, ("re", lambda: build_re_character(db)))

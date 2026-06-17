@@ -1,4 +1,5 @@
 import argparse
+import os
 import time
 from pathlib import Path
 
@@ -6,7 +7,13 @@ import numpy as np
 import pandas as pd
 import wrds
 
-from _shared.ccm import add_ccm_arguments, attach_ccm_links, load_ccm_links
+from _shared.ccm import (
+    add_ccm_arguments,
+    attach_ccm_links,
+    attach_ccm_links_green,
+    load_ccm_links,
+    load_ccm_links_green,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -34,7 +41,6 @@ ANNUAL_CHARACTER_INFO = {
     "ato": "Asset turnover",
     "bm": "Book-to-market equity",
     "bm_ia": "Industry-adjusted book-to-market",
-    "cash": "Cash holdings",
     "cashdebt": "Cash to debt",
     "cashpr": "Cash productivity",
     "cfp": "Cash-flow-to-price",
@@ -66,6 +72,7 @@ ANNUAL_CHARACTER_INFO = {
     "noa": "Net operating assets",
     "obklg": "Order backlog scaled by assets",
     "op": "Operating profitability",
+    "operprof": "Operating profitability (datashare name)",
     "orgcap": "Organizational capital",
     "pctacc": "Percent operating accruals",
     "pchcurrat": "Change in current ratio",
@@ -93,6 +100,7 @@ ANNUAL_CHARACTER_INFO = {
     "salerec": "Sales-to-receivables",
     "secured": "Secured debt",
     "securedind": "Secured debt indicator",
+    "sic2": "Two-digit SIC code",
     "sin": "Sin stocks indicator",
     "sp": "Sales-to-price",
     "tb": "Industry-adjusted tax income to book income",
@@ -100,7 +108,9 @@ ANNUAL_CHARACTER_INFO = {
 }
 
 MONTHLY_CHARACTER_INFO = {
+    "chmom": "Change in six-month momentum",
     "dolvol": "Dollar trading volume",
+    "indmom": "Industry momentum",
     "me": "Market equity",
     "mvel1": "Log lagged market equity",
     "mom1m": "One-month momentum",
@@ -176,11 +186,26 @@ def add_one_month(yyyymm):
 
 
 def connect_wrds(wrds_user):
+    """Connect to WRDS with explicit user or common env var fallbacks.
+
+    Fallback order when --wrds-user is not provided:
+    1) WRDS_USERNAME
+    2) WRDS_USER
+    """
+    if not wrds_user:
+        wrds_user = os.environ.get("WRDS_USERNAME") or os.environ.get("WRDS_USER")
     return wrds.Connection(wrds_username=wrds_user) if wrds_user else wrds.Connection()
 
 
-def attach_permno(comp, link):
-    return attach_ccm_links(comp, link)
+def attach_permno(comp, link, green_ccm: bool = True):
+  if green_ccm:
+    return attach_ccm_links_green(comp, link)
+  return attach_ccm_links(comp, link)
+
+
+def load_green_ccm_links(db, ccm_linktypes=None, ccm_linkprim=None):
+  _ = ccm_linktypes, ccm_linkprim
+  return load_ccm_links_green(db)
 
 
 ANNUAL_COMPUSTAT_WHERE = """
@@ -263,7 +288,8 @@ GREEN_TAX_RATE_BY_FYEAR = {
 def _dedupe_annual_compustat(comp):
     comp["datadate"] = pd.to_datetime(comp["datadate"])
     if "sic" in comp.columns:
-        comp["sic2"] = pd.to_numeric(comp["sic"], errors="coerce") // 100
+        sic_str = pd.to_numeric(comp["sic"], errors="coerce").astype("Int64").astype(str).str.replace("<NA>", "", regex=False)
+        comp["sic2"] = sic_str.str[:2].replace("", np.nan)
     if "datadate" in comp.columns:
         comp["calendar_year"] = comp["datadate"].dt.year
     return (
@@ -411,11 +437,11 @@ def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
     lag_depr_rate = safe_divide(comp["lag_dp"], comp["lag_ppent"])
     comp["pchdepr"] = safe_divide(depr_rate - lag_depr_rate, lag_depr_rate)
     comp["cashdebt"] = safe_divide(comp["ib"] + comp["dp"], avg_lt)
-    comp["cash"] = safe_divide(comp["che"], comp["at"])
     comp["cashpr"] = safe_divide(comp["mve_f"] + comp["dltt"] - comp["at"], comp["che"])
     comp["pm"] = safe_divide(comp["ib"], comp["sale"])
     comp["roe"] = safe_divide(comp["ib"], comp["lag_ceq"])
     comp["op"] = safe_divide(comp["revt"] - comp["cogs"] - comp["xsga0"] - comp["xint0"], comp["lag_ceq"])
+    comp["operprof"] = comp["op"]
     comp["noa"] = safe_divide(
         (comp["at"] - comp["che"]) - (comp["at"] - comp["dlc"] - comp["dltt"] - comp["pstk"] - comp["ceq"]),
         comp["lag_at"],
@@ -549,7 +575,7 @@ def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
     comp["obklg"] = safe_divide(comp["ob"], avg_at)
     comp["chobklg"] = safe_divide(comp["ob"] - comp["lag_ob"], avg_at)
 
-    grouped = comp.groupby(["fyear", "sic2"], dropna=False)
+    grouped = comp.groupby(["sic2", "fyear"], dropna=False)
     comp["chato"] = safe_divide(comp["sale"], avg_at) - safe_divide(
         comp["lag_sale"], (comp["lag_at"] + comp["lag2_at"]) / 2
     )
@@ -560,7 +586,6 @@ def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
     comp["chpmia"] = comp["chpm"] - chpm_group_mean
     comp["pchcapx_ia"] = comp["pchcapx"] - grouped["pchcapx"].transform("mean")
     comp["bm_ia"] = comp["bm"] - grouped["bm"].transform("mean")
-    comp["chpm"] = comp["chpm"] - chpm_group_mean
     comp["me_ia"] = comp["mve_f"] - grouped["mve_f"].transform("mean")
     comp["tb"] = comp["tb_1"] - grouped["tb_1"].transform("mean")
     industry_sales = grouped["sale"].transform("sum")
@@ -606,6 +631,33 @@ def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
         + indicator(comp["scstkc"].fillna(0) == 0)
     )
     comp.loc[comp.groupby("gvkey").cumcount() == 0, "ps"] = np.nan
+
+    # Mohanram annual signals m1-m6 (Greens_code.sas L261-285) for ms score.
+    comp["_roa_ms"] = safe_divide(comp["ni"], avg_at)
+    comp["_cfroa_ms"] = safe_divide(comp["oancf"], avg_at)
+    comp.loc[comp["oancf"].isna(), "_cfroa_ms"] = safe_divide(comp["ib"] + comp["dp"], avg_at)
+    comp["_xrdint_ms"] = safe_divide(comp["xrd"], avg_at)
+    comp["_capxint_ms"] = safe_divide(comp["capx"], avg_at)
+    comp["_xadint_ms"] = safe_divide(comp["xad"], avg_at)
+    med_ms = comp.groupby(["fyear", "sic2"], dropna=False)[
+        ["_roa_ms", "_cfroa_ms", "_xrdint_ms", "_capxint_ms", "_xadint_ms"]
+    ].transform("median")
+    med_ms.columns = ["md_roa", "md_cfroa", "md_xrdint", "md_capxint", "md_xadint"]
+    comp = pd.concat([comp, med_ms], axis=1)
+    comp["m1"] = (comp["_roa_ms"] > comp["md_roa"]).fillna(False).astype(int)
+    comp["m2"] = (comp["_cfroa_ms"] > comp["md_cfroa"]).fillna(False).astype(int)
+    comp["m3"] = (comp["oancf"] > comp["ni"]).fillna(False).astype(int)
+    comp["m4"] = (comp["_xrdint_ms"] > comp["md_xrdint"]).fillna(False).astype(int)
+    comp["m5"] = (comp["_capxint_ms"] > comp["md_capxint"]).fillna(False).astype(int)
+    comp["m6"] = (comp["_xadint_ms"] > comp["md_xadint"]).fillna(False).astype(int)
+    comp = comp.drop(
+        columns=[
+            "_roa_ms", "_cfroa_ms", "_xrdint_ms", "_capxint_ms", "_xadint_ms",
+            "md_roa", "md_cfroa", "md_xrdint", "md_capxint", "md_xadint",
+        ],
+        errors="ignore",
+    )
+
     return comp
 
 
@@ -623,7 +675,7 @@ def build_annual_character(db, character, ccm_linktypes=None, ccm_linkprim=None)
         age_lookup=load_annual_age_lookup(db),
         orgcap_lookup=load_annual_orgcap_lookup(db),
     )
-    link = load_ccm_links(db, ccm_linktypes, ccm_linkprim)
+    link = load_green_ccm_links(db, ccm_linktypes, ccm_linkprim)
     comp = attach_permno(comp, link)
     comp = comp.rename(columns={character: "character_value"})
     comp = comp[comp["character_value"].replace([np.inf, -np.inf], np.nan).notna()].copy()
@@ -794,10 +846,38 @@ def rolling_return_product(crsp, start_lag, end_lag):
     return (1 + lagged_returns).prod(axis=1, min_count=end_lag - start_lag + 1) - 1
 
 
-def prepare_monthly_crsp_features(crsp):
+def _compustat_sic2_monthly_map(db, crsp: pd.DataFrame) -> pd.DataFrame:
+    """Map permno x signal month to Compustat sic2 via Green annual timing."""
+    import sys
+    from pathlib import Path
+
+    project_root = Path(__file__).resolve().parents[2]
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+    from Character_Panels.timing import expand_annual_file_green  # noqa: WPS433
+
+    comp = compute_annual_characters(load_annual_compustat(db))
+    comp = attach_permno(comp, load_green_ccm_links(db))
+    annual = comp[comp["permno"].notna()][
+        ["permno", "permco", "gvkey", "datadate", "sic", "fyear", "sic2"]
+    ].copy()
+    crsp_idx = crsp[["permno", "signal_yyyymm"]].drop_duplicates()
+    expanded = expand_annual_file_green(annual, ["sic2"], crsp_month_index=crsp_idx)
+    return expanded[["permno", "signal_yyyymm", "sic2"]].drop_duplicates().rename(columns={"sic2": "sic2_comp"})
+
+
+def prepare_monthly_crsp_features(crsp, db=None):
     """Compute all shared monthly CRSP characteristics on one loaded panel."""
     crsp = crsp[crsp["ret"].notna()].copy()
     crsp["return_count"] = crsp.groupby("permno").cumcount() + 1
+    sic_num = pd.to_numeric(crsp["siccd"], errors="coerce")
+    crsp["sic2_crsp"] = sic_num.apply(lambda x: f"{int(x):04d}"[:2] if pd.notna(x) else np.nan)
+    if db is not None:
+        sic2_map = _compustat_sic2_monthly_map(db, crsp)
+        crsp = crsp.merge(sic2_map, on=["permno", "signal_yyyymm"], how="left")
+        crsp["sic2"] = crsp["sic2_comp"].fillna(crsp["sic2_crsp"])
+    else:
+        crsp["sic2"] = crsp["sic2_crsp"]
     crsp["me"] = np.log(crsp.groupby("permno")["market_equity"].shift(1))
     crsp["mvel1"] = crsp["me"]
     crsp["mom1m"] = crsp.groupby("permno")["ret"].shift(1)
@@ -805,10 +885,11 @@ def prepare_monthly_crsp_features(crsp):
     crsp["mom12m"] = rolling_return_product(crsp, 2, 12)
     crsp["mom36m"] = rolling_return_product(crsp, 13, 36)
     crsp["mom60m"] = rolling_return_product(crsp, 13, 60)
+    crsp["chmom"] = rolling_return_product(crsp, 1, 6) - rolling_return_product(crsp, 7, 12)
     crsp["seas1a"] = crsp.groupby("permno")["ret"].shift(11)
     crsp.loc[crsp["return_count"] == 1, "mom1m"] = np.nan
     crsp.loc[crsp["return_count"] < 7, "mom6m"] = np.nan
-    crsp.loc[crsp["return_count"] < 13, "mom12m"] = np.nan
+    crsp.loc[crsp["return_count"] < 13, ["mom12m", "chmom"]] = np.nan
     crsp.loc[crsp["return_count"] < 37, "mom36m"] = np.nan
     crsp.loc[crsp["return_count"] < 61, "mom60m"] = np.nan
     crsp.loc[crsp["return_count"] < 12, "seas1a"] = np.nan
@@ -817,6 +898,7 @@ def prepare_monthly_crsp_features(crsp):
     )
     vol_lags = [crsp.groupby("permno")["vol"].shift(i) for i in range(1, 4)]
     crsp["turn"] = pd.concat(vol_lags, axis=1).mean(axis=1) / crsp["shrout"]
+    crsp["indmom"] = crsp.groupby(["sic2", "date"])["mom12m"].transform(lambda s: s - s.mean())
     return crsp.rename(columns={"siccd": "sic"})
 
 
@@ -835,7 +917,7 @@ def finalize_monthly_character(crsp, character):
 
 def build_monthly_character(db, character, monthly_panel=None):
     if monthly_panel is None:
-        monthly_panel = prepare_monthly_crsp_features(load_crsp_monthly(db))
+        monthly_panel = prepare_monthly_crsp_features(load_crsp_monthly(db), db=db)
     return finalize_monthly_character(monthly_panel, character)
 
 
@@ -845,13 +927,12 @@ def build_all_monthly_characters(db, characters=None):
     if not characters:
         return {}
     print("Loading CRSP monthly panel once for all monthly characters...", flush=True)
-    monthly_panel = prepare_monthly_crsp_features(load_crsp_monthly(db))
+    monthly_panel = prepare_monthly_crsp_features(load_crsp_monthly(db), db=db)
     return {character: finalize_monthly_character(monthly_panel, character) for character in characters}
 
 
-def load_daily_monthly(db):
-    daily = db.raw_sql(
-        f"""
+def _daily_monthly_sql() -> str:
+    return f"""
         SELECT permno,
                DATE_TRUNC('month', date)::date AS month_start,
                MAX(ret) AS maxret,
@@ -867,11 +948,19 @@ def load_daily_monthly(db):
         WHERE {sql_date_filter("date")}
         GROUP BY permno, DATE_TRUNC('month', date)::date
     """
-    )
+
+
+def _finalize_daily_monthly_frame(daily: pd.DataFrame) -> pd.DataFrame:
     daily["month_start"] = pd.to_datetime(daily["month_start"])
     daily["source_yyyymm"] = daily["month_start"].dt.year * 100 + daily["month_start"].dt.month
     daily["zerotrade"] = (daily["countzero"] + ((1 / daily["turn_sum"]) / 480000)) * 21 / daily["ndays"]
     return daily
+
+
+def load_daily_monthly(db, workers: int | None = None):
+    _ = workers  # daily-monthly uses one server-side SQL aggregation (formulas unchanged)
+    daily = db.raw_sql(_daily_monthly_sql())
+    return _finalize_daily_monthly_frame(daily)
 
 
 def build_daily_monthly_character(db, character):
@@ -901,6 +990,10 @@ def build_character(db, character, ccm_linktypes=None, ccm_linkprim=None):
         from _shared.beta_builder import build_beta_character
 
         return build_beta_character(db)
+    if character == "ear":
+        from _shared.event_builders import build_ear_character
+
+        return build_ear_character(db, ccm_linktypes, ccm_linkprim)
     if character == "abr":
         from _shared.event_builders import build_abr_character
 
