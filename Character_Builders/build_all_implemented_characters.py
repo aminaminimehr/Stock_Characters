@@ -116,7 +116,7 @@ def build_special_characters(
     special_jobs = [
         ("beta", lambda: build_beta_character(db, output_dir, workers=workers)),
         ("betasq", lambda: build_betasq_character(db, output_dir, workers=workers)),
-        ("abr", lambda: build_abr_character(db, ccm_linktypes, ccm_linkprim)),
+        ("abr", lambda: build_abr_character(db, ccm_linktypes, ccm_linkprim, workers=workers)),
     ]
     if not skip_ibes:
         special_jobs.insert(2, ("re", lambda: build_re_character(db)))
@@ -216,7 +216,7 @@ def main():
         type=int,
         default=None,
         help=(
-            "Parallel worker count for slow daily-window builders (beta, rvar_capm, rvar_ff3). "
+            "Parallel worker count for beta, rvar_capm, rvar_ff3, and abr/ear builders. "
             "Default: STOCK_CHARACTERS_WORKERS env or min(cpu, 8). Use 1 for debugging."
         ),
     )

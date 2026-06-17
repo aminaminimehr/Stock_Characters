@@ -227,7 +227,7 @@ def main():
         type=int,
         default=None,
         help=(
-            "Parallel workers for beta/rvar daily-window builders. "
+            "Parallel workers for beta, rvar, and abr/ear builders. "
             "Default: STOCK_CHARACTERS_WORKERS or min(cpu, 8)."
         ),
     )
