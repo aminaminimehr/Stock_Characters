@@ -146,7 +146,8 @@ def build_special_characters(
 def build_daily_monthly_characters(db, output_dir, skip_existing=False, workers=None):
     from _shared.green_builders import load_monthly_alignment_frame
 
-    daily = load_daily_monthly(db, workers=workers)
+    _ = workers  # daily-monthly uses server-side SQL aggregation (not parallelized)
+    daily = load_daily_monthly(db)
     monthly = load_monthly_alignment_frame(output_dir, db=db)
 
     for character in DAILY_MONTHLY_CHARACTER_INFO:
