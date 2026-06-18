@@ -38,5 +38,8 @@ fi
 if [[ -n "${STOCK_CHARACTERS_WORKERS:-}" ]]; then
   args+=(--workers "${STOCK_CHARACTERS_WORKERS}")
 fi
+if [[ "${GREEN_UNIVERSE:-0}" == "1" ]]; then
+  args+=(--green-universe)
+fi
 
 "${PYTHON}" Character_Panels/run_full_pipeline.py "${args[@]}" 2>&1 | tee -a "${LOG}"

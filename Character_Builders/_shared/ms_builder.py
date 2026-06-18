@@ -4,6 +4,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -66,9 +67,13 @@ def build_ms_character(db, ccm_linktypes=None, ccm_linkprim=None, use_ibes=False
     merged = merged.merge(q_monthly[["permno", "date", "m7", "m8"]], on=["permno", "date"], how="left")
     for col in M_COLUMNS:
         if col not in merged.columns:
-            merged[col] = 0
-        merged[col] = merged[col].fillna(0)
-    merged["ms"] = merged[M_COLUMNS].sum(axis=1)
+            merged[col] = np.nan
+    # Greens_code.sas L799: ms = m1+...+m8 via SAS's '+' operator, which yields MISSING if
+    # ANY component is missing. A firm-month therefore needs BOTH the annual block (m1-m6)
+    # AND a matched quarterly block (m7,m8) to receive a score. Filling components with 0
+    # (the prior behavior) fabricated ~1.5M spurious ms=0 rows and biased ms low wherever a
+    # component failed to merge, so we propagate missingness instead.
+    merged["ms"] = merged[M_COLUMNS].sum(axis=1, min_count=len(M_COLUMNS))
     out = merged[merged["ms"].notna()].copy()
     return out[
         ["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "sic", "exchcd", "shrcd", "ms"]

@@ -88,4 +88,4 @@ Restores June flat expansion for **all** annual CSVs (including Green annual).
 
 ## Commit
 
-*To be filled after git push.*
+**`21e47b5`** — pushed to `origin/main`.

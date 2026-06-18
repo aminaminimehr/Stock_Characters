@@ -185,8 +185,6 @@ def build_mapping(panel_path: Path) -> pd.DataFrame:
         alias_needed = implemented and repo_col != ds_col
 
         notes = ""
-        if ds_col == "roeq":
-            notes = "formula/timing audit needed"
         if ds_col == "mvel1":
             notes = ""
         if ds_col == "operprof":
@@ -201,11 +199,7 @@ def build_mapping(panel_path: Path) -> pd.DataFrame:
             "coverage_ratio": np.nan,
         }
         if implemented and green_available and repo_col is not None and green_col_name is not None:
-            if ds_col == "roeq":
-                # Do not compare annual repo roe to Green roeq.
-                pass
-            else:
-                stats = compare_pair(repo, green, repo_col, green_col_name)
+            stats = compare_pair(repo, green, repo_col, green_col_name)
 
         validated = stats["months"] > 0 and pd.notna(stats["median"])
         status = assign_status(
@@ -514,12 +508,18 @@ def write_validation_md(df: pd.DataFrame, out_path: Path) -> None:
 
 
 def main() -> None:
+    global WIN_START, WIN_END
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--panel", type=Path, default=DEFAULT_PANEL)
     parser.add_argument("--mapping-csv", type=Path, default=MAPPING_CSV)
     parser.add_argument("--mapping-md", type=Path, default=MAPPING_MD)
     parser.add_argument("--validation-md", type=Path, default=VALIDATION_MD)
+    parser.add_argument("--win-start", type=int, default=WIN_START)
+    parser.add_argument("--win-end", type=int, default=WIN_END)
     args = parser.parse_args()
+
+    WIN_START = args.win_start
+    WIN_END = args.win_end
 
     if not args.panel.exists():
         raise FileNotFoundError(args.panel)

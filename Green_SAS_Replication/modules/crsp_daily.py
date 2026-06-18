@@ -28,6 +28,8 @@ def build_daily_monthly_aggregates(db: wrds.Connection, permnos: list[int], samp
         chunks.append(part)
     dsf = pd.concat(chunks, ignore_index=True)
     dsf["date"] = pd.to_datetime(dsf["date"])
+    for col in ("ret", "vol", "shrout", "prc", "askhi", "bidlo"):
+        dsf[col] = pd.to_numeric(dsf[col], errors="coerce")
     dsf["yr"] = dsf["date"].dt.year
     dsf["month"] = dsf["date"].dt.month
     dsf["mid"] = (dsf["askhi"] + dsf["bidlo"]) / 2
@@ -35,7 +37,7 @@ def build_daily_monthly_aggregates(db: wrds.Connection, permnos: list[int], samp
     dsf["std_dolvol_row"] = np.log((dsf["prc"] * dsf["vol"]).abs())
     dsf["std_turn_row"] = dsf["vol"] / dsf["shrout"]
     dsf["ill_row"] = dsf["ret"].abs() / (dsf["prc"] * dsf["vol"])
-    dsf["zero_vol"] = (dsf["vol"] == 0).astype(int)
+    dsf["zero_vol"] = dsf["vol"].eq(0).fillna(False).astype(int)
     dsf["turn_row"] = dsf["vol"] / dsf["shrout"]
 
     agg = (
@@ -131,6 +133,7 @@ def estimate_beta_block(db: wrds.Connection, panel: pd.DataFrame, sample_start: 
         dsf.append(part)
     dsf = pd.concat(dsf, ignore_index=True)
     dsf["date"] = pd.to_datetime(dsf["date"])
+    dsf["ret"] = pd.to_numeric(dsf["ret"], errors="coerce")
     dsf["wkdt"] = dsf["date"] + pd.to_timedelta(4 - dsf["date"].dt.dayofweek, unit="D")
     wk = dsf.groupby(["permno", "wkdt"], as_index=False).agg(wkret=("ret", lambda s: np.exp(np.log1p(s).sum()) - 1))
     wk = wk[wk["wkdt"] >= "1975-01-01"].drop_duplicates(["permno", "wkdt"])

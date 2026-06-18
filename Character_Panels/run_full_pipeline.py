@@ -137,17 +137,18 @@ def build_excess_returns(wrds_user, sample_start=None, sample_end=None):
     run(cmd)
 
 
-def build_panels():
-    run(
-        [
-            PYTHON,
-            "Character_Panels/build_all_character_panel.py",
-            "--input-dir",
-            str(CHARACTER_INDIVIDUAL_DIR),
-            "--output",
-            str(SIGNAL_PANEL_FILE),
-        ]
-    )
+def build_panels(green_universe=False):
+    signal_cmd = [
+        PYTHON,
+        "Character_Panels/build_all_character_panel.py",
+        "--input-dir",
+        str(CHARACTER_INDIVIDUAL_DIR),
+        "--output",
+        str(SIGNAL_PANEL_FILE),
+    ]
+    if green_universe:
+        signal_cmd.append("--green-universe")
+    run(signal_cmd)
     run(
         [
             PYTHON,
@@ -231,6 +232,14 @@ def main():
             "Default: STOCK_CHARACTERS_WORKERS or min(cpu, 8)."
         ),
     )
+    parser.add_argument(
+        "--green-universe",
+        action="store_true",
+        help=(
+            "Apply Green's final sample screen (non-missing bm, mom1m, mve) to the "
+            "signal panel so the universe matches Green's CRSP-Compustat-merged sample."
+        ),
+    )
     args = parser.parse_args()
 
     ensure_output_tree()
@@ -251,7 +260,7 @@ def main():
             sample_end=args.sample_end,
         )
 
-    build_panels()
+    build_panels(green_universe=args.green_universe)
     print_summary()
 
 

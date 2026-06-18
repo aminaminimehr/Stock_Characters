@@ -440,6 +440,11 @@ def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
     comp["cashpr"] = safe_divide(comp["mve_f"] + comp["dltt"] - comp["at"], comp["che"])
     comp["pm"] = safe_divide(comp["ib"], comp["sale"])
     comp["roe"] = safe_divide(comp["ib"], comp["lag_ceq"])
+    # Green SAS L206: operprof = (revt-cogs-xsga0-xint0)/lag(ceq). NOTE: Green's published
+    # benchmark output (Output_From_Greens_SAS_code.sas7bdat) omits xsga0 -- it computes
+    # (revt-cogs-xint0)/lag(ceq) -- which is a known TYPO in Green's run, not the intended
+    # definition. The SAS code is authoritative, so we keep the full -xsga0-xint0 formula.
+    # (Verified the typo via raw comp.funda; see docs/gkx/green_universe_and_mismatch_audit.md.)
     comp["op"] = safe_divide(comp["revt"] - comp["cogs"] - comp["xsga0"] - comp["xint0"], comp["lag_ceq"])
     comp["operprof"] = comp["op"]
     comp["noa"] = safe_divide(
@@ -898,7 +903,10 @@ def prepare_monthly_crsp_features(crsp, db=None):
     )
     vol_lags = [crsp.groupby("permno")["vol"].shift(i) for i in range(1, 4)]
     crsp["turn"] = pd.concat(vol_lags, axis=1).mean(axis=1) / crsp["shrout"]
-    crsp["indmom"] = crsp.groupby(["sic2", "date"])["mom12m"].transform(lambda s: s - s.mean())
+    # Green SAS L992-997: indmom = mean(mom12m) by sic2 x date, broadcast to every
+    # firm in the industry-month (equal-weighted industry momentum), NOT the firm's
+    # deviation from the industry mean.
+    crsp["indmom"] = crsp.groupby(["sic2", "date"])["mom12m"].transform("mean")
     return crsp.rename(columns={"siccd": "sic"})
 
 

@@ -60,6 +60,37 @@ KNOWN_NON_CHARACTER_COLUMNS = {
 
 NON_CHARACTER_FILES = {f"{stem}.csv" for stem in NON_CHARACTER_STEMS}
 
+# Green SAS final sample screen (Greens_code.sas L1147-1152):
+#   where not missing(mve) and not missing(mom1m) and not missing(bm)
+# Because bm = ceq/mve_f, this requires a linked Compustat annual record, so it
+# reduces the pure-CRSP spine to Green's CRSP-Compustat-merged universe.
+GREEN_UNIVERSE_REQUIRED = ("bm", "mom1m", "mve")
+# Repo column aliases for the Green screen variables (mve is exported as mvel1/me).
+GREEN_UNIVERSE_ALIASES = {"mve": ("mve", "mvel1", "me")}
+
+
+def apply_green_universe_screen(panel):
+    """Drop rows missing any of bm/mom1m/mve, reproducing Green's final screen.
+
+    Returns (filtered_panel, resolved_columns). Missing screen columns are
+    reported so callers can warn instead of silently dropping the screen.
+    """
+    resolved = []
+    missing_required = []
+    for name in GREEN_UNIVERSE_REQUIRED:
+        candidates = GREEN_UNIVERSE_ALIASES.get(name, (name,))
+        found = next((c for c in candidates if c in panel.columns), None)
+        if found is None:
+            missing_required.append(name)
+        else:
+            resolved.append(found)
+    if missing_required:
+        raise KeyError(
+            "Cannot apply Green universe screen; panel is missing required "
+            f"column(s): {missing_required}. Present resolved: {resolved}."
+        )
+    return panel.dropna(subset=resolved).reset_index(drop=True), resolved
+
 
 def infer_character_columns(df):
     return [
@@ -172,7 +203,7 @@ def _load_crsp_month_index(paths):
     return build_crsp_month_index_from_panels(monthly_native)
 
 
-def build_all_character_panel(input_dir=None, force_june_annual=False):
+def build_all_character_panel(input_dir=None, force_june_annual=False, green_universe=False):
     if input_dir is None:
         paths = list(iter_character_csv_paths())
     else:
@@ -206,7 +237,15 @@ def build_all_character_panel(input_dir=None, force_june_annual=False):
             f"No compatible character CSV files found in {Path(input_dir).resolve()}."
         )
 
-    return merge_panels(panels), skipped
+    panel = merge_panels(panels)
+    if green_universe:
+        before = len(panel)
+        panel, resolved = apply_green_universe_screen(panel)
+        print(
+            f"Green universe screen on {resolved}: {before:,} -> {len(panel):,} rows "
+            f"({len(panel) / before:.1%} retained)."
+        )
+    return panel, skipped
 
 
 def main():
@@ -220,11 +259,20 @@ def main():
         action="store_true",
         help="Force June flat expansion for all annual CSVs (legacy behavior).",
     )
+    parser.add_argument(
+        "--green-universe",
+        action="store_true",
+        help=(
+            "Apply Green SAS final sample screen (keep rows with non-missing "
+            "bm, mom1m, and mve) to match Green's CRSP-Compustat-merged universe."
+        ),
+    )
     args = parser.parse_args()
 
     panel, skipped = build_all_character_panel(
         args.input_dir,
         force_june_annual=args.legacy_june_annual,
+        green_universe=args.green_universe,
     )
 
     output_path = Path(args.output)

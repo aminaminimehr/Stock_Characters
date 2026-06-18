@@ -51,7 +51,9 @@ def add_crsp_monthly_variables(df: pd.DataFrame) -> pd.DataFrame:
     out["ipo"] = np.where(out["count"] <= 12, 1, 0)
 
     if "sic2" in out.columns:
-        out["indmom"] = out.groupby(["sic2", "date"])["mom12m"].transform(lambda s: s - s.mean())
+        # Green SAS L992-997: indmom = mean(mom12m) by sic2 x date (industry momentum),
+        # broadcast to every firm, not the firm's deviation from the industry mean.
+        out["indmom"] = out.groupby(["sic2", "date"])["mom12m"].transform("mean")
     else:
         out["indmom"] = np.nan
 
