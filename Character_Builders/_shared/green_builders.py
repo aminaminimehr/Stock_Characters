@@ -301,7 +301,7 @@ def _dedupe_annual_compustat(comp):
 
 def load_annual_age_lookup(db):
     """Green age from full annual Compustat history (sample window ignored)."""
-    age = db.raw_sql(f"""
+    age = raw_sql_with_retry(db, f"""
         SELECT c.gvkey, f.datadate
         FROM comp.company AS c
         JOIN comp.funda AS f
@@ -315,7 +315,7 @@ def load_annual_age_lookup(db):
 
 def load_annual_orgcap_lookup(db):
     """Green orgcap from full annual Compustat history (sample window ignored)."""
-    comp = db.raw_sql(f"""
+    comp = raw_sql_with_retry(db, f"""
         SELECT c.gvkey, f.datadate, f.fyear, f.xsga, f.at
         FROM comp.company AS c
         JOIN comp.funda AS f
@@ -334,7 +334,7 @@ def load_annual_orgcap_lookup(db):
 
 
 def load_annual_compustat(db):
-    comp = db.raw_sql(f"""
+    comp = raw_sql_with_retry(db, f"""
         SELECT c.gvkey, f.datadate, f.fyear, c.sic, c.naics,
                f.sale, f.revt, f.cogs, f.xsga, f.dp, f.xrd, f.xad,
                f.ebit, f.nopi, f.txt, f.txfo, f.txfed, f.txdi,
@@ -959,7 +959,7 @@ def _finalize_daily_monthly_frame(daily: pd.DataFrame) -> pd.DataFrame:
 
 def load_daily_monthly(db, workers: int | None = None):
     _ = workers  # daily-monthly uses one server-side SQL aggregation (formulas unchanged)
-    daily = db.raw_sql(_daily_monthly_sql())
+    daily = raw_sql_with_retry(db, _daily_monthly_sql())
     return _finalize_daily_monthly_frame(daily)
 
 

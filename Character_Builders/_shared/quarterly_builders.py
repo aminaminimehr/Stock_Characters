@@ -28,6 +28,8 @@ from _shared.green_builders import (
 
     load_crsp_monthly,
 
+    raw_sql_with_retry,
+
 )
 
 from output_paths import sql_date_filter
@@ -134,7 +136,7 @@ def _bool_to_int(left: pd.Series, right: pd.Series) -> pd.Series:
 
 def load_quarterly_compustat(db):
 
-    comp = db.raw_sql(f"""
+    comp = raw_sql_with_retry(db, f"""
         SELECT c.gvkey,
 
                SUBSTR(REPLACE(f.cusip, ' ', ''), 1, 6) AS cusip6,
@@ -203,7 +205,7 @@ def load_quarterly_compustat(db):
 
 def load_quarterly_ibes(db):
 
-    return db.raw_sql("""
+    return raw_sql_with_retry(db, """
 
         SELECT SUBSTR(REPLACE(cusip, ' ', ''), 1, 6) AS cusip6,
 

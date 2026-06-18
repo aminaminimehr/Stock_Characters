@@ -48,10 +48,12 @@ def add_ccm_arguments(parser):
 
 
 def load_ccm_links(db, linktypes=None, linkprim=None):
+    from _shared.green_builders import raw_sql_with_retry
+
     linktypes = parse_ccm_codes(linktypes, DEFAULT_CCM_LINKTYPES)
     linkprim = parse_ccm_codes(linkprim, DEFAULT_CCM_LINKPRIM)
 
-    link = db.raw_sql(f"""
+    link = raw_sql_with_retry(db, f"""
         SELECT gvkey, lpermno AS permno, lpermco AS permco,
                linktype, linkprim, linkdt, linkenddt
         FROM crsp.ccmxpf_linktable
@@ -66,8 +68,10 @@ def load_ccm_links(db, linktypes=None, linkprim=None):
 
 def load_ccm_links_green(db):
     """Green SAS link table filter (no linkprim restriction)."""
+    from _shared.green_builders import raw_sql_with_retry
+
     codes = sql_code_list(GREEN_CCM_LINKTYPES)
-    link = db.raw_sql(f"""
+    link = raw_sql_with_retry(db, f"""
         SELECT gvkey, lpermno AS permno, lpermco AS permco, linkdt, linkenddt, linktype
         FROM crsp.ccmxpf_linktable
         WHERE linktype IN ({codes})
