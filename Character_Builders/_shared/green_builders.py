@@ -807,7 +807,7 @@ def load_crsp_monthly(db, use_cache=True):
     """
     Load filtered CRSP monthly stock file + msenames once per process.
 
-    Xin He / Dacheng Xiu reference scripts (e.g. Rvar_ff3.py, maxret_d.py) typically
+    Xin He / GKX reference scripts (e.g. Rvar_ff3.py, maxret_d.py) typically
     pull crsp.dsf only and never touch crsp.msf. Our Green-style panel needs msf for
     permco/sic/exchcd timing, but it must be queried once—not once per characteristic.
     """

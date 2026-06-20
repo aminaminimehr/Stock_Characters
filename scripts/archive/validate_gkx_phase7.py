@@ -90,7 +90,7 @@ def main():
             "",
             "## Notes",
             "",
-            "- Industry adjustment follows Green SAS (`sic2` x `fyear`, mean demean), not Dacheng FF49.",
+            "- Industry adjustment follows Green SAS (`sic2` x `fyear`, mean demean), not GKX FF49.",
             "- Phase 1-6 variables not modified except additive `chpmia` column.",
             "- Datashare comparison: run `scripts/validate_gkx_phase7_datashare.py`.",
         ]

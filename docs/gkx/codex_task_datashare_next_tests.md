@@ -15,8 +15,8 @@ Your prior reverse engineering established, empirically, against the **local**
 | `cfp` | repo **Green** `cfp` (`oancf/mve_f`, accrual fallback) | pooled ρ 0.998, exact 98% **over 1975+** | solved where history exists |
 | `bm_ia` | none | best tested ≈ 0.42 | **UNSOLVED** |
 
-Conclusion already reached: this `datashare.csv` follows **Green/HXZ** definitions, **not** Dacheng's
-`accounting_60.py`. The pure-Dacheng port in `Character_Builders/Dacheng_datashare/build_datashare_chars.py`
+Conclusion already reached: this `datashare.csv` follows **Green/HXZ** definitions, **not** GKX's
+`accounting_60.py`. The pure-GKX port in `Character_Builders/GKX_datashare/build_datashare_chars.py`
 (`be/me`, `(ib+dp)/me`, FF49 demean) is the wrong model for this file (`cfp` ρ ≈ −0.02). Treat it as a
 rejected experiment; do **not** use it as the panel source.
 
@@ -97,7 +97,7 @@ that window**. Therefore `bm_ia` is **not** a fixed annual demeaning of the publ
 industry benchmark updates more often than annually (likely monthly) and/or is built from a different
 universe/industry/timing than the published `bm`.
 
-Already rejected (do not repeat): Dacheng FF49 annual demean (0.31); public `bm` demeaned by
+Already rejected (do not repeat): GKX FF49 annual demean (0.31); public `bm` demeaned by
 month×SIC2 (0.42); annual-date×SIC2 (0.42); FF49 month (0.36–0.38); SIC/SIC3 exact; Green `bm_ia`.
 
 ### Run a logged experiment grid
@@ -136,7 +136,7 @@ the window. This kills most variants in seconds before paying for a full-panel S
 
 ### If the grid fails
 Locate the **exact original generation script** for this `datashare.csv`. Search:
-- `Supplementary_assistive_files/Python_codes/Dacheng_Xiu_or_Xin_he/` (already-known Dacheng code) —
+- `Supplementary_assistive_files/Python_codes/GKX_Xiu_or_Xin_he/` (already-known GKX code) —
   but note this gives the rejected 0.31, so look for a **different** generator.
 - Any SAS/Python that produces a `bm_ia` matching public values. Grep the repo and
   `Supplementary_assistive_files/` for `bm_ia`, `bmia`, `industry`, `_ia`.
@@ -163,7 +163,7 @@ Report which factor moves exact-match most. Do not change Green builders; experi
 ## Validation harness (use/extend, don't reinvent)
 
 - Primary comparison target: `Supplementary_assistive_files/datashare.csv` (raw, not rank-standardized).
-- Reuse `Character_Builders/Dacheng_datashare/validate_against_datashare.py` and
+- Reuse `Character_Builders/GKX_datashare/validate_against_datashare.py` and
   `scripts/compare_panel_final_vs_green.py` patterns:
   - join on the correct month key (test both `signal_yyyymm` and the next-month `DATE` alignment —
     datashare stamps the return month);
@@ -187,5 +187,5 @@ Report which factor moves exact-match most. Do not change Green builders; experi
 - Because `bm`/`operprof`/`cfp` are already in the panel via `book_to_market`,
   `operating_profitability`, and Green `cfp`, **no new `_dc` columns are needed for those three**.
   Only a solved `bm_ia` warrants a new column (e.g. `bm_ia_dc`).
-- The pure-Dacheng port `Character_Builders/Dacheng_datashare/build_datashare_chars.py` should be
+- The pure-GKX port `Character_Builders/GKX_datashare/build_datashare_chars.py` should be
   retained as a documented experiment, not used as the datashare source.

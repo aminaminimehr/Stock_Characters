@@ -1,7 +1,7 @@
 # Formula Differences: Green vs Datashare vs Repository
 
 **Empirical update (2026-06):** reverse-engineering against the local `datashare.csv` shows that
-**this file follows Green/HXZ definitions**, not Dacheng's `accounting_60.py` port. See
+**this file follows Green/HXZ definitions**, not GKX's `accounting_60.py` port. See
 `docs/gkx/datashare_reverse_engineering.md`.
 
 | datashare column | Repository column | Status |
@@ -24,7 +24,7 @@ Use `--profile datashare` for universe/timing aimed at datashare; formulas come 
 | **Repo Green** | same as Green SAS code | `mve_f` | Green rolling |
 | **Repo datashare** | `book_to_market` | December CRSP ME | FF-June via `timing.py` |
 
-The pure Dacheng `be/current CRSP me` port in `Dacheng_datashare/` was **rejected** (ρ ≈ 0.82 vs datashare `bm`).
+The pure GKX `be/current CRSP me` port in `GKX_datashare/` was **rejected** (ρ ≈ 0.82 vs datashare `bm`).
 
 ---
 
@@ -47,7 +47,7 @@ Green **output** omits `xsga0` (known SAS typo); repo intentionally follows **co
 |---|---|
 | **Green / datashare (this file)** | `cfp = oancf / mve_f`, fallback `(ib − wc_accrual) / mve_f` |
 | **HXZ `cash_flow_to_price`** | Different definition — **not** datashare match |
-| **Dacheng `(ib+dp)/me`** | **Rejected** (ρ ≈ −0.02) |
+| **GKX `(ib+dp)/me`** | **Rejected** (ρ ≈ −0.02) |
 
 Extend Compustat start to 1957 via `--profile datashare` or `scripts/rebuild/rebuild_green_cfp_full_history.py`.
 

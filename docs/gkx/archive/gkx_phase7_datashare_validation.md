@@ -6,7 +6,7 @@ Comparison: repo annual CSV expanded to monthly signal months via `expand_annual
 merged with `Supplementary_assistive_files/datashare.csv` on `permno × signal_yyyymm`.
 
 Industry-adjusted variables use **Green SAS**: subtract industry **mean** within **Compustat SIC2 × fiscal year**.
-Datashare (GKX) follows the same Green construction; Dacheng FF49 is **not** the benchmark here.
+Datashare (GKX) follows the same Green construction; GKX FF49 is **not** the benchmark here.
 
 ## Availability
 
@@ -72,7 +72,7 @@ Demean of `pchcapx`; capx imputation and zero denominators create heavy tails. W
 
 | Hypothesis | Phase 7 assessment |
 | --- | --- |
-| SIC2×fyear vs FF/other grouping | Repo matches Green/GKX; Dacheng FF49 not used |
+| SIC2×fyear vs FF/other grouping | Repo matches Green/GKX; GKX FF49 not used |
 | Mean vs median demean | Green mean — repo matches |
 | Timing / fiscal-year alignment | June expansion via `expand_annual_file`; sample build may truncate history |
 | SIC source | Compustat company SIC (same as Green) |

@@ -1,12 +1,12 @@
 # Exchange / Share-Code Filters and the Stock-Universe Audit
 
 This document covers (a) the exchange/share-code/price/financial/microcap filters and (b) the
-detailed stock-universe investigation requested: what Dacheng applies, what Green applies, what the
+detailed stock-universe investigation requested: what GKX applies, what Green applies, what the
 repository applies, whether they match, and whether discrepancies materially affect characters.
 
 ## 1. Filter comparison
 
-| Filter | Green SAS | Dacheng (`accounting_60.py`) | Repository | Match? |
+| Filter | Green SAS | GKX (`accounting_60.py`) | Repository | Match? |
 |---|---|---|---|---|
 | **Exchange** | `exchcd in (1,2,3)` (NYSE/AMEX/NASDAQ) | `exchcd 1–3` | `exchcd 1,2,3` | ✅ all agree |
 | **Share code** | `shrcd in (10,11)` (12 considered then dropped) | `shrcd 10,11` | `shrcd 10,11` | ✅ all agree |
@@ -55,10 +55,10 @@ financial firms."*
 
 **Finding — paper vs code discrepancy inside GKX itself:**
 
-1. **Price < \$5:** Neither Green, Dacheng's code, nor the repo applies a price filter. The paper's
+1. **Price < \$5:** Neither Green, GKX's code, nor the repo applies a price filter. The paper's
    statement that low-price stocks are *included* is consistent with all three. ✅
 2. **Financial firms:** No SIC-based financial exclusion anywhere. The paper's claim holds. ✅
-3. **"Share codes beyond 10 and 11":** This is the one place the **paper text and Dacheng's own
+3. **"Share codes beyond 10 and 11":** This is the one place the **paper text and GKX's own
    `accounting_60.py` disagree.** The code restricts to `shrcd in (10,11)` (common stock). Green does
    the same. The repository matches the **code**, not the literal paper text.
 
@@ -70,10 +70,10 @@ which is the artifact we validate against.
 
 ## 3. Does the repository match either approach?
 
-- **Exchange + share code:** the repo matches **both** Green and Dacheng exactly (`exchcd 1–3`,
+- **Exchange + share code:** the repo matches **both** Green and GKX exactly (`exchcd 1–3`,
   `shrcd 10,11`).
 - **CCM linkprim:** default repo (`P,C`) differs from Green (none); `--green-universe` switches to
-  Green's broader link-type set. Dacheng uses `(C,P)` like the repo default.
+  Green's broader link-type set. GKX uses `(C,P)` like the repo default.
 - **Final screen:** off by default; `--green-universe` reproduces Green's `mve/mom1m/bm` non-missing
   screen.
 

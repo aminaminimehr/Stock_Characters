@@ -1,6 +1,6 @@
 """Firm-chunk parallel processing for daily-window characteristics.
 
-Pattern adapted from Dacheng / Xin He reference scripts: split work by permno,
+Pattern adapted from GKX / Xin He reference scripts: split work by permno,
 not by date, because rolling windows are firm-local. Workers return compact
 result rows only (permno, source_yyyymm, value) to limit pickle/memory cost.
 """
@@ -28,7 +28,7 @@ def resolve_worker_count(workers: int | None = None) -> int:
 
 
 def split_permno_chunks(permnos: Sequence[int], n_workers: int) -> list[list[int]]:
-    """Quantile-balanced permno chunks (Dacheng-style firm splitting)."""
+    """Quantile-balanced permno chunks (GKX-style firm splitting)."""
     unique = sorted({int(p) for p in permnos})
     if not unique:
         return []

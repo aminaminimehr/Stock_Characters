@@ -2,7 +2,7 @@
 
 How Compustat fundamentals and CRSP observations are aligned to calendar months. Source:
 `Character_Panels/timing.py`, `Character_Builders/_shared/green_builders.py`,
-`_shared/quarterly_builders.py`, `Greens_code.sas`, Dacheng `accounting_60.py`.
+`_shared/quarterly_builders.py`, `Greens_code.sas`, GKX `accounting_60.py`.
 
 ## Summary of conventions used
 
@@ -11,7 +11,7 @@ How Compustat fundamentals and CRSP observations are aligned to calendar months.
 | **Green annual rolling** | Fundamentals from fiscal-year-end `datadate` are available in calendar months **`datadate + 7` … `datadate + 19`** (SAS `intnx(datadate,7) <= date < intnx(datadate,20)`, offsets `range(7,20)`), inner-joined to the CRSP month index; latest fiscal `datadate` kept per `(permno, signal_yyyymm)` | All repo **Green annual** characteristics (`ANNUAL_CHARACTER_INFO`) |
 | **Green quarterly** | Quarterly fundamentals lagged; expanded to monthly with Green quarterly availability | Repo **Green quarterly** characteristics (`chtx`, `roaq`, `roeq`, `cinvest`, `ni`, `nincr`, `rna`, `rsup`, `sue`, `cash`, `stdacc`, `stdcf`, `roavol`) |
 | **HXZ / Fama-French June** | FY ending in calendar year `y` → available **June `y+1` … May `y+2`**; December `y` market equity for price ratios | Repo **HXZ June layer** (`book_to_market`, `cash_flow_to_price`, `operating_profitability`, `bmj`) |
-| **Datashare (Dacheng)** | Annual `jdate = datadate + 4 months`; quarterly `jdate = datadate + 3 months`; forward-filled monthly until next report; annual/quarterly **blended** by most-recent `datadate` | Repo **Dacheng-exact layer** (`bm_dc`, `operprof_dc`, `cfp_dc`, `bm_ia_dc`) |
+| **Datashare (GKX)** | Annual `jdate = datadate + 4 months`; quarterly `jdate = datadate + 3 months`; forward-filled monthly until next report; annual/quarterly **blended** by most-recent `datadate` | Repo **GKX-exact layer** (`bm_dc`, `operprof_dc`, `cfp_dc`, `bm_ia_dc`) |
 | **Monthly-native** | CRSP monthly variables already keyed by `(permno, signal_yyyymm, target_yyyymm)`; kept as-is | Momentum, turnover, dolvol, beta, idiovol, rvar_*, baspread, ill, maxret, std_*, zerotrade, me, mvel1, indmom |
 
 ## Green annual rolling (the repo's primary convention)
@@ -54,7 +54,7 @@ Stems routed to June timing (`timing.py` L36-43): `book_to_market`, `book_to_jun
 `cash_flow_to_price`, `operating_profitability`. All other annual stems route to Green rolling
 (`timing_convention_for_stem`, L89-94).
 
-## Datashare (Dacheng) timing
+## Datashare (GKX) timing
 
 From `accounting_60.py`:
 - Annual: `ccm1['jdate'] = ccm1['datadate'] + MonthEnd(4)` (L204).
@@ -63,8 +63,8 @@ From `accounting_60.py`:
   (L1089-1091).
 - The final blend (`impute_rank_output_bchmk_60.py` L59-81) picks, per characteristic, the annual or
   quarterly value with the **more recent `datadate`** (else whichever is available, annual preferred).
-- Dacheng additionally shifts the saved `DATE` to the following month relative to the predictor
-  `jdate` (`impute_rank_output_bchmk_60.py` L89-91). The repo Dacheng validator tests both alignments.
+- GKX additionally shifts the saved `DATE` to the following month relative to the predictor
+  `jdate` (`impute_rank_output_bchmk_60.py` L89-91). The repo GKX validator tests both alignments.
 
 ## How Compustat data become available (annual)
 

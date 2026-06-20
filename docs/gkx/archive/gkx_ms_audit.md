@@ -15,7 +15,7 @@ Conducted before Phase 6 (Batch A + B) implementation. **`ms` was not implemente
 | Exists under another name? | **No** — not an alias of `ps`, `abr`, or any current column |
 | Overlaps / duplicates `ps`? | **No** — different score (8 vs 9 signals), different frequency, different inputs |
 | Green SAS implements? | **Yes** — multi-step Mohanram construction (`m1`–`m8` → `ms`; L219–285, L620–641, L796–799) |
-| Dacheng/Xiu implements? | **Not found** in `accounting_100.py` annual output list |
+| GKX/Xiu implements? | **Not found** in `accounting_100.py` annual output list |
 | In `datashare.csv`? | **Yes** — non-null ~2.4M rows; integer values **0–8** |
 | Distinct GKX predictor? | **Yes** — GKX lists both `ms` (#50) and `ps` (#67, Piotroski 2000) separately |
 

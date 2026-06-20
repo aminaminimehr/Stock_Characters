@@ -2,7 +2,7 @@
 
 Batch: `pchcapx`, `pchsaleinv`, `pchquick`, `salecash`, `currat`
 
-Implementation reference priority: **Green SAS** (`Supplementary_assistive_files/SAS_codes/Greens_code.sas`) > **Dacheng `accounting_100.py`** > GKX character list.
+Implementation reference priority: **Green SAS** (`Supplementary_assistive_files/SAS_codes/Greens_code.sas`) > **GKX `accounting_100.py`** > GKX character list.
 
 Phase 1 and Phase 2 variables are **not** modified in this batch unless a clear bug is found.
 
@@ -13,7 +13,7 @@ Phase 1 and Phase 2 variables are **not** modified in this batch unless a clear 
 | Item | Detail |
 | --- | --- |
 | **Green formula** | If `capx` missing and `count≥2`: impute `capx = ppent − lag(ppent)`; then `pchcapx = (capx − lag(capx)) / lag(capx)`. |
-| **Dacheng** | L459–461: `(capx − capx_l1) / capx_l1`; **no** Green `capx` imputation; lags by `permno`. |
+| **GKX** | L459–461: `(capx − capx_l1) / capx_l1`; **no** Green `capx` imputation; lags by `permno`. |
 | **Compustat** | `capx`, `ppent`, lags |
 | **Full-history lookup** | No (uses same-sample `capx` imputation as `grcapx`) |
 | **Denominator** | `lag(capx)` |
@@ -28,7 +28,7 @@ Phase 1 and Phase 2 variables are **not** modified in this batch unless a clear 
 | Item | Detail |
 | --- | --- |
 | **Green formula** | L188: `pchsaleinv = ((sale/invt) − (lag(sale)/lag(invt))) / (lag(sale)/lag(invt))` |
-| **Dacheng** | L499–501: same formula; lags by `permno` |
+| **GKX** | L499–501: same formula; lags by `permno` |
 | **Compustat** | `sale`, `invt`, lags |
 | **Full-history lookup** | No |
 | **Denominator** | `lag(sale)/lag(invt)` |
@@ -43,7 +43,7 @@ Phase 1 and Phase 2 variables are **not** modified in this batch unless a clear 
 | Item | Detail |
 | --- | --- |
 | **Green formula** | L179–180 impute `act`, `lct` if missing; L183–184: `quick = (act−invt)/lct`; `pchquick = (quick − lag(quick)) / lag(quick)` where lag quick uses imputed lag act/lct. |
-| **Dacheng** | L485–488: same structure; lags by `permno`; **no** explicit Green `act`/`lct` imputation |
+| **GKX** | L485–488: same structure; lags by `permno`; **no** explicit Green `act`/`lct` imputation |
 | **Compustat** | `act`, `lct`, `che`, `rect`, `invt`, `ap`, lags |
 | **Full-history lookup** | No |
 | **Denominator** | Lagged quick ratio `(lag(act)−lag(invt))/lag(lct)` with Green imputation on lagged act/lct |
@@ -58,7 +58,7 @@ Phase 1 and Phase 2 variables are **not** modified in this batch unless a clear 
 | Item | Detail |
 | --- | --- |
 | **Green formula** | L185: `salecash = sale / che` |
-| **Dacheng** | L490–491: same |
+| **GKX** | L490–491: same |
 | **Compustat** | `sale`, `che` |
 | **Full-history lookup** | No |
 | **Denominator** | `che` |
@@ -73,7 +73,7 @@ Phase 1 and Phase 2 variables are **not** modified in this batch unless a clear 
 | Item | Detail |
 | --- | --- |
 | **Green formula** | L179–181: impute missing `act = che+rect+invt`, `lct = ap`; `currat = act/lct` |
-| **Dacheng** | L475–476: `act/lct` without imputation |
+| **GKX** | L475–476: `act/lct` without imputation |
 | **Compustat** | `act`, `lct`, `che`, `rect`, `invt`, `ap` |
 | **Full-history lookup** | No |
 | **Denominator** | `lct` (possibly imputed) |

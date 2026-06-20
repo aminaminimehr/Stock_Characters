@@ -37,7 +37,7 @@ The repository is reorganized around two goals:
   `output_paths.get_sample_bounds()`, overridable to **1957** for datashare.
 
 ### Experimental code
-- `Character_Builders/Dacheng_datashare/` marked experimental (wrong model for this datashare.csv).
+- `Character_Builders/GKX_datashare/` marked experimental (wrong model for this datashare.csv).
 - `Green_SAS_Replication/` remains a reference cross-check, not the production path.
 
 ## What you should run on the server

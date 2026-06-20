@@ -2,7 +2,7 @@
 
 Batch: `realestate`, `obklg`, `chobklg`
 
-Implementation reference priority: **Green SAS** (`Supplementary_assistive_files/SAS_codes/Greens_code.sas`) > **Dacheng `accounting_100.py`** > GKX character list.
+Implementation reference priority: **Green SAS** (`Supplementary_assistive_files/SAS_codes/Greens_code.sas`) > **GKX `accounting_100.py`** > GKX character list.
 
 Phase 1–4 variables are **not** modified.
 
@@ -15,7 +15,7 @@ See also: `docs/gkx/gkx_deferred_audit_realestate_obklg_chobklg.md`.
 | Item | Detail |
 | --- | --- |
 | **Green formula** | L190–191: `(fatb + fatl) / ppegt`; if `ppegt` missing, `(fatb + fatl) / ppent` |
-| **Dacheng** | L503–506: same |
+| **GKX** | L503–506: same |
 | **Compustat** | `fatb`, `fatl`, `ppegt`, `ppent` |
 | **Full-history lookup** | No |
 | **Missing rules** | Not in Green `req` array — valid from first row |
@@ -30,7 +30,7 @@ See also: `docs/gkx/gkx_deferred_audit_realestate_obklg_chobklg.md`.
 | Item | Detail |
 | --- | --- |
 | **Green formula** | L194: `ob / ((at + lag(at)) / 2)` |
-| **Dacheng** | L508–509: same |
+| **GKX** | L508–509: same |
 | **Compustat** | `ob`, `at`, `lag(at)` |
 | **Full-history lookup** | No |
 | **Missing rules** | Green `req` array — missing when `count=1` |
@@ -46,7 +46,7 @@ See also: `docs/gkx/gkx_deferred_audit_realestate_obklg_chobklg.md`.
 | Item | Detail |
 | --- | --- |
 | **Green formula** | L195: `(ob − lag(ob)) / ((at + lag(at)) / 2)` |
-| **Dacheng** | L511–513: same |
+| **GKX** | L511–513: same |
 | **Compustat** | `ob`, `at`, lags |
 | **Full-history lookup** | No |
 | **Missing rules** | Green `req` array — missing when `count=1` |

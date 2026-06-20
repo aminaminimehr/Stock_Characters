@@ -72,12 +72,12 @@ pchcurrat, mom1m, maxret, mvel1(→mve), aeavol, ear, dolvol, invest`
 **Status:** `pchcapx_ia` and `operprof` are *intentional* (code > output). `ms` is the one genuinely
 **open** Green-replication item.
 
-## F. Dacheng (datashare) layer — divergence from `datashare.csv`
+## F. GKX (datashare) layer — divergence from `datashare.csv`
 
-For the four characteristics Dacheng constructs differently, validation is against `datashare.csv`
+For the four characteristics GKX constructs differently, validation is against `datashare.csv`
 directly. Best-matching repo column (median monthly Spearman):
 
-| datashare var | Green col (ρ vs datashare) | HXZ col (ρ vs datashare) | Dacheng-exact `_dc` | Best |
+| datashare var | Green col (ρ vs datashare) | HXZ col (ρ vs datashare) | GKX-exact `_dc` | Best |
 |---|---|---|---|---|
 | `bm` | `bm` ≈ 0.925 | `book_to_market` ≈ **0.969** | `bm_dc` (pending WRDS run) | HXZ June best so far |
 | `operprof` | `operprof` ≈ 0.909 | `operating_profitability` ≈ **0.956** | `operprof_dc` (pending) | HXZ June best so far |
@@ -85,8 +85,8 @@ directly. Best-matching repo column (median monthly Spearman):
 | `bm_ia` | `bm_ia` ≈ 0.27 | — | `bm_ia_dc` (pending) | needs `_dc` |
 
 **Status:** The HXZ June layer already provides strong datashare matches for `bm`/`operprof`. The
-Dacheng-exact `_dc` builder (`Character_Builders/Dacheng_datashare/`) is implemented but **not yet
-run on WRDS / wired into the panel** — this is the main remaining Dacheng-layer task, especially for
+GKX-exact `_dc` builder (`Character_Builders/GKX_datashare/`) is implemented but **not yet
+run on WRDS / wired into the panel** — this is the main remaining GKX-layer task, especially for
 `bm_ia` (the weakest datashare match).
 
 ## Headline
@@ -95,5 +95,5 @@ run on WRDS / wired into the panel** — this is the main remaining Dacheng-laye
 - **2** intentional divergences (`operprof`, `pchcapx_ia`) — repo follows Green's code over its
   buggy output.
 - **1** open item: `ms`.
-- **Dacheng layer:** HXZ variants cover `bm`/`operprof`/`cfp` well; `_dc` exact builder pending run,
+- **GKX layer:** HXZ variants cover `bm`/`operprof`/`cfp` well; `_dc` exact builder pending run,
   needed primarily for `bm_ia`.

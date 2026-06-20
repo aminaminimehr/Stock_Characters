@@ -11,7 +11,7 @@ filters, industry, availability, imputation, and validation status.
 | Family | Naming | Builder |
 |---|---|---|
 | Green (canonical) | short names (`bm`, `operprof`, `cfp`, `bm_ia`) | `_shared/` + `build_all_implemented_characters.py` |
-| Dacheng-exact | `_dc` suffix (`bm_dc`, …) | `Dacheng_datashare/build_datashare_chars.py` |
+| GKX-exact | `_dc` suffix (`bm_dc`, …) | `GKX_datashare/build_datashare_chars.py` |
 | HXZ / FF June | descriptive (`book_to_market`, …) | `HXZ_*_Generalized/build_*.py` |
 
 ## Timing contract (final monthly panel)
@@ -88,9 +88,9 @@ quick, rd, realestate, roic, salecash, saleinv, salerec, secured, securedind, si
 
 ---
 
-## Dacheng-exact `_dc` layer (`Dacheng_datashare/`) — **experimental / not used**
+## GKX-exact `_dc` layer (`GKX_datashare/`) — **experimental / not used**
 
-Empirical tests show this datashare.csv matches **HXZ + Green `cfp`**, not Dacheng `accounting_60.py`.
+Empirical tests show this datashare.csv matches **HXZ + Green `cfp`**, not GKX `accounting_60.py`.
 The `_dc` builder is retained for reference only. **Do not wire into the production panel.**
 
 ## Datashare mapping (production)

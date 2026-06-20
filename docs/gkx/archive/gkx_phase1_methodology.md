@@ -2,7 +2,7 @@
 
 Batch: `invest`, `egr`, `chinv`, `absacc`, `age`
 
-Implementation reference priority: **Green SAS** (`Supplementary_assistive_files/SAS_codes/Greens_code.sas`) > **Dacheng `accounting_100.py`** > GKX character list > HXZ factor documentation.
+Implementation reference priority: **Green SAS** (`Supplementary_assistive_files/SAS_codes/Greens_code.sas`) > **GKX `accounting_100.py`** > GKX character list > HXZ factor documentation.
 
 HXZ `Technical_Document_Factors_HXZ.md` documents q-factor inputs (e.g. investment-to-assets **I/A**). It does **not** define these five GKX/Green annual signals directly.
 
@@ -13,14 +13,14 @@ HXZ `Technical_Document_Factors_HXZ.md` documents q-factor inputs (e.g. investme
 | Item | Detail |
 | --- | --- |
 | **Green SAS** | L165–166: `invest = ((ppegt - lag(ppegt)) + (invt - lag(invt))) / lag(at)`; if `ppegt` missing, replace `ppegt` delta with `(ppent - lag(ppent))`. |
-| **Dacheng** | `accounting_100.py` ~L390–396: uses `at_l1` denominator; when `ppegt` not null uses `(ppegt - ppent_l1)` (not `ppegt_l1`) — **differs from Green**. |
+| **GKX** | `accounting_100.py` ~L390–396: uses `at_l1` denominator; when `ppegt` not null uses `(ppegt - ppent_l1)` (not `ppegt_l1`) — **differs from Green**. |
 | **HXZ** | Related concept: I/A = ΔAT / lag(AT) for q-factors — **not identical** to Green `invest`. |
 | **Compustat** | `ppegt`, `ppent`, `invt`, `at` (+ lags) |
 | **CRSP** | No (annual Compustat only until CCM merge) |
 | **CCM** | Yes — attach `permno`/`permco` at `datadate` |
 | **Timing** | Raw annual `datadate`; monthly `signal_yyyymm` via June availability in panel merge |
 | **Frequency** | Annual fiscal → 12 monthly signal months |
-| **Ambiguity** | Follow **Green** delta definitions; Dacheng branch when `ppegt` present is not replicated. |
+| **Ambiguity** | Follow **Green** delta definitions; GKX branch when `ppegt` present is not replicated. |
 
 ---
 
@@ -29,14 +29,14 @@ HXZ `Technical_Document_Factors_HXZ.md` documents q-factor inputs (e.g. investme
 | Item | Detail |
 | --- | --- |
 | **Green SAS** | L167: `egr = (ceq - lag(ceq)) / lag(ceq)` |
-| **Dacheng** | `accounting_100.py` ~L398–400: same formula on `ceq` |
+| **GKX** | `accounting_100.py` ~L398–400: same formula on `ceq` |
 | **HXZ** | Not documented for this acronym |
 | **Compustat** | `ceq` (+ lag) |
 | **CRSP** | No |
 | **CCM** | Yes |
 | **Timing** | Annual → June-expanded monthly signals |
 | **Frequency** | Annual |
-| **Ambiguity** | Low — Green and Dacheng agree |
+| **Ambiguity** | Low — Green and GKX agree |
 
 ---
 
@@ -45,7 +45,7 @@ HXZ `Technical_Document_Factors_HXZ.md` documents q-factor inputs (e.g. investme
 | Item | Detail |
 | --- | --- |
 | **Green SAS** | L148: `chinv = (invt - lag(invt)) / ((at + lag(at)) / 2)` |
-| **Dacheng** | `accounting_100.py` ~L426–427: `(invt - invt_l1) / ((at + at_l2) / 2)` — **denominator uses t and t-2**, not Green’s t and t-1 average |
+| **GKX** | `accounting_100.py` ~L426–427: `(invt - invt_l1) / ((at + at_l2) / 2)` — **denominator uses t and t-2**, not Green’s t and t-1 average |
 | **HXZ** | Not documented |
 | **Compustat** | `invt`, `at` (+ lags) |
 | **CRSP** | No |
@@ -61,7 +61,7 @@ HXZ `Technical_Document_Factors_HXZ.md` documents q-factor inputs (e.g. investme
 | Item | Detail |
 | --- | --- |
 | **Green SAS** | L146 after `acc`: `absacc = abs(acc)`; `acc` defined L138–139 with `oancf` fallback |
-| **Dacheng** | No explicit `absacc` in `accounting_100.py` (GKX uses Green-style `acc` elsewhere) |
+| **GKX** | No explicit `absacc` in `accounting_100.py` (GKX uses Green-style `acc` elsewhere) |
 | **HXZ** | Not documented |
 | **Compustat** | Same as `acc`: `ib`, `oancf`, `act`, `che`, `lct`, `dlc`, `txp`, `dp`, `at` |
 | **CRSP** | No |
@@ -77,7 +77,7 @@ HXZ `Technical_Document_Factors_HXZ.md` documents q-factor inputs (e.g. investme
 | Item | Detail |
 | --- | --- |
 | **Green SAS** | L81–84, L147: `count` = observation index within `gvkey` (starts at 1); `age = count` |
-| **Dacheng** | Not explicitly in `accounting_100.py` output list |
+| **GKX** | Not explicitly in `accounting_100.py` output list |
 | **HXZ** | Not documented |
 | **Compustat** | Observation count per `gvkey` after sort by `datadate` |
 | **CRSP** | No |

@@ -1,6 +1,6 @@
-"""Build Dacheng/GKX datashare-style bm, bm_ia, operprof, and cfp.
+"""Build GKX datashare-style bm, bm_ia, operprof, and cfp.
 
-This ports the relevant annual/quarterly accounting pieces from Dacheng Xiu /
+This ports the relevant annual/quarterly accounting pieces from GKX /
 Jianxin He's ``accounting_60.py`` and the blend from
 ``impute_rank_output_bchmk_60.py``. It intentionally leaves the Green-style
 columns alone and writes:
@@ -10,7 +10,7 @@ columns alone and writes:
 * repo-panel-safe individual files with ``_dc`` suffixes:
   ``outputs/characteristics/individual/{bm_dc,bm_ia_dc,operprof_dc,cfp_dc}.csv``
 
-The comparison file includes ``DATE`` using Dacheng's final convention: the
+The comparison file includes ``DATE`` using GKX's final convention: the
 return month after the predictor ``jdate``.
 """
 from __future__ import annotations
@@ -30,7 +30,7 @@ FFI_SOURCE = (
     PROJECT_ROOT
     / "Supplementary_assistive_files"
     / "Python_codes"
-    / "Dacheng_Xiu_or_Xin_he"
+    / "GKX_Xiu_or_Xin_he"
     / "functions.py"
 )
 DEFAULT_OUTPUT = PROJECT_ROOT / "outputs" / "characteristics" / "datashare_style" / "datashare_chars.csv"
@@ -45,10 +45,10 @@ DC_NAMES = {
 
 
 def load_ffi49():
-    """Import Dacheng's FF49 mapper so industry buckets match his code."""
-    spec = importlib.util.spec_from_file_location("dacheng_functions", FFI_SOURCE)
+    """Import GKX's FF49 mapper so industry buckets match his code."""
+    spec = importlib.util.spec_from_file_location("gkx_functions", FFI_SOURCE)
     if spec is None or spec.loader is None:
-        raise ImportError(f"Could not load Dacheng functions from {FFI_SOURCE}")
+        raise ImportError(f"Could not load GKX functions from {FFI_SOURCE}")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod.ffi49
@@ -74,7 +74,7 @@ def raw_sql_with_retry(db, sql: str, attempts: int = 5, pause_seconds: int = 60)
 
 
 def ttm4(series: str, df: pd.DataFrame) -> pd.Series:
-    """Trailing four-quarter sum, matching Dacheng's current + three lags."""
+    """Trailing four-quarter sum, matching GKX's current + three lags."""
     result = df[series].copy()
     grouped = df.groupby("permno")[series]
     for lag in range(1, 4):
@@ -366,7 +366,7 @@ def build_datashare_chars(db, start: str) -> pd.DataFrame:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build Dacheng/datashare-style _dc characteristics.")
+    parser = argparse.ArgumentParser(description="Build GKX/datashare-style _dc characteristics.")
     parser.add_argument("--wrds-user", default=None)
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT))
     parser.add_argument("--individual-dir", default=str(DEFAULT_INDIVIDUAL_DIR))

@@ -23,7 +23,7 @@ Goal: explain near-zero on-disk repo vs datashare agreement despite large paired
 - GKX datashare exposes **`chatoia` only** (no `chato` or `ato` columns).
 - Description: *Industry-adjusted change in asset turnover* (`docs/gkx/datashare_inventory.md`).
 - Green SAS: `chatoia = chato - mean(chato)` by **`sic2, fyear`** after `count<3` nulling.
-- Dacheng/Xiu exports **`chato`** (permno lags) but **not `chatoia`** (Phase 7 audit).
+- GKX/Xiu exports **`chato`** (permno lags) but **not `chatoia`** (Phase 7 audit).
 
 ### Datashare scale (201801–202312)
 

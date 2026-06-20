@@ -42,7 +42,7 @@ def clear_rvar_caches():
 
 def load_daily_factor_data(db, factors):
     """
-    Match Xin He / Dacheng Xiu Rvar_ff3.py: one dsf + factors_daily pull, then merge
+    Match Xin He / GKX Rvar_ff3.py: one dsf + factors_daily pull, then merge
     delisting returns in pandas (avoids a heavy per-row SQL join on dsf).
     """
     from output_paths import sql_date_filter

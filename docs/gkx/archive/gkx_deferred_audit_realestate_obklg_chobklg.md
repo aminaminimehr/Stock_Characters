@@ -14,7 +14,7 @@ Phase 1–4 variables are **not** modified by this audit or subsequent Phase 5 w
 | **obklg** | Clear | No | **Implement now** (Green/chars60; not GKX) |
 | **chobklg** | Clear | No | **Implement now** (Green/chars60; not GKX) |
 
-All three formulas match between Green SAS and Dacheng `accounting_100.py`. No formula ambiguity blocks implementation. The main caveat is **Compustat sparsity** for `fatb`/`fatl` (`realestate`) and especially `ob` (`obklg`, `chobklg`).
+All three formulas match between Green SAS and GKX `accounting_100.py`. No formula ambiguity blocks implementation. The main caveat is **Compustat sparsity** for `fatb`/`fatl` (`realestate`) and especially `ob` (`obklg`, `chobklg`).
 
 ---
 
@@ -23,7 +23,7 @@ All three formulas match between Green SAS and Dacheng `accounting_100.py`. No f
 | Item | Detail |
 | --- | --- |
 | **Green SAS** | L190–191: `realestate = (fatb + fatl) / ppegt`; if `ppegt` missing, `(fatb + fatl) / ppent` |
-| **Dacheng** | L503–506: identical |
+| **GKX** | L503–506: identical |
 | **Compustat** | `fatb`, `fatl`, `ppegt`, `ppent` |
 | **Lag / timing** | None; level ratio at fiscal `datadate` |
 | **Missing rules** | Not in Green `req` array — valid from first row when inputs exist; NaN if numerator/denominator missing or zero denominator |
@@ -31,7 +31,7 @@ All three formulas match between Green SAS and Dacheng `accounting_100.py`. No f
 | **datashare.csv** | **Yes** (`realestate`) |
 | **GKX** | Listed in GKX gap audit missing set |
 | **Data availability** | ~66% of 2018–2023 annual rows have `fatb` or `fatl` populated (WRDS spot check) |
-| **Ambiguity** | Low — Green/Dacheng agree on ppegt vs ppent fallback |
+| **Ambiguity** | Low — Green/GKX agree on ppegt vs ppent fallback |
 
 ---
 
@@ -40,13 +40,13 @@ All three formulas match between Green SAS and Dacheng `accounting_100.py`. No f
 | Item | Detail |
 | --- | --- |
 | **Green SAS** | L194: `obklg = ob / ((at + lag(at)) / 2)` |
-| **Dacheng** | L508–509: identical; lags by `permno` |
+| **GKX** | L508–509: identical; lags by `permno` |
 | **Compustat** | `ob`, `at`, `lag(at)` |
 | **Lag / timing** | `gvkey` lag on `at`; average assets denominator |
 | **Missing rules** | Green `req` array (L228–230) — **missing when `count=1`** |
 | **Full-history lookup** | No |
 | **datashare.csv** | **No** |
-| **GKX** | Not a GKX datashare predictor; Green/chars60 + Dacheng annual output |
+| **GKX** | Not a GKX datashare predictor; Green/chars60 + GKX annual output |
 | **Data availability** | `ob` populated in ~13% of 2018–2023 annual rows — expect **low coverage** |
 | **Ambiguity** | Low — follow Green `gvkey` lags |
 
@@ -57,13 +57,13 @@ All three formulas match between Green SAS and Dacheng `accounting_100.py`. No f
 | Item | Detail |
 | --- | --- |
 | **Green SAS** | L195: `chobklg = (ob − lag(ob)) / ((at + lag(at)) / 2)` |
-| **Dacheng** | L511–513: identical structure; `permno` lags |
+| **GKX** | L511–513: identical structure; `permno` lags |
 | **Compustat** | `ob`, `at`, lags |
 | **Lag / timing** | One-year change in `ob`; same `avg(at)` denominator as `obklg` |
 | **Missing rules** | Green `req` array — **missing when `count=1`** |
 | **Full-history lookup** | No |
 | **datashare.csv** | **No** |
-| **GKX** | Not a GKX datashare predictor; Green/chars60 + Dacheng annual output |
+| **GKX** | Not a GKX datashare predictor; Green/chars60 + GKX annual output |
 | **Data availability** | Same sparse `ob` as `obklg` |
 | **Ambiguity** | Low |
 

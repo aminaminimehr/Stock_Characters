@@ -150,7 +150,7 @@ def build_candidate_annual(comp: pd.DataFrame, link: pd.DataFrame) -> pd.DataFra
     work["ato_diff_ia_sic2_fyear"] = work["ato_diff_gvkey"] - grouped_sic2_fyear["ato_diff_gvkey"].transform("mean")
     work["ato_pct_ia_sic2_fyear"] = work["ato_pct_gvkey"] - grouped_sic2_fyear["ato_pct_gvkey"].transform("mean")
 
-    # FF49 × datadate month grouping (Dacheng-style for bm_ia/me_ia)
+    # FF49 × datadate month grouping (GKX-style for bm_ia/me_ia)
     work = add_fama_french_industry_code(work, scheme=49, sic_col="sic", output_col="ffi49")
     work["datadate"] = pd.to_datetime(work["datadate"])
     work["yyyymm_fiscal"] = work["datadate"].dt.year * 100 + work["datadate"].dt.month
@@ -160,7 +160,7 @@ def build_candidate_annual(comp: pd.DataFrame, link: pd.DataFrame) -> pd.DataFra
 
     linked = attach_ccm_links(work, link)
 
-    # Permno-level lags (Dacheng-style timing on linked panel)
+    # Permno-level lags (GKX-style timing on linked panel)
     linked = linked.sort_values(["permno", "datadate"])
     linked["ato_permno"] = safe_divide(linked["sale"], (linked["at"] + linked.groupby("permno")["at"].shift(1)) / 2)
     linked["ato_diff_permno"] = linked["ato_permno"] - linked.groupby("permno")["ato_permno"].shift(1)
@@ -330,7 +330,7 @@ def build_report(
         "- GKX datashare lists **`chatoia` only** (no separate `chato` or `ato` columns).",
         "- Inventory description: *Industry-adjusted change in asset turnover* (`docs/gkx/datashare_inventory.md`).",
         "- Green SAS defines `chatoia = chato - mean(chato)` by **`sic2, fyear`** after `count<3` nulling.",
-        "- Dacheng/Xiu annual accounting exports **`chato`** (permno lags) but **not `chatoia`** per Phase 7 audit.",
+        "- GKX/Xiu annual accounting exports **`chato`** (permno lags) but **not `chatoia`** per Phase 7 audit.",
         "",
         "## Datashare `chatoia` scale (window)",
         "",

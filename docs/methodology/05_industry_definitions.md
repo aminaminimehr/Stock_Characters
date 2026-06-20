@@ -2,7 +2,7 @@
 
 Source: `Greens_code.sas`, `Character_Builders/_shared/green_builders.py`,
 `Imputation/industry_codes.py`, `Imputation/industry_mappings.py`,
-Dacheng `functions.py` (`ffi49`).
+GKX `functions.py` (`ffi49`).
 
 ## Industry classification schemes available
 
@@ -10,11 +10,11 @@ Dacheng `functions.py` (`ffi49`).
 |---|---|---|---|
 | **SIC** | 4-digit Standard Industrial Classification (CRSP `siccd` / Compustat `sic`) | raw data | base for SIC2 and FF mappings |
 | **SIC2** | first 2 digits of SIC | `green_builders.py` L292 (`sic_str.str[:2]`) | **all Green industry-adjusted variables** and `indmom`, `ms` |
-| **FF12 / FF17 / FF30 / FF38 / FF48 / FF49** (and FF5/FF10) | Fama-French SIC-range groupings | `Imputation/industry_mappings.py` (embedded tables) via `Imputation/industry_codes.py` | research-panel imputation (FF49); Dacheng layer (FF49) |
+| **FF12 / FF17 / FF30 / FF38 / FF48 / FF49** (and FF5/FF10) | Fama-French SIC-range groupings | `Imputation/industry_mappings.py` (embedded tables) via `Imputation/industry_codes.py` | research-panel imputation (FF49); GKX layer (FF49) |
 
 The repo carries the full FF mapping family (5/10/12/17/30/38/48/49) in
 `Imputation/industry_mappings.py`; only **FF49** is wired into the production research panel
-(`build_research_panel_1957.py`, default `--industry-scheme 49`). Dacheng's `functions.py` provides
+(`build_research_panel_1957.py`, default `--industry-scheme 49`). GKX's `functions.py` provides
 an equivalent `ffi49`.
 
 ## Industry-adjustment rules
@@ -41,13 +41,13 @@ comp["tb"]      = comp["tb_1"]  - grouped["tb_1"].transform("mean")
 | `indmom` | SIC2 × calendar month | **mean** of `mom12m`, broadcast to all members | `green_builders.py` L909 |
 | `ms` (Mohanram) industry medians | SIC2 × fiscal year | **median** | `green_builders.py` L647 |
 
-### Dacheng layer — FF49 × `datadate`, **mean**
+### GKX layer — FF49 × `datadate`, **mean**
 
-```1116:1119:Supplementary_assistive_files/Python_codes/Dacheng_Xiu_or_Xin_he/accounting_60.py
+```1116:1119:Supplementary_assistive_files/Python_codes/GKX_Xiu_or_Xin_he/accounting_60.py
 df['bm_ia'] = df['bm'] - df.groupby(['datadate','ffi49'])['bm'].transform('mean')
 ```
 
-The repo Dacheng-exact `bm_ia_dc` reproduces this (FF49, mean). Green's SIC2 grouping vs Dacheng's
+The repo GKX-exact `bm_ia_dc` reproduces this (FF49, mean). Green's SIC2 grouping vs GKX's
 FF49 grouping is the primary structural difference for industry-adjusted variables.
 
 ### Research-panel imputation grouping — FF49 × month, **median**
@@ -68,7 +68,7 @@ Imputation uses **median** by `(month, FF49)` with a same-month cross-sectional 
 |---|---|---|
 | Green industry-adjusted characteristics (`*_ia`, `indmom`) | mean | SIC2 |
 | Green Mohanram (`ms`) industry signals | median | SIC2 |
-| Dacheng industry-adjusted (`bm_ia_dc`) | mean | FF49 |
+| GKX industry-adjusted (`bm_ia_dc`) | mean | FF49 |
 | Research-panel imputation | median | FF49 |
 
 ## Handling of missing observations

@@ -29,9 +29,9 @@ Use this policy while working on this list:
 | `Supplementary_assistive_files/SAS_codes/Greens_code.sas` | Formula, timing, and construction source of truth |
 | `Supplementary_assistive_files/Output_From_Greens_SAS_code.sas7bdat` | Primary validation benchmark |
 | `Supplementary_assistive_files/datashare.csv` | Target column universe and final export naming reference |
-| `Supplementary_assistive_files/Python_codes/Dacheng_Xiu_or_Xin_he/` | Useful implementation reference, especially for slow daily rolling / parallel-processing design |
+| `Supplementary_assistive_files/Python_codes/GKX_Xiu_or_Xin_he/` | Useful implementation reference, especially for slow daily rolling / parallel-processing design |
 
-Do not copy GKX/Dacheng formulas blindly before checking Green SAS. Some Dacheng implementations differ from Green. Use Dacheng code mainly to understand architecture and possible GKX modifications after Green is matched.
+Do not copy GKX formulas blindly before checking Green SAS. Some GKX implementations differ from Green. Use GKX code mainly to understand architecture and possible GKX modifications after Green is matched.
 
 ## Missing Characters
 
@@ -144,10 +144,10 @@ These are likely expensive and should use parallel firm-chunk processing:
 Use the separate parallel-processing review:
 
 ```text
-agents review/Dacheng_Xin_He_parallel_processing_review.MD
+agents review/GKX_Xin_He_parallel_processing_review.MD
 ```
 
-That file explains Dacheng/Xin He's firm-chunk multiprocessing design. Use the architecture, but validate formulas against Green SAS first.
+That file explains GKX/Xin He's firm-chunk multiprocessing design. Use the architecture, but validate formulas against Green SAS first.
 
 ## Variable-Specific Guidance
 
@@ -257,7 +257,7 @@ with weekly stock returns and equal-weight market return.
 
 Action:
 
-1. Do not replace with Dacheng's 3-month daily beta unless targeting GKX/Dacheng specifically.
+1. Do not replace with GKX's 3-month daily beta unless targeting GKX specifically.
 2. Audit weekly return construction.
 3. Audit week-date assignment.
 4. Audit equal-weight market return construction.
@@ -497,12 +497,12 @@ Several missing or wrong variables are slow because they require rolling daily, 
 Use the separate handoff:
 
 ```text
-agents review/Dacheng_Xin_He_parallel_processing_review.MD
+agents review/GKX_Xin_He_parallel_processing_review.MD
 ```
 
 The key implementation rule:
 
-Use Dacheng/Xin He's firm-chunk architecture for speed, but keep the Green SAS formula unless intentionally switching to a GKX-specific formula after Green validation.
+Use GKX/Xin He's firm-chunk architecture for speed, but keep the Green SAS formula unless intentionally switching to a GKX-specific formula after Green validation.
 
 Variables likely needing parallel processing:
 
@@ -539,7 +539,7 @@ Reference files:
 - `Supplementary_assistive_files/SAS_codes/Greens_code.sas`
 - `Supplementary_assistive_files/Output_From_Greens_SAS_code.sas7bdat`
 - `Supplementary_assistive_files/datashare.csv`
-- `Supplementary_assistive_files/Python_codes/Dacheng_Xiu_or_Xin_he/`
+- `Supplementary_assistive_files/Python_codes/GKX_Xiu_or_Xin_he/`
 
 ## Success Criteria
 

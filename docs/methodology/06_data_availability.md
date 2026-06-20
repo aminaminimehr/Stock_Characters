@@ -56,7 +56,7 @@ values (matching SAS, via `sas_stats.py` row-wise std that mirrors SAS `std()` m
 ## Missing-value handling conventions
 
 - **`*0` fields:** several Compustat inputs are coalesced to 0 when missing (`xsga0`, `xint0`,
-  `cogs0`, etc.) per Green/Dacheng, but only where the SAS code does so — not universally.
+  `cogs0`, etc.) per Green/GKX, but only where the SAS code does so — not universally.
 - **`ps`** (preferred stock) = `coalesce(pstkrv, pstkl, pstk, 0)`.
 - **`txditc`** filled 0 in book-equity computations.
 - **SAS `+` operator semantics:** Green's `ms = m1+...+m8` propagates missingness (any missing → total

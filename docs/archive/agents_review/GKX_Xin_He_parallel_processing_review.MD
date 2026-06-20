@@ -1,11 +1,11 @@
-﻿# Dacheng / Xin He Parallel Processing Review
+﻿# GKX / Xin He Parallel Processing Review
 
-## Addendum: Dacheng / Xin He Parallel Daily-Character Pattern
+## Addendum: GKX / Xin He Parallel Daily-Character Pattern
 
-This addendum was added after reviewing the Dacheng / Xin He reference scripts under:
+This addendum was added after reviewing the GKX / Xin He reference scripts under:
 
 ```text
-Supplementary_assistive_files/Python_codes/Dacheng_Xiu_or_Xin_he/
+Supplementary_assistive_files/Python_codes/GKX_Xiu_or_Xin_he/
 ```
 
 The user specifically asked about:
@@ -24,7 +24,7 @@ The same parallel-processing design also appears in:
 - `std_turn.py`
 - `zerotrade.py`
 
-### Core Design In Dacheng / Xin He Code
+### Core Design In GKX / Xin He Code
 
 The parallel design is the same across these scripts. Only the statistic computed inside the rolling window changes.
 
@@ -183,7 +183,7 @@ beta = (X' M X)^-1 X' M Y
 
 where `M` demeans the observations. This is equivalent to an intercept regression of excess return on market excess return.
 
-Important: the current repo's `beta_builder.py` says it is implementing Green SAS weekly 36-month beta, not Dacheng's 3-month daily beta. Do not blindly replace it unless the target profile is GKX/Dacheng rather than Green-exact.
+Important: the current repo's `beta_builder.py` says it is implementing Green SAS weekly 36-month beta, not GKX's 3-month daily beta. Do not blindly replace it unless the target profile is GKX rather than Green-exact.
 
 #### `bid_ask_spread.py`
 
@@ -292,21 +292,21 @@ The following existing repo characters should be reviewed for this parallel/chun
 
 | Character | Current repo location | Reason to modify/review |
 | --- | --- | --- |
-| `baspread` | `green_builders.py` daily block | Currently computed by SQL monthly grouping; Dacheng pattern uses 3-month rolling firm windows. |
-| `ill` | `green_builders.py` daily block | Same daily 3-month rolling pattern in Dacheng. Also verify formula parentheses. |
-| `maxret` | `green_builders.py` daily block | Same daily 3-month rolling pattern in Dacheng. |
-| `rvar_mean` | `green_builders.py` daily block | Same daily 3-month rolling pattern in Dacheng; current SQL grouping appears one-month. |
-| `std_dolvol` | `green_builders.py` daily block | Same daily 3-month rolling pattern in Dacheng; user specifically asked about this. |
-| `std_turn` | `green_builders.py` daily block | Same daily 3-month rolling pattern in Dacheng. |
-| `zerotrade` | `green_builders.py` daily block | Same daily 3-month rolling pattern in Dacheng; verify intended aggregation. |
+| `baspread` | `green_builders.py` daily block | Currently computed by SQL monthly grouping; GKX pattern uses 3-month rolling firm windows. |
+| `ill` | `green_builders.py` daily block | Same daily 3-month rolling pattern in GKX. Also verify formula parentheses. |
+| `maxret` | `green_builders.py` daily block | Same daily 3-month rolling pattern in GKX. |
+| `rvar_mean` | `green_builders.py` daily block | Same daily 3-month rolling pattern in GKX; current SQL grouping appears one-month. |
+| `std_dolvol` | `green_builders.py` daily block | Same daily 3-month rolling pattern in GKX; user specifically asked about this. |
+| `std_turn` | `green_builders.py` daily block | Same daily 3-month rolling pattern in GKX. |
+| `zerotrade` | `green_builders.py` daily block | Same daily 3-month rolling pattern in GKX; verify intended aggregation. |
 | `rvar_capm` | `rvar_factor_builders.py` | Currently loops serially by `permno`; should be parallelized by firm chunks. |
 | `rvar_ff3` | `rvar_factor_builders.py` | Same as `rvar_capm`; should share one generic parallel residual-variance engine. |
-| `beta` | `beta_builder.py` | Current implementation loops serially by `permno` and month. Parallelize if keeping Green weekly beta; do not confuse with Dacheng 3-month daily beta. |
+| `beta` | `beta_builder.py` | Current implementation loops serially by `permno` and month. Parallelize if keeping Green weekly beta; do not confuse with GKX 3-month daily beta. |
 | `betasq` | `beta_builder.py` | Depends on `beta`; no separate parallel work needed if generated from beta. |
 
-### Characters In Dacheng Folder That Use This Exact Multiprocessing Pattern
+### Characters In GKX Folder That Use This Exact Multiprocessing Pattern
 
-These are the scripts in `Dacheng_Xiu_or_Xin_he` that use `multiprocessing.Pool`, firm chunks, and rolling daily windows:
+These are the scripts in `GKX_Xiu_or_Xin_he` that use `multiprocessing.Pool`, firm chunks, and rolling daily windows:
 
 ```text
 beta.py                 -> beta
@@ -325,7 +325,7 @@ Other files in that folder may be slow or important, but they do not use this sa
 
 ### Recommended Repo Design For The Next Agent
 
-Do not copy the Dacheng scripts verbatim. Instead, build a reusable engine.
+Do not copy the GKX scripts verbatim. Instead, build a reusable engine.
 
 Recommended module:
 
@@ -349,9 +349,9 @@ permno, source_yyyymm, source_date, character
 
 Then existing panel alignment can merge this to monthly signal rows using `source_yyyymm`.
 
-### Important Improvement Over Dacheng's Original Code
+### Important Improvement Over GKX's Original Code
 
-Dacheng's workers return the entire daily chunk with one value filled into a row. That is memory-heavy.
+GKX's workers return the entire daily chunk with one value filled into a row. That is memory-heavy.
 
 For this repo, workers should return only result rows:
 
@@ -416,18 +416,18 @@ Where `spec` defines:
 3. Validate `std_dolvol` over a small sample against the current output and, if possible, against Green/GKX.
 4. Port `rvar_capm` and `rvar_ff3` to the same chunking engine.
 5. Port `rvar_mean`, `std_turn`, `maxret`, `baspread`, `ill`, and `zerotrade`.
-6. Parallelize current Green `beta_builder.py` separately, because its current intended method is Green weekly 36-month beta, not Dacheng 3-month daily beta.
+6. Parallelize current Green `beta_builder.py` separately, because its current intended method is Green weekly 36-month beta, not GKX 3-month daily beta.
 7. Add `--workers` to relevant CLIs and pass it from `build_all_implemented_characters.py`.
 8. Add a small deterministic sample test with `workers=1` and `workers=2` and assert identical sorted outputs.
 
 ### Formula And Benchmark Caution
 
-The user wants exact Green first. Dacheng's multiprocessing pattern is useful for speed, but the formulas may not always be the Green formulas.
+The user wants exact Green first. GKX's multiprocessing pattern is useful for speed, but the formulas may not always be the Green formulas.
 
 So the next agent should separate:
 
-- processing architecture: adopt from Dacheng
+- processing architecture: adopt from GKX
 - formula definitions: validate against Green SAS first
 - GKX modifications: only after Green baseline is trusted
 
-In other words: use Dacheng's firm-chunk parallel design, but do not automatically use Dacheng's formulas unless the target profile is explicitly GKX/Dacheng.
+In other words: use GKX's firm-chunk parallel design, but do not automatically use GKX's formulas unless the target profile is explicitly GKX.

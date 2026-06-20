@@ -2,7 +2,7 @@
 
 Batch: `cfp_ia`, `chatoia`, `chempia`, `chpmia`, `pchcapx_ia`
 
-Reference priority: **Green SAS** (`Greens_code.sas`) > Dacheng `accounting_100.py` > GKX list.
+Reference priority: **Green SAS** (`Greens_code.sas`) > GKX `accounting_100.py` > GKX list.
 
 Phase 1–6 variables are **not** modified unless a clear bug is found.
 
@@ -15,8 +15,8 @@ Phase 1–6 variables are **not** modified unless a clear bug is found.
 | Industry operation | **Subtract industry mean** (not median, rank, or ratio) |
 | Green industry group | **`sic2` × `fyear`** — two-digit Compustat SIC |
 | SIC source | Compustat `comp.company.sic` → `substr(sic,1,2)` |
-| Dacheng for these five | **Not implemented** in `accounting_100.py` annual output |
-| Dacheng `bm_ia` / `me_ia` | **FF49 × datadate** — differs from Green |
+| GKX for these five | **Not implemented** in `accounting_100.py` annual output |
+| GKX `bm_ia` / `me_ia` | **FF49 × datadate** — differs from Green |
 | Repo existing `bm_ia`, `me_ia`, `chpm`, `tb` | **Green-aligned** (`sic2` × `fyear`, mean demean) |
 | Imputation module (`Imputation/`) | **Separate** — FF schemes for missing-value median fill, not used in characteristic construction |
 | Ambiguity blocking implementation? | **No** — implement per Green |
@@ -51,7 +51,7 @@ Phase 1–6 variables are **not** modified unless a clear bug is found.
 
 ## Source comparison: industry definition
 
-| Use case | Green SAS | Dacheng/Xiu | Repo (current) |
+| Use case | Green SAS | GKX/Xiu | Repo (current) |
 | --- | --- | --- | --- |
 | `bm_ia`, `mve_ia` / `me_ia` | `sic2` × `fyear`, mean demean | **`ffi49` × `datadate`**, mean demean | Green (`sic2` × `fyear`) |
 | `cfp_ia`, `chatoia`, `chempia`, `chpmia`, `pchcapx_ia` | `sic2` × `fyear`, mean demean | Not in annual char list | **To implement** |
@@ -76,7 +76,7 @@ MarkItDown outputs: no additional industry-adjustment detail found beyond standa
 | Grouping | SIC2 × fiscal year |
 | Timing | Annual fiscal → June-expanded monthly |
 | Missing | Base `cfp` missing rules; no extra Green `req` flag for `cfp` at count=1 |
-| Dacheng | `cfp` yes; **`cfp_ia` no** |
+| GKX | `cfp` yes; **`cfp_ia` no** |
 
 ### 2. `chatoia`
 
@@ -87,7 +87,7 @@ MarkItDown outputs: no additional industry-adjustment detail found beyond standa
 | Operation | Subtract industry **mean** |
 | Grouping | SIC2 × fiscal year |
 | Missing | Green L236–238: **`chato` missing when `count < 3`** (first two fiscal rows) |
-| Dacheng | `chato` yes (permno lags); **`chatoia` no** |
+| GKX | `chato` yes (permno lags); **`chatoia` no** |
 
 ### 3. `chempia`
 
@@ -98,7 +98,7 @@ MarkItDown outputs: no additional industry-adjustment detail found beyond standa
 | Operation | Subtract industry **mean** |
 | Grouping | SIC2 × fiscal year |
 | Missing | Green `req` array — NaN when `count=1` |
-| Dacheng | `hire` yes; **`chempia` no** |
+| GKX | `hire` yes; **`chempia` no** |
 
 ### 4. `chpmia`
 
@@ -110,7 +110,7 @@ MarkItDown outputs: no additional industry-adjustment detail found beyond standa
 | Grouping | SIC2 × fiscal year |
 | Missing | Green `req` array — NaN when `count=1` |
 | Repo note | Existing column **`chpm` is already demeaned** (= Green `chpmia`); new **`chpmia`** column added without changing `chpm` |
-| Dacheng | `chpm` yes; **`chpmia` no** |
+| GKX | `chpm` yes; **`chpmia` no** |
 
 ### 5. `pchcapx_ia`
 
@@ -121,7 +121,7 @@ MarkItDown outputs: no additional industry-adjustment detail found beyond standa
 | Operation | Subtract industry **mean** |
 | Grouping | SIC2 × fiscal year |
 | Missing | Green `req` array — NaN when `count=1` |
-| Dacheng | `pchcapx` yes; **`pchcapx_ia` no** |
+| GKX | `pchcapx` yes; **`pchcapx_ia` no** |
 
 ---
 

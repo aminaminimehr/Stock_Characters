@@ -1,4 +1,4 @@
-# Stock Characteristics — Green Replication + Dacheng-Compatible Library
+# Stock Characteristics — Green Replication + GKX-Compatible Library
 
 A transparent, auditable implementation of monthly U.S. equity characteristics built from CRSP,
 Compustat, and (optionally) IBES via WRDS.
@@ -20,7 +20,7 @@ with configurable universe and timing (`--profile datashare`). **`bm_ia` is not 
 |---|---|---|---|
 | **Green** (canonical) | short names | `bm`, `operprof`, `cfp` | Replicate Green SAS; benchmark vs `Output_From_Greens_SAS_code.sas7bdat` |
 | **HXZ / FF June** | descriptive | `book_to_market`, `operating_profitability` | Datashare mapping for `bm` and `operprof` |
-| **Experimental** | `_dc` suffix | `bm_dc`, … | Rejected Dacheng port — kept for reference only (`Dacheng_datashare/`) |
+| **Experimental** | `_dc` suffix | `bm_dc`, … | Rejected GKX port — kept for reference only (`GKX_datashare/`) |
 
 Datashare mapping (empirically validated): `bm` → `book_to_market`, `operprof` → `operating_profitability`,
 `cfp` → Green `cfp`. See `docs/gkx/datashare_reverse_engineering.md`.
@@ -108,7 +108,7 @@ Full flag reference: **`docs/CONFIGURATION.md`** (CCM link types, sample dates, 
 ## Stock universe
 
 Common stock on major exchanges: `exchcd ∈ {1,2,3}`, `shrcd ∈ {10,11}`. **No** price floor, **no**
-financial-firm exclusion, **no** microcap exclusion — matching both Green's SAS and Dacheng's
+financial-firm exclusion, **no** microcap exclusion — matching both Green's SAS and GKX's
 `accounting_60.py`. The Green final-sample screen (`mve`, `mom1m`, `bm` non-missing) is reproduced by
 the `--green-universe` flag (off by default). Full details and the GKX paper-vs-code discrepancy:
 `docs/methodology/04_filters_and_universe.md`.

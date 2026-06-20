@@ -15,7 +15,7 @@ Updated: 2026-06-20 after implementation pass.
 | Compustat sample start configurable (1957 for datashare) | Done — `output_paths.get_sample_bounds()` |
 | Formula docs updated for empirical datashare mapping | Done — `docs/methodology/01_formula_differences.md` |
 | `bm_ia` | **Abandoned** — documented everywhere |
-| Dacheng_datashare builder | Demoted to experimental / rejected for this datashare.csv |
+| GKX_datashare builder | Demoted to experimental / rejected for this datashare.csv |
 | Release notes | Done — `docs/RELEASE_NOTES.md` |
 
 ## Datashare mapping (locked)

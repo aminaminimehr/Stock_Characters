@@ -20,7 +20,7 @@ It supersedes the fragmented phase-by-phase notes under `docs/gkx/` (retained as
 |---|---|---|
 | **Green** (canonical) | Replicate Green SAS | `Character_Builders/_shared/` + `Green_*_Generalized/` |
 | **HXZ / FF June** | June-timed variants for datashare `bm`/`operprof` | `HXZ_*_Generalized/` |
-| **Experimental `_dc`** | Dacheng `accounting_60.py` port | `Dacheng_datashare/` — **rejected** for this datashare.csv |
+| **Experimental `_dc`** | GKX `accounting_60.py` port | `GKX_datashare/` — **rejected** for this datashare.csv |
 
 **Datashare column mapping (empirical):**
 
@@ -69,4 +69,4 @@ Character_Panels/build_complete_prediction_panel.py -> complete_all_character_pr
 Character_Panels/build_research_panel_1957.py     -> research_panel_1957_ranked.csv  (research profile only)
 ```
 
-`Dacheng_datashare/` is **not** in the production path.
+`GKX_datashare/` is **not** in the production path.

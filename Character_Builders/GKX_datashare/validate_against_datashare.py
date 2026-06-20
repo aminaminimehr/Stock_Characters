@@ -1,4 +1,4 @@
-"""Validate Dacheng/datashare-style output against Supplementary_assistive_files/datashare.csv."""
+"""Validate GKX/datashare-style output against Supplementary_assistive_files/datashare.csv."""
 from __future__ import annotations
 
 import argparse

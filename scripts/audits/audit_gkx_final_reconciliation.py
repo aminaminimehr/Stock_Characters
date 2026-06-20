@@ -226,7 +226,7 @@ def reconcile() -> str:
         "",
         "`betasq`",
         "",
-        "### Batch B — annual Compustat (Green/Dacheng)",
+        "### Batch B — annual Compustat (Green/GKX)",
         "",
         "Follow Green SAS / `accounting_100.py`; fiscal ratios and event indicators.",
         "",

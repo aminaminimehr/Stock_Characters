@@ -13,7 +13,7 @@ Original plan items:
 | `docs/CONFIGURATION.md` | Done |
 | `validate_datashare_universe.py` | Done |
 | Compustat sample start 1957 for datashare | Done |
-| Demote `Dacheng_datashare/` | Done |
+| Demote `GKX_datashare/` | Done |
 | Server full run + push | **Pending** (user/server) |
 
 Pending after push:

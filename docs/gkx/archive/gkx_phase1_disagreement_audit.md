@@ -24,7 +24,7 @@ Reproduce diagnostics: `python scripts/audit_gkx_disagreement.py`
 
 ### 1.1 `invest`
 
-| Dimension | **Our repo** (`green_builders.py`) | **Green SAS** (`Greens_code.sas` L165–166) | **Dacheng/Xiu** (`accounting_100.py` L390–396) |
+| Dimension | **Our repo** (`green_builders.py`) | **Green SAS** (`Greens_code.sas` L165–166) | **GKX/Xiu** (`accounting_100.py` L390–396) |
 |-----------|-----------------------------------|---------------------------------------------|------------------------------------------------|
 | **Numerator (ppegt present)** | `(ppegt − lag(ppegt)) + (invt − lag(invt))` | Same | `(ppegt − ppent_l1) + (invt − invt_l1)` **≠ Green** |
 | **Numerator (ppegt missing)** | `(ppent − lag(ppent)) + (invt − lag(invt))` | Same | Same |
@@ -37,35 +37,35 @@ Reproduce diagnostics: `python scripts/audit_gkx_disagreement.py`
 | **Monthly timing** | June of `(calendar_year(datadate)+1)` for 12 months | `datadate+7mo ≤ date < datadate+20mo`, dedupe latest | `jdate = datadate + 4 months`; merge CRSP; **forward-fill** to all months |
 | **Sample floor** | `datadate ≥ 1975-01-01` (+ optional sample env) | `datadate ≥ 1975` | `datadate ≥ 1959` |
 
-**Reference alignment:** We follow **Green**, not Dacheng’s `ppegt` branch. Dacheng uses `ppent_l1` instead of `ppegt_l1` when `ppegt` is non-null—a known deviation from Green documented in `docs/gkx/gkx_phase1_methodology.md`.
+**Reference alignment:** We follow **Green**, not GKX’s `ppegt` branch. GKX uses `ppent_l1` instead of `ppegt_l1` when `ppegt` is non-null—a known deviation from Green documented in `docs/gkx/gkx_phase1_methodology.md`.
 
 ---
 
 ### 1.2 `egr`
 
-| Dimension | **Our repo** | **Green SAS** (L167) | **Dacheng/Xiu** (L398–400) |
+| Dimension | **Our repo** | **Green SAS** (L167) | **GKX/Xiu** (L398–400) |
 |-----------|-------------|----------------------|----------------------------|
 | **Formula** | `(ceq − lag(ceq)) / lag(ceq)` | Same | Same |
 | **Lag key** | `gvkey` | `gvkey` | `permno` |
 | **Zero denominator** | `safe_divide` | SAS `/` | Direct division |
 | **First observation** | NaN | Missing (`count=1`) | No explicit mask |
 | **Winsorization** | None | None | None |
-| **Monthly timing** | Same June expansion as above | Green 7–19 month window | Dacheng +4mo + ffill |
+| **Monthly timing** | Same June expansion as above | Green 7–19 month window | GKX +4mo + ffill |
 
-**Reference alignment:** Formula matches **both Green and Dacheng**. Main structural differences are **lag grouping** (`gvkey` vs `permno`) and **monthly availability mapping**.
+**Reference alignment:** Formula matches **both Green and GKX**. Main structural differences are **lag grouping** (`gvkey` vs `permno`) and **monthly availability mapping**.
 
 ---
 
 ### 1.3 `age`
 
-| Dimension | **Our repo** | **Green SAS** (L81–84, L147) | **Dacheng/Xiu** (L230–231) |
+| Dimension | **Our repo** | **Green SAS** (L81–84, L147) | **GKX/Xiu** (L230–231) |
 |-----------|-------------|------------------------------|----------------------------|
 | **Definition** | `groupby(gvkey).cumcount() + 1` | SAS `count` within `gvkey` (starts 1) | **`# data_rawa['count'] = ...` commented out** |
 | **First observation** | 1 (valid) | 1 | Not computed in `accounting_100.py` |
-| **Monthly timing** | June expansion | Green 7–19 month window | Not in Dacheng annual output list |
-| **GKX datashare** | — | Consistent with Green full-history count | Age in datashare likely from **Green-style** pipeline, not Dacheng script |
+| **Monthly timing** | June expansion | Green 7–19 month window | Not in GKX annual output list |
+| **GKX datashare** | — | Consistent with Green full-history count | Age in datashare likely from **Green-style** pipeline, not GKX script |
 
-**Reference alignment:** Our formula matches **Green SAS**. Dacheng’s public `accounting_100.py` does **not** export `age`; GKX `datashare.csv` age behaves like **Green full-history** counts (median ≈ 18 in 2018–2023).
+**Reference alignment:** Our formula matches **Green SAS**. GKX’s public `accounting_100.py` does **not** export `age`; GKX `datashare.csv` age behaves like **Green full-history** counts (median ≈ 18 in 2018–2023).
 
 ---
 
@@ -107,10 +107,10 @@ Reproduce diagnostics: `python scripts/audit_gkx_disagreement.py`
 
 **Likely sources of outlier pairs (invest):**
 
-1. **Dacheng `ppegt` branch** `(ppegt − ppent_l1)` vs Green `(ppegt − ppegt_l1)` for firms with both series populated.
+1. **GKX `ppegt` branch** `(ppegt − ppent_l1)` vs Green `(ppegt − ppegt_l1)` for firms with both series populated.
 2. **`permno` vs `gvkey` lags** when identifier history splits/merges.
 3. **CCM deduplication** differences at fiscal dates.
-4. Minor **availability-window** differences (Green 7–19mo vs our June-start 12mo block vs Dacheng +4mo ffill).
+4. Minor **availability-window** differences (Green 7–19mo vs our June-start 12mo block vs GKX +4mo ffill).
 
 ---
 
@@ -142,7 +142,7 @@ Reproduce diagnostics: `python scripts/audit_gkx_disagreement.py`
 | +0 | 72,883 | 0.089 | 0.877 |
 | +1 | 68,894 | 0.090 | **0.936** |
 
-**Interpretation:** Same pattern as `invest`. Formula is identical across Green and Dacheng; **low Pearson is overwhelmingly outlier-driven**. `egr` has more large-diff pairs than `invest` (3.3% vs 0.2% with \|diff\|>1), consistent with **explosive ratios when `lag(ceq)` is small**—a few extreme equity-growth observations destroy Pearson while ranks stay aligned.
+**Interpretation:** Same pattern as `invest`. Formula is identical across Green and GKX; **low Pearson is overwhelmingly outlier-driven**. `egr` has more large-diff pairs than `invest` (3.3% vs 0.2% with \|diff\|>1), consistent with **explosive ratios when `lag(ceq)` is small**—a few extreme equity-growth observations destroy Pearson while ranks stay aligned.
 
 **Likely sources of outlier pairs (egr):**
 
@@ -182,7 +182,7 @@ Reproduce diagnostics: `python scripts/audit_gkx_disagreement.py`
 - Validation build used `STOCK_CHARACTERS_SAMPLE_START=2018-01-01`, so `cumcount()` runs only on 2018–2023 Compustat rows → repo age ∈ **[1, 6]**.
 - GKX datashare age uses **full Compustat history from 1959/1975** → age ∈ **[1, 59]**, median ≈ 18 in the comparison window.
 - This is a **level offset**, not a rank-preserving transform; winsorization and percentile ranking **cannot** fix it.
-- Dacheng’s `accounting_100.py` does not implement age; datashare matches **Green SAS `count`**, not Dacheng Python.
+- GKX’s `accounting_100.py` does not implement age; datashare matches **Green SAS `count`**, not GKX Python.
 
 **Recommended implementation (no change yet—documentation only):**
 
@@ -211,14 +211,14 @@ Reproduce diagnostics: `python scripts/audit_gkx_disagreement.py`
 | Timing | Minor (±1mo helps Spearman slightly) | Minor | Ruled out |
 | Outliers | **Primary** | **Primary** | N/A |
 | Sample truncation | Minor for ranks | Minor for ranks | **Primary** |
-| Formula mismatch vs Dacheng | **Yes** for `ppegt` branch only | No | N/A (Dacheng lacks age) |
+| Formula mismatch vs GKX | **Yes** for `ppegt` branch only | No | N/A (GKX lacks age) |
 | Formula mismatch vs Green | **No** | **No** | **No** (full history required) |
 
-### Economic equivalence to Dacheng?
+### Economic equivalence to GKX?
 
 | Character | Economically equivalent? | Notes |
 |-----------|-------------------------|-------|
-| **invest** | **Rank-equivalent** to GKX; **level-different** in tails | We intentionally follow Green, not Dacheng’s `ppegt−ppent_l1` branch |
+| **invest** | **Rank-equivalent** to GKX; **level-different** in tails | We intentionally follow Green, not GKX’s `ppegt−ppent_l1` branch |
 | **egr** | **Rank-equivalent** to GKX | Same formula; differences are outliers and micro timing |
 | **age** | **Not comparable** under sample build | Full-history Green count needed |
 
@@ -226,7 +226,7 @@ Reproduce diagnostics: `python scripts/audit_gkx_disagreement.py`
 
 ## 4. Recommended next steps (diagnostic only—no formula changes)
 
-1. **invest / egr:** Optional follow-up—quantify share of `invest` diff attributable to Dacheng vs Green `ppegt` branch on overlapping Compustat rows (requires recompute, not done here).
+1. **invest / egr:** Optional follow-up—quantify share of `invest` diff attributable to GKX vs Green `ppegt` branch on overlapping Compustat rows (requires recompute, not done here).
 2. **age:** Re-validate after full-history build; expect Spearman to rise sharply if implementation remains Green `count`.
 3. **Do not** interpret raw Pearson alone for ratio variables with heavy tails; use Spearman, winsorized Pearson, or trimmed diffs for GKX reconciliation.
 
@@ -239,6 +239,6 @@ Reproduce diagnostics: `python scripts/audit_gkx_disagreement.py`
 | Repo builder | `Character_Builders/_shared/green_builders.py` |
 | Panel timing | `Character_Panels/build_all_character_panel.py` → `expand_annual_file` |
 | Green SAS | `Supplementary_assistive_files/SAS_codes/Greens_code.sas` |
-| Dacheng Python | `Supplementary_assistive_files/Python_codes/Dacheng_Xiu_or_Xin_he/accounting_100.py` |
+| GKX Python | `Supplementary_assistive_files/Python_codes/GKX_Xiu_or_Xin_he/accounting_100.py` |
 | GKX reference | `Supplementary_assistive_files/datashare.csv` |
 | Audit script | `scripts/audit_gkx_disagreement.py` |

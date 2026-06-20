@@ -34,5 +34,5 @@
 - Signal panel now has **75** characteristic columns (was 70).
 - Low Pearson / high Spearman for `grcapx`, `pchdepr`, `cashpr`, `pchcurrat` matches Phase 1 outlier pattern; ranks align well.
 - `orgcap` uses full-history recursive accumulation (`load_annual_orgcap_lookup`), similar to the `age` fix.
-- `cashpr` is Green-only (not in Dacheng `accounting_100.py`).
+- `cashpr` is Green-only (not in GKX `accounting_100.py`).
 - Phase 1 variables (`invest`, `egr`, `chinv`, `absacc`, `age`) were not modified.

@@ -10,10 +10,10 @@ Mark rejected or reference-only code clearly so the repo mission is obvious.
 
 ## Actions
 
-1. **`Character_Builders/Dacheng_datashare/`** — update README: "Experimental; wrong model for this
+1. **`Character_Builders/GKX_datashare/`** — update README: "Experimental; wrong model for this
    datashare.csv per datashare_reverse_engineering.md. Not used in pipeline."
 2. **`docs/methodology/01_formula_differences.md`** — update datashare section: empirical mapping
-   is HXZ/Green for bm/operprof/cfp; Dacheng accounting_60 port rejected; **bm_ia abandoned**.
+   is HXZ/Green for bm/operprof/cfp; GKX accounting_60 port rejected; **bm_ia abandoned**.
 3. **`docs/methodology/08_validation_status.md`** — note bm_ia out of scope.
 4. **`Character_Builders/CHARACTER_CATALOG.md`** — remove or demote `_dc` as primary; list datashare
    mapping to existing columns.
@@ -21,7 +21,7 @@ Mark rejected or reference-only code clearly so the repo mission is obvious.
 
 ## Do NOT
 
-- Delete Dacheng_datashare folder (keep as experiment).
+- Delete GKX_datashare folder (keep as experiment).
 - Delete Green_SAS_Replication.
 
 ## Acceptance checks
@@ -35,7 +35,7 @@ Read codex/tasks/08_cleanup_experimental_paths.md and docs/gkx/datashare_reverse
 
 Update docs and READMEs to state:
 - datashare bm/operprof/cfp map to book_to_market, operating_profitability, Green cfp
-- Dacheng_datashare builder is experimental/rejected for this file
+- GKX_datashare builder is experimental/rejected for this file
 - bm_ia is out of scope
 
 Do not delete folders. Do not change builder formulas.

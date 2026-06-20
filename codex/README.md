@@ -79,7 +79,7 @@ For server tasks, either:
 
 1. **Primary:** replicate Green's SAS character library (`Output_From_Greens_SAS_code.sas7bdat`).
 2. **Secondary:** match `datashare.csv` for **`bm`, `operprof`, `cfp`** (universe + formula), using
-   existing builders — **not** a separate Dacheng `accounting_60` port.
+   existing builders — **not** a separate GKX `accounting_60` port.
 3. **`bm_ia`:** **out of scope** (explicitly abandoned).
 4. **Configuration:** datashare-like behavior must be a **preset/flag**, not hard-coded. Users who
    want Green-only or research panels change flags, not formulas.

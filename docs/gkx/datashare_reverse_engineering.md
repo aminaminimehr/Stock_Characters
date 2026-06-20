@@ -3,7 +3,7 @@
 Date: 2026-06-19
 
 Goal: identify how the four public `datashare.csv` columns are constructed, using local builders and
-WRDS-backed replications. The important result is that the first Dacheng/Xiu-style hypothesis was
+WRDS-backed replications. The important result is that the first GKX/Xiu-style hypothesis was
 tested and rejected for this local `datashare.csv`; three of the four columns are best explained by
 existing repo-style builders.
 
@@ -20,14 +20,14 @@ existing repo-style builders.
 
 The earlier working hypothesis was:
 
-1. port Dacheng/Xiu `accounting_60.py`,
+1. port GKX/Xiu `accounting_60.py`,
 2. use CRSP current-month market equity,
 3. use annual accounting at `datadate + 4` months,
 4. use quarterly accounting at `datadate + 3` months,
 5. blend annual and quarterly values by most recent `datadate`,
 6. compute `bm_ia` by FF49 industry demeaning.
 
-That builder was implemented in `Character_Builders/Dacheng_datashare/build_datashare_chars.py` and
+That builder was implemented in `Character_Builders/GKX_datashare/build_datashare_chars.py` and
 validated against the local `Supplementary_assistive_files/datashare.csv`. It does not match:
 
 | Column | Median monthly rho | Pooled rho | Exact <= 1e-4 | Paired obs |
@@ -67,7 +67,7 @@ Evidence:
 - For checked examples, public `bm` is held constant across the June/July-to-next-May window, which
   rejects the current-month market-equity hypothesis.
 - Example: `permno = 25160` has public `bm = 1.303222` from 1962-07 through 1963-06, matching the
-  repo's annual `book_to_market`, not the current-month CRSP-ME Dacheng port.
+  repo's annual `book_to_market`, not the current-month CRSP-ME GKX port.
 
 Residual differences are likely from link-history, universe, delisting/security filters, or small
 definition differences around legacy Compustat/CRSP records.
@@ -97,12 +97,12 @@ Evidence:
 - `operating_profitability` vs public `operprof`: pooled Spearman 0.951927, exact match 66.39%.
 - Example: `permno = 25160` public `operprof = 0.149212` in 1963-07, exactly matching the repo's
   annual `operating_profitability` for that signal month.
-- The first-pass Dacheng/Xiu annual-quarterly blend is directionally related but materially worse.
+- The first-pass GKX/Xiu annual-quarterly blend is directionally related but materially worse.
 
 ### `cfp`
 
 The public `cfp` column is best explained by the repo's Green-style `cfp`, not HXZ
-`cash_flow_to_price` and not the Dacheng/Xiu `(ib + dp) / me` candidate.
+`cash_flow_to_price` and not the GKX/Xiu `(ib + dp) / me` candidate.
 
 Formula family used by the Green builder:
 
@@ -116,7 +116,7 @@ Evidence over the repo's available `cfp` history:
 
 - repo/Green `cfp` vs public `cfp`: pooled Spearman 0.998197, exact match 98.17%.
 - HXZ `cash_flow_to_price` vs public `cfp`: pooled Spearman about 0.187, rejected.
-- Dacheng/Xiu `(ib + dp) / current CRSP me`: pooled Spearman -0.0177, rejected.
+- GKX/Xiu `(ib + dp) / current CRSP me`: pooled Spearman -0.0177, rejected.
 
 Note: the current local Green `cfp.csv` starts in 1975 because the Green Compustat query uses a
 1975 start date. Public `datashare.csv` has earlier `cfp` values. Extending the Green query backward
@@ -150,7 +150,7 @@ Rejected variants include:
 
 | Candidate | Result |
 |---|---|
-| First-pass Dacheng/Xiu `bm_ia` by FF49 and annual/quarterly blend | median monthly rho 0.3069 |
+| First-pass GKX/Xiu `bm_ia` by FF49 and annual/quarterly blend | median monthly rho 0.3069 |
 | HXZ `book_to_market` demeaned by month and SIC2 | median monthly rho about 0.416 |
 | HXZ `book_to_market` demeaned by annual date and SIC2 | median monthly rho about 0.416 |
 | HXZ `book_to_market` demeaned by FF49 | median monthly rho about 0.36-0.38 |
@@ -214,8 +214,8 @@ Additional checks:
 - Monthly 1/99 winsorization of the best candidate does not improve it materially.
 - Green `bm_ia` with Green timing and monthly 1/99 winsorization remains poor against public
   datashare (`~0.23` median monthly Spearman).
-- Grep found only the known Green SAS and Dacheng/Xiu generators. Green uses SIC2 x fyear mean
-  demeaning followed by monthly winsorization; Dacheng/Xiu uses FF49 x datadate demeaning. Both are
+- Grep found only the known Green SAS and GKX/Xiu generators. Green uses SIC2 x fyear mean
+  demeaning followed by monthly winsorization; GKX/Xiu uses FF49 x datadate demeaning. Both are
   rejected for this public `datashare.csv`.
 
 Important diagnostic:
