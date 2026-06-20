@@ -38,6 +38,9 @@ fi
 if [[ -n "${STOCK_CHARACTERS_WORKERS:-}" ]]; then
   args+=(--workers "${STOCK_CHARACTERS_WORKERS}")
 fi
+if [[ -n "${STOCK_CHARACTERS_PROFILE:-}" ]]; then
+  args+=(--profile "${STOCK_CHARACTERS_PROFILE}")
+fi
 if [[ "${GREEN_UNIVERSE:-0}" == "1" ]]; then
   args+=(--green-universe)
 fi

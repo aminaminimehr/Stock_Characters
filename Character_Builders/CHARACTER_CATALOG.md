@@ -1,144 +1,116 @@
 # Character Catalog
 
-This catalog tracks the Green-style target set used by the repository.
-Each implemented character should live in its own source-labeled folder with a
-builder and a README. HXZ-specific builders use `HXZ_<ACRONYM>_Generalized`.
-Green SAS-derived builders use `Green_<ACRONYM>_Generalized`.
+Authoritative inventory of what the repository builds and **where it is actually implemented on
+disk**. The canonical engine is `_shared/` driven by `build_all_implemented_characters.py`; the
+`Green_*_Generalized/` folders are **optional single-character CLIs** for targeted rebuilds and do
+**not** all exist for every character. See `docs/methodology/` for formulas, timing, linking,
+filters, industry, availability, imputation, and validation status.
 
-## Timing Contract
+## Naming convention
 
-The final monthly panel should use:
+| Family | Naming | Builder |
+|---|---|---|
+| Green (canonical) | short names (`bm`, `operprof`, `cfp`, `bm_ia`) | `_shared/` + `build_all_implemented_characters.py` |
+| Dacheng-exact | `_dc` suffix (`bm_dc`, …) | `Dacheng_datashare/build_datashare_chars.py` |
+| HXZ / FF June | descriptive (`book_to_market`, …) | `HXZ_*_Generalized/build_*.py` |
 
-- `signal_yyyymm`: the month where the predictor is placed.
-- `target_yyyymm`: the next-month return month.
-- `source_date` or `datadate`: the raw data date used to construct the signal.
+## Timing contract (final monthly panel)
 
-For prediction work, keep characteristics aligned on `signal_yyyymm`; create or
-merge the dependent excess return using `target_yyyymm`.
+- `signal_yyyymm`: month where the predictor is placed.
+- `target_yyyymm`: next-month return month (`signal_yyyymm + 1`).
+- `datadate`: the raw fiscal data date used to construct the signal.
 
-**Green-derived annual characteristics** (72 variables from `green_builders.py`)
-use Green SAS rolling monthly timing at panel merge:
+**Green annual** characteristics expand via the Green rolling window
+(`intnx('MONTH', datadate, 7) <= crsp.date < intnx('MONTH', datadate, 20)`, i.e. months **7–19**),
+keeping the latest fiscal `datadate` per `permno × signal_yyyymm` (`Character_Panels/timing.py`,
+`expand_annual_file_green`). **HXZ June** stems (`book_to_market`, `cash_flow_to_price`,
+`operating_profitability`, `book_to_june_market_equity`) use `expand_annual_file_june` (June `y+1` ..
+May `y+2`). **Quarterly** characteristics use the reporting/availability lag in
+`_shared/quarterly_builders.py`. **Monthly / daily-rolled CRSP** characteristics are placed at their
+explicit `signal_yyyymm` after the builder's lag.
 
-`intnx('MONTH', datadate, 7) <= CRSP month-end < intnx('MONTH', datadate, 20)`,
+---
 
-keeping the latest fiscal `datadate` per `permno × signal_yyyymm`. Implemented in
-`Character_Panels/timing.py` (`expand_annual_file_green`).
+## Green characters WITH a dedicated wrapper folder (optional CLIs, 59)
 
-**HXZ / Fama-French standalone builders** (`book_to_market`, `cash_flow_to_price`,
-`operating_profitability`, `book_to_june_market_equity`) keep the documented
-**June** availability convention via `expand_annual_file_june`.
+Each `Green_<ACRONYM>_Generalized/` delegates to `_shared/`. Output column in parentheses.
 
-Legacy June expansion for all annual CSVs: `build_all_character_panel.py --legacy-june-annual`.
+`Green_ABR_Generalized` (abr) · `Green_ACC_Generalized` (acc) · `Green_ADM_Generalized` (adm) ·
+`Green_AGR_Generalized` (agr) · `Green_ALM_Generalized` (alm) · `Green_ATO_Generalized` (ato) ·
+`Green_BASPREAD_Generalized` (baspread) · `Green_BETA_Generalized` (beta) ·
+`Green_BM_IA_Generalized` (bm_ia) · `Green_CASH_Generalized` (cash) ·
+`Green_CASHDEBT_Generalized` (cashdebt) · `Green_CHCSHO_Generalized` (chcsho) ·
+`Green_CHTX_Generalized` (chtx) · `Green_CHPM_Generalized` (chpm) ·
+`Green_CINVEST_Generalized` (cinvest) · `Green_DEPR_Generalized` (depr) ·
+`Green_DOLVOL_Generalized` (dolvol) · `Green_DY_Generalized` (dy) · `Green_EP_Generalized` (ep) ·
+`Green_GMA_Generalized` (gma) · `Green_GRLTNOA_Generalized` (grltnoa) ·
+`Green_HERF_Generalized` (herf) · `Green_HIRE_Generalized` (hire) · `Green_ILL_Generalized` (ill) ·
+`Green_LGR_Generalized` (lgr) · `Green_LEV_Generalized` (lev) · `Green_MAXRET_Generalized` (maxret) ·
+`Green_ME_Generalized` (me) · `Green_ME_IA_Generalized` (me_ia) · `Green_MOM1M_Generalized` (mom1m) ·
+`Green_MOM6M_Generalized` (mom6m) · `Green_MOM12M_Generalized` (mom12m) ·
+`Green_MOM36M_Generalized` (mom36m) · `Green_MOM60M_Generalized` (mom60m) ·
+`Green_MVEL1_Generalized` (mvel1) · `Green_NI_Generalized` (ni) · `Green_NINCR_Generalized` (nincr) ·
+`Green_NOA_Generalized` (noa) · `Green_PCTACC_Generalized` (pctacc) · `Green_PM_Generalized` (pm) ·
+`Green_PS_Generalized` (ps) · `Green_RD_SALE_Generalized` (rd_sale) · `Green_RDM_Generalized` (rdm) ·
+`Green_RE_Generalized` (re) · `Green_RNA_Generalized` (rna) · `Green_ROA1_Generalized` (roaq) ·
+`Green_ROE_Generalized` (roe) · `Green_RSUP_Generalized` (rsup) ·
+`Green_RVAR_CAPM_Generalized` (rvar_capm) · `Green_RVAR_FF3_Generalized` (rvar_ff3) ·
+`Green_RVAR_MEAN_Generalized` (rvar_mean, Green SAS `retvol`) · `Green_SEAS1A_Generalized` (seas1a) ·
+`Green_SGR_Generalized` (sgr) · `Green_SP_Generalized` (sp) ·
+`Green_STD_DOLVOL_Generalized` (std_dolvol) · `Green_STD_TURN_Generalized` (std_turn) ·
+`Green_SUE_Generalized` (sue) · `Green_TURN_Generalized` (turn) ·
+`Green_ZEROTRADE_Generalized` (zerotrade)
 
-Quarterly characteristics use the documented reporting/availability lag inside
-`quarterly_builders.py`. Monthly and daily-rolled CRSP characteristics are placed
-at their explicit monthly `signal_yyyymm` after the required lag is applied inside
-the builder.
+> Note: `Green_ABR_Generalized` and `Green_BETA_Generalized` build only `abr`/`beta`; `abr` is a
+> legacy alias of `ear` (`_shared/event_builders.py`). `Green_ROA1_Generalized` outputs the quarterly
+> `roaq` column.
 
-## Status Table
+---
 
-| Acronym | Description | Timing family | Status |
-| --- | --- | --- | --- |
-| `abr` | Cumulative abnormal returns around earnings announcement dates | Quarterly/event | Implemented: `Green_ABR_Generalized` / `_shared/event_builders.py` |
-| `acc` | Operating accruals | Annual/quarterly accounting | Implemented through shared Green builder: `Green_ACC_Generalized` |
-| `absacc` | Absolute accruals | Annual accounting | Implemented through shared Green builder: `Green_ABSACC_Generalized` |
-| `adm` | Advertising expense-to-market | Annual accounting | Implemented through shared Green builder: `Green_ADM_Generalized` |
-| `age` | Years since first Compustat coverage | Annual accounting | Implemented through shared Green builder: `Green_AGE_Generalized` |
-| `agr` | Asset growth | Annual/quarterly accounting | Implemented through shared Green builder: `Green_AGR_Generalized` |
-| `alm` | Asset liquidity | Annual/quarterly accounting | Implemented through shared Green builder: `Green_ALM_Generalized` |
-| `ato` | Asset turnover | Annual/quarterly accounting | Implemented through shared Green builder: `Green_ATO_Generalized` |
-| `baspread` | Bid-ask spread, rolling 3 months | Monthly/daily CRSP | Implemented through shared Green builder: `Green_BASPREAD_Generalized` |
-| `beta` | Beta, rolling 3 months | Monthly/daily CRSP | Implemented: `Green_BETA_Generalized` / `_shared/beta_builder.py` |
-| `betasq` | Beta squared | Monthly/daily CRSP | Implemented: `Green_BETASQ_Generalized` / `_shared/beta_builder.py` |
-| `bm` | Book-to-market equity | Annual accounting plus December CRSP ME | Implemented: `HXZ_BM_Generalized` |
-| `bmj` | Book-to-June-end market equity | Annual accounting plus June CRSP price | Implemented: `HXZ_BMJ_Generalized` |
-| `bm_ia` | Industry-adjusted book-to-market | Annual accounting plus industry adjustment | Implemented through shared Green builder: `Green_BM_IA_Generalized` |
-| `cash` | Cash holdings | Annual/quarterly accounting | Implemented through shared Green builder: `Green_CASH_Generalized` |
-| `cashpr` | Cash productivity | Annual accounting | Implemented through shared Green builder: `Green_CASHPR_Generalized` |
-| `convind` | Convertible debt indicator | Annual accounting | Implemented through shared Green builder: `Green_CONVIND_Generalized` |
-| `currat` | Current ratio | Annual accounting | Implemented through shared Green builder: `Green_CURRAT_Generalized` |
-| `cashdebt` | Cash to debt | Annual/quarterly accounting | Implemented through shared Green builder: `Green_CASHDEBT_Generalized` |
-| `cfp` | Cash-flow-to-price | Annual accounting plus December CRSP ME | Implemented: `HXZ_CFP_Generalized` |
-| `cfp_ia` | Industry-adjusted cash-flow-to-price | Annual accounting | Implemented through shared Green builder: `Green_CFP_IA_Generalized` |
-| `chcsho` | Change in shares outstanding | Annual/quarterly accounting | Implemented through shared Green builder: `Green_CHCSHO_Generalized` |
-| `chinv` | Change in inventory | Annual accounting | Implemented through shared Green builder: `Green_CHINV_Generalized` |
-| `chobklg` | Change in order backlog scaled by assets | Annual accounting | Implemented through shared Green builder: `Green_CHOBKLG_Generalized` |
-| `chpm` | Industry-adjusted change in profit margin | Annual/quarterly accounting plus industry adjustment | Implemented through shared Green builder: `Green_CHPM_Generalized` |
-| `chpmia` | Industry-adjusted change in profit margin (GKX) | Annual accounting | Implemented through shared Green builder: `Green_CHPMIA_Generalized` |
-| `chatoia` | Industry-adjusted change in asset turnover | Annual accounting | Implemented through shared Green builder: `Green_CHATOIA_Generalized` |
-| `chempia` | Industry-adjusted employee growth | Annual accounting | Implemented through shared Green builder: `Green_CHEMPIA_Generalized` |
-| `chtx` | Change in tax expense | Quarterly accounting | Implemented: `Green_CHTX_Generalized` / `_shared/quarterly_builders.py` |
-| `cinvest` | Corporate investment | Quarterly accounting | Implemented: `Green_CINVEST_Generalized` / `_shared/quarterly_builders.py` |
-| `depr` | Depreciation / PP&E | Annual/quarterly accounting | Implemented through shared Green builder: `Green_DEPR_Generalized` |
-| `dolvol` | Dollar trading volume | Monthly CRSP | Implemented through shared Green builder: `Green_DOLVOL_Generalized` |
-| `dy` | Dividend yield | Annual accounting | Implemented through shared Green annual builder: `Green_DY_Generalized` |
-| `divi` | Dividend initiation | Annual accounting | Implemented through shared Green builder: `Green_DIVI_Generalized` |
-| `divo` | Dividend omission | Annual accounting | Implemented through shared Green builder: `Green_DIVO_Generalized` |
-| `egr` | Growth in common shareholder equity | Annual accounting | Implemented through shared Green builder: `Green_EGR_Generalized` |
-| `ep` | Earnings-to-price | Annual/quarterly accounting plus price | Implemented through shared Green builder: `Green_EP_Generalized` |
-| `gma` | Gross profitability | Annual/quarterly accounting | Implemented through shared Green builder: `Green_GMA_Generalized` |
-| `grcapx` | Growth in capital expenditures | Annual accounting | Implemented through shared Green builder: `Green_GRCAPX_Generalized` |
-| `grltnoa` | Growth in long-term net operating assets | Annual/quarterly accounting | Implemented through shared Green builder: `Green_GRLTNOA_Generalized` |
-| `herf` | Industry sales concentration | Annual accounting plus industry aggregation | Implemented through shared Green builder: `Green_HERF_Generalized` |
-| `hire` | Employee growth rate | Annual accounting | Implemented through shared Green builder: `Green_HIRE_Generalized` |
-| `invest` | Capital expenditures and inventory | Annual accounting | Implemented through shared Green builder: `Green_INVEST_Generalized` |
-| `ill` | Illiquidity, rolling 3 months | Monthly/daily CRSP | Implemented through shared Green builder: `Green_ILL_Generalized` |
-| `lev` | Leverage | Annual/quarterly accounting | Implemented through shared Green builder: `Green_LEV_Generalized` |
-| `lgr` | Growth in long-term debt | Annual/quarterly accounting | Implemented through shared Green builder: `Green_LGR_Generalized` |
-| `maxret` | Maximum daily return, rolling 3 months | Monthly/daily CRSP | Implemented through shared Green builder: `Green_MAXRET_Generalized` |
-| `me` | Market equity | Monthly CRSP | Implemented through shared Green builder: `Green_ME_Generalized` |
-| `me_ia` | Industry-adjusted size | Monthly CRSP plus industry adjustment | Implemented through shared Green builder: `Green_ME_IA_Generalized` |
-| `mom12m` | Momentum, rolling 12 months | Monthly CRSP returns | Implemented through shared Green builder: `Green_MOM12M_Generalized` |
-| `mom1m` | Momentum, 1 month | Monthly CRSP returns | Implemented through shared Green builder: `Green_MOM1M_Generalized` |
-| `mom36m` | Momentum, rolling 36 months | Monthly CRSP returns | Implemented through shared Green builder: `Green_MOM36M_Generalized` |
-| `mom60m` | Momentum, rolling 60 months | Monthly CRSP returns | Implemented through shared Green builder: `Green_MOM60M_Generalized` |
-| `mom6m` | Momentum, rolling 6 months | Monthly CRSP returns | Implemented through shared Green builder: `Green_MOM6M_Generalized` |
-| `ni` | Net stock issues | Quarterly accounting | Implemented: `Green_NI_Generalized` / `_shared/quarterly_builders.py` |
-| `nincr` | Number of earnings increases | Quarterly accounting | Implemented: `Green_NINCR_Generalized` / `_shared/quarterly_builders.py` |
-| `noa` | Net operating assets | Annual/quarterly accounting | Implemented through shared Green builder: `Green_NOA_Generalized` |
-| `obklg` | Order backlog scaled by assets | Annual accounting | Implemented through shared Green builder: `Green_OBKLG_Generalized` |
-| `op` | Operating profitability | Annual accounting | Implemented: `HXZ_OPE_Generalized` |
-| `orgcap` | Organizational capital | Annual accounting | Implemented through shared Green builder: `Green_ORGCAP_Generalized` |
-| `pchcurrat` | Change in current ratio | Annual accounting | Implemented through shared Green builder: `Green_PCHCURRAT_Generalized` |
-| `pchcapx` | Change in capital expenditures | Annual accounting | Implemented through shared Green builder: `Green_PCHCAPX_Generalized` |
-| `pchcapx_ia` | Industry-adjusted change in capital expenditures | Annual accounting | Implemented through shared Green builder: `Green_PCHCAPX_IA_Generalized` |
-| `pchgm_pchsale` | Change in gross margin minus change in sales | Annual accounting | Implemented through shared Green builder: `Green_PCHGM_PCHSALE_Generalized` |
-| `pchsale_pchinvt` | Change in sales minus change in inventory | Annual accounting | Implemented through shared Green builder: `Green_PCHSALE_PCHINVT_Generalized` |
-| `pchsale_pchrect` | Change in sales minus change in receivables | Annual accounting | Implemented through shared Green builder: `Green_PCHSALE_PCHRECT_Generalized` |
-| `pchsale_pchxsga` | Change in sales minus change in SG&A | Annual accounting | Implemented through shared Green builder: `Green_PCHSALE_PCHXSGA_Generalized` |
-| `pchdepr` | Change in depreciation rate | Annual accounting | Implemented through shared Green builder: `Green_PCHDEPR_Generalized` |
-| `pchquick` | Change in quick ratio | Annual accounting | Implemented through shared Green builder: `Green_PCHQUICK_Generalized` |
-| `pchsaleinv` | Change in sales-to-inventory | Annual accounting | Implemented through shared Green builder: `Green_PCHSALEINV_Generalized` |
-| `pctacc` | Percent operating accruals | Annual/quarterly accounting | Implemented through shared Green builder: `Green_PCTACC_Generalized` |
-| `pm` | Profit margin | Annual/quarterly accounting | Implemented through shared Green builder: `Green_PM_Generalized` |
-| `quick` | Quick ratio | Annual accounting | Implemented through shared Green builder: `Green_QUICK_Generalized` |
-| `ps` | Performance score | Quarterly accounting | Implemented through shared Green builder: `Green_PS_Generalized` |
-| `rd_sale` | R&D to sales | Annual/quarterly accounting | Implemented through shared Green builder: `Green_RD_SALE_Generalized` |
-| `rd` | R&D increase indicator | Annual accounting | Implemented through shared Green builder: `Green_RD_Generalized` |
-| `rdm` | R&D expense-to-market | Annual/quarterly accounting plus market equity | Implemented through shared Green builder: `Green_RDM_Generalized` |
-| `realestate` | Real-estate holdings | Annual accounting | Implemented through shared Green builder: `Green_REALESTATE_Generalized` |
-| `re` | Revisions in analyst earnings forecasts | Monthly IBES/analyst | Implemented: `Green_RE_Generalized` / `_shared/ibes_builders.py` |
-| `rna` | Return on net operating assets | Quarterly accounting | Implemented: `Green_RNA_Generalized` / `_shared/quarterly_builders.py` |
-| `roa1` | Return on assets | Quarterly accounting | Implemented: `Green_ROA1_Generalized` / `_shared/quarterly_builders.py` |
-| `roe` | Return on equity | Annual/quarterly accounting | Implemented through shared Green builder: `Green_ROE_Generalized` |
-| `roic` | Return on invested capital | Annual accounting | Implemented through shared Green builder: `Green_ROIC_Generalized` |
-| `rsup` | Revenue surprise | Quarterly accounting | Implemented: `Green_RSUP_Generalized` / `_shared/quarterly_builders.py` |
-| `rvar_capm` | Residual variance, CAPM rolling 3 months | Monthly/daily CRSP plus factor data | Implemented: `Green_RVAR_CAPM_Generalized` / `_shared/rvar_factor_builders.py` |
-| `rvar_ff3` | Residual variance, FF3 rolling 3 months | Monthly/daily CRSP plus factor data | Implemented: `Green_RVAR_FF3_Generalized` / `_shared/rvar_factor_builders.py` |
-| `rvar_mean` | Daily return volatility from previous month; Green SAS column `retvol` | Monthly/daily CRSP | Implemented through shared Green builder: `Green_RVAR_MEAN_Generalized` |
-| `seas1a` | Seasonality | Monthly CRSP returns | Implemented through shared Green monthly builder: `Green_SEAS1A_Generalized` |
-| `sgr` | Sales growth | Annual/quarterly accounting | Implemented through shared Green builder: `Green_SGR_Generalized` |
-| `salecash` | Sales-to-cash | Annual accounting | Implemented through shared Green builder: `Green_SALECASH_Generalized` |
-| `saleinv` | Sales-to-inventory | Annual accounting | Implemented through shared Green builder: `Green_SALEINV_Generalized` |
-| `salerec` | Sales-to-receivables | Annual accounting | Implemented through shared Green builder: `Green_SALEREC_Generalized` |
-| `secured` | Secured debt | Annual accounting | Implemented through shared Green builder: `Green_SECURED_Generalized` |
-| `securedind` | Secured debt indicator | Annual accounting | Implemented through shared Green builder: `Green_SECUREDIND_Generalized` |
-| `sin` | Sin stocks indicator | Annual accounting | Implemented through shared Green builder: `Green_SIN_Generalized` |
-| `sp` | Sales-to-price | Annual/quarterly accounting plus price | Implemented through shared Green builder: `Green_SP_Generalized` |
-| `tb` | Industry-adjusted tax income to book income | Annual accounting | Implemented through shared Green builder: `Green_TB_Generalized` |
-| `tang` | Tangibility | Annual accounting | Implemented through shared Green builder: `Green_TANG_Generalized` |
-| `std_dolvol` | Standard deviation of dollar trading volume, rolling 3 months | Monthly/daily CRSP | Implemented through shared Green builder: `Green_STD_DOLVOL_Generalized` |
-| `std_turn` | Standard deviation of share turnover, rolling 3 months | Monthly/daily CRSP | Implemented through shared Green builder: `Green_STD_TURN_Generalized` |
-| `sue` | Unexpected quarterly earnings | Quarterly accounting | Implemented: `Green_SUE_Generalized` / `_shared/quarterly_builders.py` |
-| `turn` | Share turnover | Monthly CRSP | Implemented through shared Green builder: `Green_TURN_Generalized` |
-| `zerotrade` | Number of zero-trading days, rolling 3 months | Monthly/daily CRSP | Implemented through shared Green builder: `Green_ZEROTRADE_Generalized` |
+## Green characters built via the shared engine ONLY (no dedicated folder)
+
+These exist in the `_shared/` registries and are produced by `build_all_implemented_characters.py`,
+but have **no** `Green_*_Generalized/` folder.
+
+**Annual** (`_shared/green_builders.py` `ANNUAL_CHARACTER_INFO`):
+`absacc, age, bm, cashpr, cfp, cfp_ia, chobklg, chinv, chpmia, chatoia, chempia, convind, currat,
+divi, divo, egr, grcapx, invest, obklg, op, operprof, orgcap, pchcurrat, pchdepr, pchcapx,
+pchcapx_ia, pchgm_pchsale, pchquick, pchsale_pchinvt, pchsale_pchrect, pchsale_pchxsga, pchsaleinv,
+quick, rd, realestate, roic, salecash, saleinv, salerec, secured, securedind, sic2, sin, tb, tang`
+
+**Monthly** (`MONTHLY_CHARACTER_INFO`): `chmom, indmom`
+
+**Quarterly** (`_shared/quarterly_builders.py` `QUARTERLY_CHARACTER_INFO`):
+`roeq, stdacc, stdcf, roavol`
+
+**Special** (`build_all_implemented_characters.py`):
+`betasq, idiovol, pricedelay, ear, aeavol, ms`
+
+---
+
+## Dacheng-exact `_dc` layer (`Dacheng_datashare/`) — **experimental / not used**
+
+Empirical tests show this datashare.csv matches **HXZ + Green `cfp`**, not Dacheng `accounting_60.py`.
+The `_dc` builder is retained for reference only. **Do not wire into the production panel.**
+
+## Datashare mapping (production)
+
+| datashare | repo column | builder |
+|---|---|---|
+| `bm` | `book_to_market` | `HXZ_BM_Generalized` |
+| `operprof` | `operating_profitability` | `HXZ_OPE_Generalized` |
+| `cfp` | `cfp` | Green `_shared/green_builders.py` |
+| `bm_ia` | — | not replicated |
+
+Use `--profile datashare` in `run_full_pipeline.py`. See `docs/CONFIGURATION.md`.
+
+---
+
+## HXZ / Fama-French June layer (`HXZ_*_Generalized/`)
+
+| Folder | Column | Description |
+|---|---|---|
+| `HXZ_BM_Generalized` | `book_to_market` | Book-to-market, December ME, June timing |
+| `HXZ_BMJ_Generalized` | `bmj` | Book-to-June-end market equity |
+| `HXZ_CFP_Generalized` | `cash_flow_to_price` | Cash-flow-to-price, June timing |
+| `HXZ_OPE_Generalized` | `operating_profitability` | Operating profitability, June timing |

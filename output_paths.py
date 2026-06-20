@@ -114,9 +114,14 @@ def list_character_stems():
 
 
 def get_sample_bounds():
-    """Optional WRDS sample window via environment variables."""
+    """Optional WRDS sample window via environment variables.
+
+    Default annual start is 1975-01-01 (Green SAS) unless STOCK_CHARACTERS_SAMPLE_START is set.
+    """
     start = os.environ.get("STOCK_CHARACTERS_SAMPLE_START")
     end = os.environ.get("STOCK_CHARACTERS_SAMPLE_END")
+    if not start:
+        start = os.environ.get("STOCK_CHARACTERS_DEFAULT_ANNUAL_START", "1975-01-01")
     return start, end
 
 

@@ -216,7 +216,6 @@ ANNUAL_COMPUSTAT_WHERE = """
           AND f.at IS NOT NULL
           AND f.prcc_f IS NOT NULL
           AND f.ni IS NOT NULL
-          AND f.datadate >= DATE '1975-01-01'
 """
 
 # Green SAS CPI table (1974-2015) plus BLS CPI-U annual averages for later fiscal years.

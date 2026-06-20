@@ -1,5 +1,6 @@
 """Run character builds (resume-friendly) and rebuild monthly panels."""
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -21,6 +22,7 @@ from output_paths import (  # noqa: E402
     iter_character_csv_paths,
     list_character_stems,
 )
+from pipeline_config import profile_help, resolve_config  # noqa: E402
 
 PYTHON = sys.executable
 
@@ -64,6 +66,9 @@ HXZ_JOBS = [
     ),
 ]
 
+# Datashare mapping: only these HXZ/Green columns are required for datashare profile.
+DATASHARE_HXZ_STEMS = {"book_to_market", "operating_profitability"}
+
 
 def run(cmd):
     print("\n>>", " ".join(cmd), flush=True)
@@ -76,7 +81,11 @@ def count_panel_characters(path):
 
 
 def build_all_characters(
-    wrds_user, skip_ibes=False, resume=False, sample_start=None, sample_end=None, workers=None
+    wrds_user,
+    cfg,
+    skip_ibes=False,
+    resume=False,
+    workers=None,
 ):
     cmd = [
         PYTHON,
@@ -86,39 +95,50 @@ def build_all_characters(
         "--output-dir",
         str(CHARACTER_INDIVIDUAL_DIR),
     ]
+    if cfg.green_ccm_linktypes:
+        cmd.extend(["--ccm-linktypes", cfg.green_ccm_linktypes])
+    if cfg.green_ccm_linkprim:
+        cmd.extend(["--ccm-linkprim", cfg.green_ccm_linkprim])
     if skip_ibes:
         cmd.append("--skip-ibes")
     if resume:
         cmd.extend(["--skip-existing", "--skip-annual-monthly"])
-    if sample_start:
-        cmd.extend(["--sample-start", sample_start])
-    if sample_end:
-        cmd.extend(["--sample-end", sample_end])
+    if cfg.sample_start:
+        cmd.extend(["--sample-start", cfg.sample_start])
+    if cfg.sample_end:
+        cmd.extend(["--sample-end", cfg.sample_end])
     if workers is not None:
         cmd.extend(["--workers", str(workers)])
     run(cmd)
 
 
-def build_hxz_characters(wrds_user, output_dir):
-    for stem, script, extra in HXZ_JOBS:
+def build_hxz_characters(wrds_user, output_dir, cfg, profile="green"):
+    jobs = HXZ_JOBS
+    if profile == "datashare":
+        jobs = [j for j in HXZ_JOBS if j[0] in DATASHARE_HXZ_STEMS]
+
+    for stem, script, extra in jobs:
         out = output_dir / f"{stem}.csv"
         if out.exists():
             print(f"{stem}: skipped (already exists)")
             continue
-        run(
-            [
-                PYTHON,
-                script,
-                "--wrds-user",
-                wrds_user,
-                "--output",
-                str(out),
-                *extra,
-            ]
-        )
+        cmd = [
+            PYTHON,
+            script,
+            "--wrds-user",
+            wrds_user,
+            "--output",
+            str(out),
+            "--ccm-linktypes",
+            cfg.hxz_ccm_linktypes,
+        ]
+        if cfg.hxz_ccm_linkprim:
+            cmd.extend(["--ccm-linkprim", cfg.hxz_ccm_linkprim])
+        cmd.extend(extra)
+        run(cmd)
 
 
-def build_excess_returns(wrds_user, sample_start=None, sample_end=None):
+def build_excess_returns(wrds_user, cfg):
     if EXCESS_RETURNS_FILE.exists():
         print("excess_returns: skipped (already exists)")
         return
@@ -130,14 +150,14 @@ def build_excess_returns(wrds_user, sample_start=None, sample_end=None):
         "--output",
         str(EXCESS_RETURNS_FILE),
     ]
-    if sample_start:
-        cmd.extend(["--sample-start", sample_start])
-    if sample_end:
-        cmd.extend(["--sample-end", sample_end])
+    if cfg.sample_start:
+        cmd.extend(["--sample-start", cfg.sample_start])
+    if cfg.sample_end:
+        cmd.extend(["--sample-end", cfg.sample_end])
     run(cmd)
 
 
-def build_panels(green_universe=False):
+def build_panels(cfg):
     signal_cmd = [
         PYTHON,
         "Character_Panels/build_all_character_panel.py",
@@ -146,9 +166,14 @@ def build_panels(green_universe=False):
         "--output",
         str(SIGNAL_PANEL_FILE),
     ]
-    if green_universe:
+    if cfg.green_universe:
         signal_cmd.append("--green-universe")
     run(signal_cmd)
+
+    if not cfg.build_research_panel:
+        print("Skipping prediction/research panels (profile setting).")
+        return
+
     run(
         [
             PYTHON,
@@ -173,19 +198,26 @@ def build_panels(green_universe=False):
     )
 
 
-def print_summary():
+def print_summary(cfg):
     chars = list_character_stems()
     signal_cols = count_panel_characters(SIGNAL_PANEL_FILE)
-    pred_cols = count_panel_characters(COMPLETE_ALL_PANEL_FILE)
-    research_cols = count_panel_characters(RESEARCH_PANEL_FILE)
-
     print("\n=== Pipeline summary ===")
+    print(f"Profile: {cfg.profile}")
     print(f"Individual character CSV files: {len(chars)}")
     print(f"Signal panel: {SIGNAL_PANEL_FILE}")
-    print(f"Complete panel: {COMPLETE_ALL_PANEL_FILE}")
+    if cfg.build_research_panel:
+        pred_cols = count_panel_characters(COMPLETE_ALL_PANEL_FILE)
+        research_cols = count_panel_characters(RESEARCH_PANEL_FILE)
+        print(f"Complete panel: {COMPLETE_ALL_PANEL_FILE}")
+        print(f"Research panel: {RESEARCH_PANEL_FILE}")
+        print(f"complete_all_character_prediction_panel predictors: {len(pred_cols)}")
+        print(f"research_panel_1957_ranked predictors: {len(research_cols)}")
     print(f"all_character_signal_panel predictors: {len(signal_cols)}")
-    print(f"complete_all_character_prediction_panel predictors: {len(pred_cols)}")
-    print(f"research_panel_1957_ranked predictors: {len(research_cols)}")
+    if cfg.profile == "datashare":
+        print("\nDatashare column mapping (bm_ia out of scope):")
+        print("  bm -> book_to_market")
+        print("  operprof -> operating_profitability")
+        print("  cfp -> cfp (Green builder)")
     print("\nPredictor columns in monthly signal panel:")
     print(", ".join(signal_cols))
 
@@ -194,10 +226,18 @@ def main():
     parser = argparse.ArgumentParser(
         description=(
             "Build all implemented characters from WRDS, then merge monthly panels. "
-            "Run from the repository root."
-        )
+            "Run from the repository root.\n\n"
+            + profile_help()
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--wrds-user", required=True, help="WRDS PostgreSQL username.")
+    parser.add_argument(
+        "--profile",
+        choices=("green", "datashare", "research"),
+        default=None,
+        help="Pipeline preset (overridden by STOCK_CHARACTERS_PROFILE env). Default: green.",
+    )
     parser.add_argument(
         "--skip-build",
         action="store_true",
@@ -206,62 +246,62 @@ def main():
     parser.add_argument(
         "--skip-ibes",
         action="store_true",
-        help="Skip IBES tables (no re; sue uses Compustat-only surprise).",
+        help="Skip IBES tables (no re; sue uses Compustat-only surprise). Default: skip IBES.",
     )
     parser.add_argument(
         "--resume",
         action="store_true",
         help="Resume a partial build with --skip-existing.",
     )
-    parser.add_argument(
-        "--sample-start",
-        default=None,
-        help="Optional WRDS lower date bound (YYYY-MM-DD) for validation runs.",
-    )
-    parser.add_argument(
-        "--sample-end",
-        default=None,
-        help="Optional WRDS upper date bound (YYYY-MM-DD) for validation runs.",
-    )
-    parser.add_argument(
-        "--workers",
-        type=int,
-        default=None,
-        help=(
-            "Parallel workers for beta, rvar, and abr/ear builders. "
-            "Default: STOCK_CHARACTERS_WORKERS or min(cpu, 8)."
-        ),
-    )
+    parser.add_argument("--sample-start", default=None, help="Override profile sample start (YYYY-MM-DD).")
+    parser.add_argument("--sample-end", default=None, help="Override profile sample end (YYYY-MM-DD).")
+    parser.add_argument("--workers", type=int, default=None)
     parser.add_argument(
         "--green-universe",
         action="store_true",
-        help=(
-            "Apply Green's final sample screen (non-missing bm, mom1m, mve) to the "
-            "signal panel so the universe matches Green's CRSP-Compustat-merged sample."
-        ),
+        default=None,
+        help="Apply Green final sample screen (bm, mom1m, mve non-missing).",
     )
+    parser.add_argument(
+        "--no-green-universe",
+        action="store_false",
+        dest="green_universe",
+        help="Disable Green universe screen even if profile would enable it.",
+    )
+    parser.add_argument("--ccm-linktypes", default=None, help="Override CCM linktypes for Green + HXZ builders.")
+    parser.add_argument("--ccm-linkprim", default=None, help="Override CCM linkprim for HXZ builders.")
     args = parser.parse_args()
 
+    cfg = resolve_config(
+        args.profile,
+        sample_start=args.sample_start,
+        sample_end=args.sample_end,
+        green_universe=args.green_universe,
+        skip_ibes=True if args.skip_ibes else None,
+        ccm_linktypes=args.ccm_linktypes,
+        ccm_linkprim=args.ccm_linkprim,
+    )
+    cfg.apply_env()
+
     ensure_output_tree()
+    print(f"Using profile: {cfg.profile}", flush=True)
+    if cfg.sample_start:
+        print(f"Sample start: {cfg.sample_start}", flush=True)
 
     if not args.skip_build:
         build_all_characters(
             args.wrds_user,
-            skip_ibes=args.skip_ibes,
+            cfg,
+            skip_ibes=cfg.skip_ibes,
             resume=args.resume,
-            sample_start=args.sample_start,
-            sample_end=args.sample_end,
             workers=args.workers,
         )
-        build_hxz_characters(args.wrds_user, CHARACTER_INDIVIDUAL_DIR)
-        build_excess_returns(
-            args.wrds_user,
-            sample_start=args.sample_start,
-            sample_end=args.sample_end,
-        )
+        if cfg.build_hxz:
+            build_hxz_characters(args.wrds_user, CHARACTER_INDIVIDUAL_DIR, cfg, profile=cfg.profile)
+        build_excess_returns(args.wrds_user, cfg)
 
-    build_panels(green_universe=args.green_universe)
-    print_summary()
+    build_panels(cfg)
+    print_summary(cfg)
 
 
 if __name__ == "__main__":
