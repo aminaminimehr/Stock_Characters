@@ -5,8 +5,8 @@ import numpy as np
 import pandas as pd
 
 from _shared.ccm import add_ccm_arguments, attach_ccm_links_green, load_ccm_links_green
-from _shared.green_builders import OUTPUT_DIR, connect_wrds, load_crsp_monthly, raw_sql_with_retry
-from output_paths import sql_date_filter
+from _shared.green_builders import OUTPUT_DIR, connect_wrds, load_crsp_monthly
+from _shared.wrds_chunk_download import fetch_dsf_by_permno_batches
 from _shared.parallel_daily_windows import run_permno_parallel
 from _shared.quarterly_builders import (
     QUARTERLY_MONTH_END_LAG,
@@ -36,22 +36,14 @@ def _intnx_weekday_scalar(ts) -> tuple[pd.Timestamp, pd.Timestamp]:
 
 
 def _load_dsf_for_permnos(db, permnos: list[int]) -> pd.DataFrame:
-    chunks = []
-    for i in range(0, len(permnos), 3000):
-        ids = ",".join(str(p) for p in permnos[i : i + 3000])
-        part = raw_sql_with_retry(
-            db,
-            f"""
-            SELECT permno, date, ret, vol
-            FROM crsp.dsf
-            WHERE permno IN ({ids})
-              AND {sql_date_filter("date")}
-            """,
-        )
-        chunks.append(part)
-    if not chunks:
+    dsf = fetch_dsf_by_permno_batches(
+        permnos,
+        db=db,
+        select_cols="permno, date, ret, vol",
+        label="EAR/aeavol dsf",
+    )
+    if dsf.empty:
         return pd.DataFrame(columns=["permno", "date", "ret", "vol"])
-    dsf = pd.concat(chunks, ignore_index=True)
     dsf["date"] = pd.to_datetime(dsf["date"])
     dsf["ret"] = pd.to_numeric(dsf["ret"], errors="coerce")
     dsf["vol"] = pd.to_numeric(dsf["vol"], errors="coerce")

@@ -6,8 +6,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from _shared.green_builders import OUTPUT_DIR, connect_wrds, load_monthly_alignment_frame, raw_sql_with_retry
-from output_paths import CACHE_DIR, get_sample_bounds, sql_date_filter
+from _shared.green_builders import OUTPUT_DIR, connect_wrds, load_monthly_alignment_frame
+from _shared.wrds_chunk_download import fetch_dsf_by_permno_batches
+from output_paths import CACHE_DIR, get_sample_bounds
 from _shared.parallel_daily_windows import run_permno_parallel
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -17,10 +18,6 @@ FACTOR_CHARACTER_NAMES = ("beta", "betasq", "idiovol", "pricedelay")
 
 _WEEKLY_RETURNS_CACHE: pd.DataFrame | None = None
 _FACTOR_PANEL_CACHE: pd.DataFrame | None = None
-
-
-def _permno_chunk_size() -> int:
-    return max(50, int(os.environ.get("STOCK_CHARACTERS_WRDS_PERMNO_CHUNK", "400")))
 
 
 def clear_factor_caches() -> None:
@@ -90,27 +87,12 @@ def _weekly_cache_path() -> Path:
 
 
 def _load_weekly_returns_from_wrds(db, permnos: list[int]) -> pd.DataFrame:
-    chunk_size = _permno_chunk_size()
-    chunks = []
-    n_chunks = (len(permnos) + chunk_size - 1) // chunk_size
-    for idx, i in enumerate(range(0, len(permnos), chunk_size), start=1):
-        batch = permnos[i : i + chunk_size]
-        ids = ",".join(str(p) for p in batch)
-        print(
-            f"  weekly returns WRDS chunk {idx}/{n_chunks} ({len(batch)} permnos)...",
-            flush=True,
-        )
-        part = raw_sql_with_retry(
-            db,
-            f"""
-            SELECT permno, date, ret
-            FROM crsp.dsf
-            WHERE permno IN ({ids})
-              AND {sql_date_filter("date")}
-            """,
-        )
-        chunks.append(part)
-    dsf = pd.concat(chunks, ignore_index=True)
+    dsf = fetch_dsf_by_permno_batches(
+        permnos,
+        db=db,
+        select_cols="permno, date, ret",
+        label="weekly returns",
+    )
     dsf["date"] = pd.to_datetime(dsf["date"])
     dsf["ret"] = pd.to_numeric(dsf["ret"], errors="coerce")
     dsf["wkdt"] = dsf["date"] + pd.to_timedelta(4 - dsf["date"].dt.dayofweek, unit="D")
@@ -138,6 +120,7 @@ def get_weekly_returns(db, permnos: list[int]) -> pd.DataFrame:
 
     print(f"Loading weekly returns for {len(permnos):,} permnos from WRDS...", flush=True)
     wk = _load_weekly_returns_from_wrds(db, permnos)
+    print("Weekly returns WRDS download complete; aggregating to weeks...", flush=True)
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     with cache_path.open("wb") as handle:
         pickle.dump(wk, handle, protocol=pickle.HIGHEST_PROTOCOL)

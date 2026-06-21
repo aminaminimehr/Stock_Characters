@@ -130,7 +130,8 @@ python scripts/rebuild/rebuild_green_cfp_full_history.py \
 | `STOCK_CHARACTERS_SAMPLE_START` | SQL filters | Set automatically by profile / `--sample-start` |
 | `STOCK_CHARACTERS_SAMPLE_END` | SQL filters | Optional upper bound |
 | `STOCK_CHARACTERS_DEFAULT_ANNUAL_START` | `output_paths.py` | Default `1975-01-01` when no sample start set |
-| `STOCK_CHARACTERS_WORKERS` | Parallel builders | Worker count |
+| `STOCK_CHARACTERS_WORKERS` | Parallel **compute** (beta regressions, rvar, ear) | Default `min(cpu, 8)` |
+| `STOCK_CHARACTERS_WRDS_DOWNLOAD_WORKERS` | Parallel **WRDS** dsf chunk downloads | Default `4` (separate from compute) |
 | `STOCK_CHARACTERS_WRDS_PERMNO_CHUNK` | WRDS `dsf` IN-clause size | Default `400` (smaller = fewer timeouts) |
 | `RESUME=1` | `run_full_pipeline.sh` | Adds `--resume` |
 | `SKIP_IBES=1` | shell scripts | Adds `--skip-ibes` |
