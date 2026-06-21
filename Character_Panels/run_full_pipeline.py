@@ -118,8 +118,6 @@ def build_all_characters(
 
 def build_hxz_characters(wrds_user, output_dir, cfg, profile="green"):
     jobs = HXZ_JOBS
-    if profile == "datashare":
-        jobs = [j for j in HXZ_JOBS if j[0] in DATASHARE_HXZ_STEMS]
 
     for stem, script, extra in jobs:
         out = output_dir / f"{stem}.csv"
@@ -274,6 +272,16 @@ def main():
     )
     parser.add_argument("--ccm-linktypes", default=None, help="Override CCM linktypes for Green + HXZ builders.")
     parser.add_argument("--ccm-linkprim", default=None, help="Override CCM linkprim for HXZ builders.")
+    parser.add_argument(
+        "--skip-special",
+        action="store_true",
+        help="Skip beta/rvar/ear/ms and other special builders (debug only).",
+    )
+    parser.add_argument(
+        "--skip-daily",
+        action="store_true",
+        help="Skip daily-CRSP monthly characters (debug only).",
+    )
     args = parser.parse_args()
 
     cfg = resolve_config(
@@ -282,6 +290,8 @@ def main():
         sample_end=args.sample_end,
         green_universe=args.green_universe,
         skip_ibes=True if args.skip_ibes else None,
+        skip_special=True if args.skip_special else None,
+        skip_daily=True if args.skip_daily else None,
         ccm_linktypes=args.ccm_linktypes,
         ccm_linkprim=args.ccm_linkprim,
     )

@@ -69,8 +69,8 @@ def _profile_defaults(profile: str) -> PipelineConfig:
             skip_ibes=True,
             build_hxz=True,
             build_research_panel=False,
-            skip_special=True,
-            skip_daily=True,
+            skip_special=False,
+            skip_daily=False,
             green_ccm_linktypes=GREEN_CCM_LINKTYPES,
             green_ccm_linkprim=GREEN_CCM_LINKPRIM,
             datashare_columns=("bm", "operprof", "cfp"),
@@ -143,6 +143,6 @@ def profile_help() -> str:
     return """
 Profiles:
   green      Replicate Green SAS library (default annual start 1975; optional --green-universe).
-  datashare  Match datashare.csv for bm/operprof/cfp: 1957+ sample, sparse panel; skips beta/rvar/daily CRSP chars.
+  datashare  Full character library + datashare sample/universe: 1957+ start, sparse panel (no joint screen), HXZ bm/operprof.
   research   Full pipeline through ranked 1957+ research panel.
 """.strip()

@@ -13,8 +13,7 @@ Implementation: `pipeline_config.py`, wired through `Character_Panels/run_full_p
 | Profile | Purpose | Sample start | Green universe screen | Research panel | HXZ builders |
 |---|---|---|---|---|---|
 | **`green`** (default) | Replicate Green SAS library | 1975-01-01 (default) | Off unless `--green-universe` | Yes | All 4 |
-| **`datashare`** | Match `datashare.csv` for bm/operprof/cfp | **1957-01-01** | **Off** (sparse panel) | **No** | `book_to_market`, `operating_profitability` only |
-| | | | | **Skips** beta/rvar/ear/daily-CRSP chars | |
+| **`datashare`** | Full library + datashare alignment for bm/operprof/cfp | **1957-01-01** | **Off** (sparse panel) | **No** | All 4 HXZ + all Green chars |
 | **`research`** | Ranked 1957+ ML panel | 1975-01-01 (default) | Off | Yes | All 4 |
 
 ### Datashare column mapping (bm_ia out of scope)
@@ -40,14 +39,23 @@ python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER" --profile 
 python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER" --profile green --green-universe
 ```
 
-### Datashare-like build (1957+, sparse universe)
+### Datashare build (full library, 1957+, sparse universe)
+
+Builds **all** Green + HXZ characters. Differs from `green` only in sample window (1957+),
+no Green joint universe screen, and no ranked research panel.
 
 ```bash
-export STOCK_CHARACTERS_PROFILE=datashare
-bash run_full_pipeline.sh
-# or:
-python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER" --profile datashare
+python Character_Panels/run_full_pipeline.py \
+  --wrds-user "$WRDS_USER" \
+  --profile datashare \
+  --sample-start 1957-01-01 \
+  --sample-end 2021-12-31 \
+  --no-green-universe \
+  --skip-ibes \
+  --workers 8
 ```
+
+Use `--skip-special` / `--skip-daily` only for quick debugging — not for production builds.
 
 ### Validate datashare universe + correlation
 
@@ -89,6 +97,8 @@ python scripts/rebuild/rebuild_green_cfp_full_history.py \
 | `--no-green-universe` | — | Force screen off |
 | `--ccm-linktypes` | profile default | Override CCM link types |
 | `--ccm-linkprim` | profile default | Override CCM link primaries (HXZ; Green uses broad links) |
+| `--skip-special` | off | Debug only: skip beta/rvar/ear/ms |
+| `--skip-daily` | off | Debug only: skip daily-CRSP monthly chars |
 
 ### Character builder flags (`build_all_implemented_characters.py`)
 
