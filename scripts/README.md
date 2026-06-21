@@ -10,6 +10,11 @@
 ## Primary validation commands
 
 ```bash
+# Panel vs GKX datashare.csv (full period, all 95 predictors)
+python scripts/validation/compare_panel_vs_gkx_datashare.py \
+  --panel outputs/panels/all_character_signal_panel_for_GKX_comparison.csv \
+  --datashare Supplementary_assistive_files/datashare.csv
+
 # Green SAS output (full period, datashare columns)
 python scripts/validation/compare_panel_final_vs_green.py
 
