@@ -1,16 +1,32 @@
 import argparse
+import os
+import pickle
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from _shared.green_builders import OUTPUT_DIR, connect_wrds, load_monthly_alignment_frame, raw_sql_with_retry
-from output_paths import sql_date_filter
+from output_paths import CACHE_DIR, get_sample_bounds, sql_date_filter
 from _shared.parallel_daily_windows import run_permno_parallel
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 DAILY_FACTOR_COLUMNS = ("beta", "betasq", "idiovol", "pricedelay")
+FACTOR_CHARACTER_NAMES = ("beta", "betasq", "idiovol", "pricedelay")
+
+_WEEKLY_RETURNS_CACHE: pd.DataFrame | None = None
+_FACTOR_PANEL_CACHE: pd.DataFrame | None = None
+
+
+def _permno_chunk_size() -> int:
+    return max(50, int(os.environ.get("STOCK_CHARACTERS_WRDS_PERMNO_CHUNK", "400")))
+
+
+def clear_factor_caches() -> None:
+    global _WEEKLY_RETURNS_CACHE, _FACTOR_PANEL_CACHE
+    _WEEKLY_RETURNS_CACHE = None
+    _FACTOR_PANEL_CACHE = None
 
 
 def intnx_month(ts: pd.Series, n: int, alignment: str = "end") -> pd.Series:
@@ -67,10 +83,23 @@ def _weekly_compound(ret_series: pd.Series) -> float:
     return float(np.exp(np.log1p(vals).sum()) - 1)
 
 
-def _load_weekly_returns(db, permnos: list[int]) -> pd.DataFrame:
+def _weekly_cache_path() -> Path:
+    start, end = get_sample_bounds()
+    end_tag = end or "open"
+    return CACHE_DIR / f"weekly_returns_{start}_{end_tag}.pkl"
+
+
+def _load_weekly_returns_from_wrds(db, permnos: list[int]) -> pd.DataFrame:
+    chunk_size = _permno_chunk_size()
     chunks = []
-    for i in range(0, len(permnos), 2000):
-        ids = ",".join(str(p) for p in permnos[i : i + 2000])
+    n_chunks = (len(permnos) + chunk_size - 1) // chunk_size
+    for idx, i in enumerate(range(0, len(permnos), chunk_size), start=1):
+        batch = permnos[i : i + chunk_size]
+        ids = ",".join(str(p) for p in batch)
+        print(
+            f"  weekly returns WRDS chunk {idx}/{n_chunks} ({len(batch)} permnos)...",
+            flush=True,
+        )
         part = raw_sql_with_retry(
             db,
             f"""
@@ -88,6 +117,32 @@ def _load_weekly_returns(db, permnos: list[int]) -> pd.DataFrame:
     wk = dsf.groupby(["permno", "wkdt"], as_index=False).agg(wkret=("ret", _weekly_compound))
     wk = wk[wk["wkdt"] >= "1975-01-01"].drop_duplicates(["permno", "wkdt"])
     wk["ewret"] = wk.groupby("wkdt")["wkret"].transform("mean")
+    return wk
+
+
+def get_weekly_returns(db, permnos: list[int]) -> pd.DataFrame:
+    """Load weekly CRSP returns once; reuse disk cache across factor characters."""
+    global _WEEKLY_RETURNS_CACHE
+    if _WEEKLY_RETURNS_CACHE is not None:
+        return _WEEKLY_RETURNS_CACHE
+
+    cache_path = _weekly_cache_path()
+    if cache_path.exists():
+        with cache_path.open("rb") as handle:
+            _WEEKLY_RETURNS_CACHE = pickle.load(handle)
+        print(
+            f"Loaded weekly returns from cache ({len(_WEEKLY_RETURNS_CACHE):,} rows): {cache_path}",
+            flush=True,
+        )
+        return _WEEKLY_RETURNS_CACHE
+
+    print(f"Loading weekly returns for {len(permnos):,} permnos from WRDS...", flush=True)
+    wk = _load_weekly_returns_from_wrds(db, permnos)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    with cache_path.open("wb") as handle:
+        pickle.dump(wk, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    print(f"Saved weekly returns cache ({len(wk):,} rows): {cache_path}", flush=True)
+    _WEEKLY_RETURNS_CACHE = wk
     return wk
 
 
@@ -153,15 +208,18 @@ def estimate_daily_factors(
     if not permnos:
         return pd.DataFrame(columns=["permno", "date", *DAILY_FACTOR_COLUMNS])
 
-    print(f"Loading weekly returns for {len(permnos):,} permnos...", flush=True)
-    wk = _load_weekly_returns(db, permnos)
+    wk = get_weekly_returns(db, permnos)
     panel_dates = panel_dates.drop_duplicates(["permno", "date"]).copy()
     panel_dates["date"] = pd.to_datetime(panel_dates["date"])
 
     frames = run_permno_parallel(
         permnos,
         _factor_chunk_worker,
-        lambda chunk: (chunk, wk, panel_dates[panel_dates["permno"].isin(chunk)]),
+        lambda chunk: (
+            chunk,
+            wk[wk["permno"].isin(chunk)],
+            panel_dates[panel_dates["permno"].isin(chunk)],
+        ),
         workers=workers,
         label="Green daily factors",
     )
@@ -173,12 +231,17 @@ def estimate_daily_factors(
 def _build_factor_panel(
     db, output_dir=OUTPUT_DIR, workers: int | None = None, monthly_panel: pd.DataFrame | None = None
 ) -> pd.DataFrame:
+    global _FACTOR_PANEL_CACHE
+    if _FACTOR_PANEL_CACHE is not None:
+        return _FACTOR_PANEL_CACHE
+
     monthly = monthly_panel.copy() if monthly_panel is not None else load_monthly_alignment_frame(output_dir, db=db)
     monthly["date"] = pd.to_datetime(monthly["date"])
     monthly["permno"] = pd.to_numeric(monthly["permno"], errors="coerce").astype("int64")
     factors = estimate_daily_factors(monthly[["permno", "date"]], db, workers=workers)
     out = monthly.merge(factors, on=["permno", "date"], how="left")
     out = out[out["date"].dt.year >= 1980]
+    _FACTOR_PANEL_CACHE = out
     return out
 
 
@@ -189,30 +252,47 @@ def _finalize_factor_character(df: pd.DataFrame, column: str) -> pd.DataFrame:
     ]
 
 
-def build_beta_character(db, output_dir=OUTPUT_DIR, workers: int | None = None):
+def build_factor_characters(
+    db, output_dir=OUTPUT_DIR, workers: int | None = None, names: tuple[str, ...] = FACTOR_CHARACTER_NAMES
+) -> dict[str, pd.DataFrame]:
+    """Build beta/betasq/idiovol/pricedelay from one WRDS weekly pull + one parallel pass."""
+    names = tuple(dict.fromkeys(names))
+    if not names:
+        return {}
+
+    if names == ("betasq",):
+        beta_path = Path(output_dir) / "beta.csv"
+        if beta_path.exists():
+            out = pd.read_csv(beta_path)
+            out["betasq"] = out["beta"] ** 2
+            return {"betasq": out.drop(columns=["beta"], errors="ignore")}
+
     panel = _build_factor_panel(db, output_dir, workers=workers)
-    return _finalize_factor_character(panel, "beta")
+    results: dict[str, pd.DataFrame] = {}
+    for name in names:
+        if name == "betasq":
+            tmp = panel.copy()
+            tmp["betasq"] = tmp["beta"] ** 2
+            results[name] = _finalize_factor_character(tmp, "betasq")
+        else:
+            results[name] = _finalize_factor_character(panel, name)
+    return results
+
+
+def build_beta_character(db, output_dir=OUTPUT_DIR, workers: int | None = None):
+    return build_factor_characters(db, output_dir, workers=workers, names=("beta",))["beta"]
 
 
 def build_betasq_character(db, output_dir=OUTPUT_DIR, workers: int | None = None):
-    beta_path = Path(output_dir) / "beta.csv"
-    if beta_path.exists() and (Path(output_dir) / "idiovol.csv").exists():
-        print(f"betasq: reusing {beta_path}", flush=True)
-        out = pd.read_csv(beta_path)
-        out["betasq"] = out["beta"] ** 2
-        return out.drop(columns=["beta"])
-    panel = _build_factor_panel(db, output_dir, workers=workers)
-    return _finalize_factor_character(panel, "betasq")
+    return build_factor_characters(db, output_dir, workers=workers, names=("betasq",))["betasq"]
 
 
 def build_idiovol_character(db, output_dir=OUTPUT_DIR, workers: int | None = None):
-    panel = _build_factor_panel(db, output_dir, workers=workers)
-    return _finalize_factor_character(panel, "idiovol")
+    return build_factor_characters(db, output_dir, workers=workers, names=("idiovol",))["idiovol"]
 
 
 def build_pricedelay_character(db, output_dir=OUTPUT_DIR, workers: int | None = None):
-    panel = _build_factor_panel(db, output_dir, workers=workers)
-    return _finalize_factor_character(panel, "pricedelay")
+    return build_factor_characters(db, output_dir, workers=workers, names=("pricedelay",))["pricedelay"]
 
 
 def run_beta_cli():
@@ -231,9 +311,11 @@ def run_beta_cli():
 
     db = connect_wrds(args.wrds_user)
     try:
+        clear_factor_caches()
         result = build_beta_character(db, workers=args.workers)
     finally:
         db.close()
+        clear_factor_caches()
 
     result.to_csv(output, index=False)
     print(f"Saved beta to: {output.resolve()}")

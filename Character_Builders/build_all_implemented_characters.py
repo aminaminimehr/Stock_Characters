@@ -5,10 +5,8 @@ from pathlib import Path
 import numpy as np
 
 from _shared.beta_builder import (
-    build_beta_character,
-    build_betasq_character,
-    build_idiovol_character,
-    build_pricedelay_character,
+    build_factor_characters,
+    clear_factor_caches,
 )
 from _shared.event_builders import build_abr_character, build_aeavol_character, build_ear_character
 from _shared.ms_builder import build_ms_character
@@ -119,20 +117,32 @@ def build_special_characters(
     skip_existing=False,
     workers=None,
 ):
-    special_jobs = [
-        ("beta", lambda: build_beta_character(db, output_dir, workers=workers)),
-        ("betasq", lambda: build_betasq_character(db, output_dir, workers=workers)),
-        ("idiovol", lambda: build_idiovol_character(db, output_dir, workers=workers)),
-        ("pricedelay", lambda: build_pricedelay_character(db, output_dir, workers=workers)),
+    factor_names = [
+        name
+        for name in ("beta", "betasq", "idiovol", "pricedelay")
+        if not (skip_existing and (output_dir / f"{name}.csv").exists())
+    ]
+    if factor_names:
+        clear_factor_caches()
+        try:
+            factor_outputs = build_factor_characters(
+                db, output_dir, workers=workers, names=tuple(factor_names)
+            )
+            for name, out in factor_outputs.items():
+                write_character(out, name, output_dir)
+        finally:
+            clear_factor_caches()
+
+    other_jobs = [
         ("ear", lambda: build_ear_character(db, ccm_linktypes, ccm_linkprim, workers=workers)),
         ("abr", lambda: build_abr_character(db, ccm_linktypes, ccm_linkprim, workers=workers)),
         ("aeavol", lambda: build_aeavol_character(db, ccm_linktypes, ccm_linkprim, workers=workers)),
         ("ms", lambda: build_ms_character(db, ccm_linktypes, ccm_linkprim, use_ibes=not skip_ibes, workers=workers)),
     ]
     if not skip_ibes:
-        special_jobs.insert(2, ("re", lambda: build_re_character(db)))
+        other_jobs.insert(0, ("re", lambda: build_re_character(db)))
 
-    for name, builder in special_jobs:
+    for name, builder in other_jobs:
         if skip_existing and (output_dir / f"{name}.csv").exists():
             print(f"{name}: skipped (already exists)")
             continue

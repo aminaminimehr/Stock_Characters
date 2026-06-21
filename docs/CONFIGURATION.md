@@ -14,6 +14,7 @@ Implementation: `pipeline_config.py`, wired through `Character_Panels/run_full_p
 |---|---|---|---|---|---|
 | **`green`** (default) | Replicate Green SAS library | 1975-01-01 (default) | Off unless `--green-universe` | Yes | All 4 |
 | **`datashare`** | Match `datashare.csv` for bm/operprof/cfp | **1957-01-01** | **Off** (sparse panel) | **No** | `book_to_market`, `operating_profitability` only |
+| | | | | **Skips** beta/rvar/ear/daily-CRSP chars | |
 | **`research`** | Ranked 1957+ ML panel | 1975-01-01 (default) | Off | Yes | All 4 |
 
 ### Datashare column mapping (bm_ia out of scope)
@@ -120,6 +121,7 @@ python scripts/rebuild/rebuild_green_cfp_full_history.py \
 | `STOCK_CHARACTERS_SAMPLE_END` | SQL filters | Optional upper bound |
 | `STOCK_CHARACTERS_DEFAULT_ANNUAL_START` | `output_paths.py` | Default `1975-01-01` when no sample start set |
 | `STOCK_CHARACTERS_WORKERS` | Parallel builders | Worker count |
+| `STOCK_CHARACTERS_WRDS_PERMNO_CHUNK` | WRDS `dsf` IN-clause size | Default `400` (smaller = fewer timeouts) |
 | `RESUME=1` | `run_full_pipeline.sh` | Adds `--resume` |
 | `SKIP_IBES=1` | shell scripts | Adds `--skip-ibes` |
 | `GREEN_UNIVERSE=1` | shell scripts | Adds `--green-universe` |

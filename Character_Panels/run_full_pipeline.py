@@ -107,6 +107,10 @@ def build_all_characters(
         cmd.extend(["--sample-start", cfg.sample_start])
     if cfg.sample_end:
         cmd.extend(["--sample-end", cfg.sample_end])
+    if cfg.skip_special:
+        cmd.append("--skip-special")
+    if cfg.skip_daily:
+        cmd.append("--skip-daily")
     if workers is not None:
         cmd.extend(["--workers", str(workers)])
     run(cmd)

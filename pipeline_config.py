@@ -29,6 +29,8 @@ class PipelineConfig:
     skip_ibes: bool = True
     build_hxz: bool = True
     build_research_panel: bool = True
+    skip_special: bool = False
+    skip_daily: bool = False
     green_ccm_linktypes: str = GREEN_CCM_LINKTYPES
     green_ccm_linkprim: str = GREEN_CCM_LINKPRIM
     hxz_ccm_linktypes: str = HXZ_CCM_LINKTYPES
@@ -67,6 +69,8 @@ def _profile_defaults(profile: str) -> PipelineConfig:
             skip_ibes=True,
             build_hxz=True,
             build_research_panel=False,
+            skip_special=True,
+            skip_daily=True,
             green_ccm_linktypes=GREEN_CCM_LINKTYPES,
             green_ccm_linkprim=GREEN_CCM_LINKPRIM,
             datashare_columns=("bm", "operprof", "cfp"),
@@ -94,6 +98,8 @@ def resolve_config(
     skip_ibes: bool | None = None,
     build_hxz: bool | None = None,
     build_research_panel: bool | None = None,
+    skip_special: bool | None = None,
+    skip_daily: bool | None = None,
     ccm_linktypes: str | None = None,
     ccm_linkprim: str | None = None,
 ) -> PipelineConfig:
@@ -117,6 +123,10 @@ def resolve_config(
         overrides["build_hxz"] = build_hxz
     if build_research_panel is not None:
         overrides["build_research_panel"] = build_research_panel
+    if skip_special is not None:
+        overrides["skip_special"] = skip_special
+    if skip_daily is not None:
+        overrides["skip_daily"] = skip_daily
     if ccm_linktypes is not None:
         overrides["green_ccm_linktypes"] = ccm_linktypes
         overrides["hxz_ccm_linktypes"] = ccm_linktypes
@@ -133,6 +143,6 @@ def profile_help() -> str:
     return """
 Profiles:
   green      Replicate Green SAS library (default annual start 1975; optional --green-universe).
-  datashare  Match datashare.csv for bm/operprof/cfp: 1957+ sample, sparse panel, no joint screen.
+  datashare  Match datashare.csv for bm/operprof/cfp: 1957+ sample, sparse panel; skips beta/rvar/daily CRSP chars.
   research   Full pipeline through ranked 1957+ research panel.
 """.strip()
