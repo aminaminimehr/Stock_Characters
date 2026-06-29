@@ -1,0 +1,363 @@
+# Conventions Registry
+# =====================
+# This file is the authoritative record of every implementation convention
+# that affects the construction of asset pricing characteristics.
+#
+# Each entry documents:
+#   - What the convention controls
+#   - The value used in Green's implementation (the baseline)
+#   - The value used in GKX's datashare.csv (the target)
+#   - Whether it has been empirically confirmed
+#   - Which characteristics are affected
+#
+# Rules:
+#   - Never delete an entry. Mark it confirmed: false if disproven.
+#   - Never merge a formula difference into this file. Formula differences
+#     belong in FORMULA_DIFFERENCES.yaml.
+#   - Every entry must have at least one affected characteristic listed.
+#   - "confirmed" means the parameter change was tested and produced
+#     a measurable, expected change in Spearman or sample N.
+
+meta:
+  last_updated: "2026-06-29"
+  baseline: "Green SAS replication (validated)"
+  target: "GKX datashare.csv"
+  validator: "Cross-sectional Spearman > 0.95 AND N within 2% AND permnos within 2%"
+
+
+# ─────────────────────────────────────────────────────────────────
+# SECTION 1: Universe / Filtering Conventions
+# ─────────────────────────────────────────────────────────────────
+
+universe_filtering:
+
+  share_codes:
+    description: "Which CRSP share codes are included in the stock universe"
+    green_value: [10, 11]
+    gkx_value: UNKNOWN  # hypothesis: GKX may include additional codes
+    confirmed: false
+    tested: false
+    characteristics_affected: ALL
+    notes: >
+      This is a fundamental universe filter. Test by comparing sample N and
+      unique permno counts at the CRSP pull stage before any Compustat merge.
+
+  price_filter:
+    description: "Minimum price threshold for inclusion; null means no filter"
+    green_value: 1.0   # hypothesis: Green excludes stocks below $1
+    gkx_value: null    # hypothesis: GKX includes all prices
+    confirmed: false
+    tested: false
+    characteristics_affected: ALL
+    notes: >
+      Consistent with statement in GKX paper that they include all stocks.
+      Test: toggle price filter on/off and compare unique permno count to
+      datashare.csv coverage. This should be one of the first tests run
+      because it affects the entire universe.
+
+  exchange_codes:
+    description: "Which CRSP exchange codes are included"
+    green_value: [1, 2, 3]   # NYSE, AMEX, NASDAQ
+    gkx_value: UNKNOWN
+    confirmed: false
+    tested: false
+    characteristics_affected: ALL
+    notes: >
+      Standard filter but worth confirming. Check whether any exchange codes
+      appear in datashare.csv that are excluded in Green.
+
+
+# ─────────────────────────────────────────────────────────────────
+# SECTION 2: CRSP–Compustat Linking Conventions
+# ─────────────────────────────────────────────────────────────────
+
+crsp_compustat_linking:
+
+  linktype:
+    description: "CCM link types used when merging CRSP and Compustat"
+    green_value: ["LC", "LU"]
+    gkx_value: UNKNOWN
+    confirmed: false
+    tested: false
+    characteristics_affected: ALL
+    notes: >
+      Common options: LC (link confirmed), LU (link unresearched), LS (link
+      secondary), LX (link expired), LD (link deleted), LN (link non-primary).
+      Test by comparing survived permno counts by year. The effect is most
+      visible in years where many firms have non-primary links.
+
+  linkprime:
+    description: "CCM linkprime flag filter"
+    green_value: ["P", "C"]
+    gkx_value: UNKNOWN
+    confirmed: false
+    tested: false
+    characteristics_affected: ALL
+    notes: >
+      P = primary link, C = primary link (CRSP), J = joiner. Test alongside
+      linktype — they interact. Run as a joint hypothesis with linktype.
+
+  link_date_range:
+    description: "How link validity dates (linkdt, linkenddt) are applied"
+    green_value: "strict"   # only use link if date falls within [linkdt, linkenddt]
+    gkx_value: UNKNOWN
+    confirmed: false
+    tested: false
+    characteristics_affected: ALL
+    notes: >
+      Some implementations use a looser date filter (e.g. treating missing
+      linkenddt as still-active). Test by counting matched firms in years
+      near known structural breaks.
+
+
+# ─────────────────────────────────────────────────────────────────
+# SECTION 3: Timing Conventions
+# ─────────────────────────────────────────────────────────────────
+
+timing:
+
+  annual_fiscal_year_timing:
+    description: >
+      How fiscal year accounting data is assigned to calendar months.
+      'ff_june' = Fama-French convention: all firms use FY t-1 data starting
+      in July of year t (or June, depending on implementation).
+      'rolling_6m' = rolling six-month lag from the firm's own fiscal year end.
+    green_value: UNKNOWN   # must be determined empirically
+    gkx_value: UNKNOWN
+    confirmed: false
+    tested: false
+    characteristics_affected:
+      - ALL_ANNUAL_ACCOUNTING
+    notes: >
+      This is one of the most important open questions. HXZ follows the
+      traditional FF convention. Current evidence suggests Green and/or GKX
+      may use a rolling lag. Test by computing characteristics under both
+      conventions and comparing Spearman vs datashare.csv. The effect will
+      be largest for firms with non-December fiscal year ends.
+
+  quarterly_timing:
+    description: >
+      How quarterly accounting data is assigned to calendar months.
+      Options include: exact filing date, 3-month lag, 4-month lag from
+      quarter end.
+    green_value: UNKNOWN
+    gkx_value: UNKNOWN
+    confirmed: false
+    tested: false
+    characteristics_affected:
+      - ALL_QUARTERLY_ACCOUNTING
+    notes: >
+      Test after annual timing is resolved. Quarterly timing has an
+      additional complexity: some implementations use the most recent
+      available quarter as of each month, others use a fixed lag.
+
+  fiscal_year_change_handling:
+    description: >
+      How firms that change their fiscal year end date are treated.
+      'include_all' = include all firm-year observations regardless of
+      fiscal year length.
+      'exclude_short' = exclude fiscal years shorter than N months.
+      'use_latest' = for a given calendar year, use the most recent
+      fiscal year end that ended at least 6 months ago.
+    green_value: UNKNOWN
+    gkx_value: UNKNOWN
+    confirmed: false
+    tested: false
+    characteristics_affected:
+      - ALL_ANNUAL_ACCOUNTING
+    notes: >
+      Lower priority. Investigate only after timing convention is confirmed.
+
+
+# ─────────────────────────────────────────────────────────────────
+# SECTION 4: Industry Conventions
+# ─────────────────────────────────────────────────────────────────
+
+industry:
+
+  industry_averaging_order:
+    description: >
+      Whether industry averages are computed before or after merging with CRSP.
+      'post_crsp_merge' = merge with CRSP first, keep only matched firms,
+      then compute industry averages.
+      'pre_crsp_merge' = compute industry averages from the full Compustat
+      universe, then merge with CRSP.
+    green_value: UNKNOWN   # must be determined empirically
+    gkx_value: post_crsp_merge   # current best hypothesis
+    confirmed: false
+    tested: false
+    characteristics_affected:
+      - ALL_INDUSTRY_CHARS
+    notes: >
+      This is expected to be the single largest source of discrepancy for
+      industry-related characteristics, especially post-2000 when many firms
+      lose their CRSP match. ALWAYS test this first for any characteristic
+      with an industry component. The effect is largest in years when the
+      gap between Compustat coverage and CRSP coverage is widest.
+
+  industry_classification:
+    description: "Industry classification scheme used for computing industry averages"
+    green_value: UNKNOWN
+    gkx_value: UNKNOWN
+    confirmed: false
+    tested: false
+    characteristics_affected:
+      - ALL_INDUSTRY_CHARS
+    options:
+      - "sic2"          # two-digit SIC codes
+      - "ff12"          # Fama-French 12 industries
+      - "ff17"          # Fama-French 17 industries
+      - "ff48"          # Fama-French 48 industries
+      - "ff49"          # Fama-French 49 industries
+    notes: >
+      Test after industry averaging order is resolved. The classification
+      choice interacts with the order-of-operations question.
+
+  industry_imputation_scope:
+    description: >
+      When imputing missing values with industry medians/means, which firms
+      are included in the imputation pool.
+    green_value: UNKNOWN
+    gkx_value: UNKNOWN
+    confirmed: false
+    tested: false
+    characteristics_affected:
+      - IMPUTED_CHARS
+    notes: >
+      Some implementations impute missing values using the full industry
+      average; others restrict to firms with non-missing values only.
+      Low priority until higher-priority conventions are resolved.
+
+
+# ─────────────────────────────────────────────────────────────────
+# SECTION 5: Return and Delisting Conventions
+# ─────────────────────────────────────────────────────────────────
+
+returns:
+
+  delisting_returns:
+    description: >
+      How delisting returns are handled when computing holding period returns.
+      'include' = merge delisting returns into the return series.
+      'exclude' = use only regular returns, ignore delistings.
+      'crsp_standard' = use CRSP's provided dlret field directly.
+    green_value: UNKNOWN
+    gkx_value: UNKNOWN
+    confirmed: false
+    tested: false
+    characteristics_affected:
+      - RETURN_BASED_CHARS
+    notes: >
+      Delisting return handling primarily affects momentum and return-based
+      characteristics. Test on those first.
+
+  return_winsorization:
+    description: "Whether returns are winsorized before use in characteristic construction"
+    green_value: UNKNOWN
+    gkx_value: UNKNOWN
+    confirmed: false
+    tested: false
+    characteristics_affected:
+      - RETURN_BASED_CHARS
+
+
+# ─────────────────────────────────────────────────────────────────
+# SECTION 6: Confirmed Conventions
+# (Move entries here once confirmed: true)
+# ─────────────────────────────────────────────────────────────────
+
+confirmed_conventions:
+
+  quarterly_timing_convention:
+    description: >
+      How quarterly accounting data is assigned to calendar months.
+      Green SAS uses a fixed window: data from a quarter ending on datadate is available
+      in calendar months from (datadate - 10 months) to (datadate - 5 months).
+      GKX uses a 3-month lag: data from a quarter ending on datadate is available
+      starting in the month-end that is 3 calendar months after datadate.
+      This matches SEC 10-Q/10-K filing deadlines (45-day extension common).
+    green_value: "window: datadate-10months to datadate-5months"
+    gkx_value: "lag: datadate + 3 months (month-end), forward-filled via merge_asof"
+    confirmed: true
+    date_confirmed: "2026-06-29"
+    evidence: >
+      Identified by inspecting Green SAS code (QUARTERLY_MONTH_START_LAG = -10,
+      QUARTERLY_MONTH_END_LAG = -5) vs GKX datashare.csv timing.
+      Implemented GKX-style expansion (expand_quarterly_columns_to_monthly_gkx)
+      with merge_asof. GKX variants (_gkx suffix) built for all quarterly chars.
+      Full pipeline rebuild required to validate the Spearman improvement.
+    characteristics_affected:
+      - chtx
+      - cinvest
+      - nincr
+      - roaq
+      - roeq
+      - rsup
+      - stdacc
+      - stdcf
+    action: >
+      Build _gkx variants in pipeline. Comparison script maps datashare char →
+      panel _gkx variant, with fallback to Green version if _gkx not present.
+      GKX_QUARTERLY_CHAR_SOURCES dict in quarterly_builders.py controls which
+      chars get _gkx variants.
+
+  bm_ia_cfp_ia_industry_convention:
+    description: >
+      GKX uses Fama-French 49-industry (FF49) classification for bm_ia and cfp_ia
+      industry means, rather than SIC2. GKX also computes industry means post-CRSP-merge
+      (only using firms that have a CRSP permno at the time of the data), rather than
+      from the full Compustat universe.
+    green_value: "sic2 industry, pre-CRSP-merge universe"
+    gkx_value: "ff49 industry, post-CRSP-merge universe (only firms with CRSP permno)"
+    confirmed: true
+    date_confirmed: "2026-06-29"
+    evidence: >
+      Identified by inspecting GKX build_datashare_chars.py code. An additional bug
+      was found: the original build_datashare_chars.py was computing industry means
+      from the monthly-expanded bm (after expand_monthly), which is incorrect.
+      Fixed to compute bm/cfp at jdate level first, then compute industry means
+      cross-sectionally at that level, then forward-fill bm_ia/cfp_ia across months.
+      bm_ia_dc and cfp_ia_dc (new) columns built by build_datashare_chars.py.
+      Full pipeline rebuild required to validate the Spearman improvement.
+    characteristics_affected:
+      - bm_ia
+      - cfp_ia
+    action: >
+      bm_ia_dc and cfp_ia_dc computed by build_datashare_chars.py. Comparison script
+      maps datashare bm_ia → bm_ia_dc and cfp_ia → cfp_ia_dc.
+
+  agr_sign_convention:
+    description: >
+      GKX datashare.csv negates the asset growth signal so that higher values
+      predict higher returns (asset growth anomaly: high agr → low returns, so
+      GKX flips the sign for ML-convention consistency). Green SAS reports the
+      raw value: agr = AT_t/AT_{t-1} − 1 (positive for growing firms).
+    green_value: "positive  # (AT_t - AT_{t-1}) / AT_{t-1}"
+    gkx_value:   "negative  # −((AT_t - AT_{t-1}) / AT_{t-1})"
+    confirmed: true
+    date_confirmed: "2026-06-29"
+    evidence: >
+      Empirically confirmed 2026-06-29. Panel mean agr = +0.155, datashare mean = -0.156.
+      Spearman(panel vs datashare) = -0.997. Spearman(-panel vs datashare) = +0.997.
+      This is a formula direction convention, not a computation error.
+    characteristics_affected:
+      - agr
+    action: "Mark as FORMULA_ONLY in DISCREPANCY_TABLE. No code change needed."
+
+  # Example of a completed entry:
+  #
+  # industry_averaging_order:
+  #   description: "Industry averages computed after CRSP merge"
+  #   green_value: pre_crsp_merge
+  #   gkx_value: post_crsp_merge
+  #   confirmed: true
+  #   date_confirmed: "2024-11-15"
+  #   evidence: >
+  #     Tested on ep, cfp, sp, agr. Switching to post_crsp_merge raised
+  #     Spearman vs GKX from 0.61 to 0.96 for all four characteristics.
+  #     Sample N also aligned within 1.2%.
+  #   characteristics_affected:
+  #     - ep
+  #     - cfp
+  #     - sp
+  #     - agr

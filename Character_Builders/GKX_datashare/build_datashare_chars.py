@@ -35,12 +35,13 @@ FFI_SOURCE = (
 )
 DEFAULT_OUTPUT = PROJECT_ROOT / "outputs" / "characteristics" / "datashare_style" / "datashare_chars.csv"
 DEFAULT_INDIVIDUAL_DIR = PROJECT_ROOT / "outputs" / "characteristics" / "individual"
-DATASHARE_COLS = ["bm", "bm_ia", "operprof", "cfp"]
+DATASHARE_COLS = ["bm", "bm_ia", "operprof", "cfp", "cfp_ia"]
 DC_NAMES = {
     "bm": "bm_dc",
     "bm_ia": "bm_ia_dc",
     "operprof": "operprof_dc",
     "cfp": "cfp_dc",
+    "cfp_ia": "cfp_ia_dc",
 }
 
 
@@ -216,18 +217,41 @@ def build_annual_components(db, ccm: pd.DataFrame, crsp_monthly: pd.DataFrame, f
 
 
 def finalize_annual_monthly(annual: pd.DataFrame, crsp_monthly: pd.DataFrame) -> pd.DataFrame:
-    value_cols = ["gvkey", "datadate", "sic", "ffi49", "be", "op", "ib", "dp"]
+    # Step 1: compute bm and cfp at the initial jdate (point-in-time market equity).
+    # Industry means are then computed cross-sectionally at this single point to avoid
+    # the bug of averaging monthly-varying bm values within a datadate group.
+    annual = annual.copy()
+    annual["bm"] = annual["be"] / annual["me"]
+    annual["cfp"] = np.select(
+        [annual["dp"].isna(), annual["ib"].isna()],
+        [annual["ib"] / annual["me"], np.nan],
+        default=(annual["ib"] + annual["dp"]) / annual["me"],
+    )
+    # Industry means: one obs per permno-datadate, grouped by (datadate, FF49)
+    ind_bm = annual.groupby(["datadate", "ffi49"], as_index=False)["bm"].mean().rename(
+        columns={"bm": "bm_ind"}
+    )
+    ind_cfp = annual.groupby(["datadate", "ffi49"], as_index=False)["cfp"].mean().rename(
+        columns={"cfp": "cfp_ind"}
+    )
+    annual = annual.merge(ind_bm, how="left", on=["datadate", "ffi49"])
+    annual = annual.merge(ind_cfp, how="left", on=["datadate", "ffi49"])
+    # bm_ia and cfp_ia at jdate level — these will be forward-filled across months
+    annual["bm_ia"] = annual["bm"] - annual["bm_ind"]
+    annual["cfp_ia"] = annual["cfp"] - annual["cfp_ind"]
+
+    # Step 2: expand to monthly. Forward-fill bm_ia and cfp_ia (holding them constant
+    # within each fiscal year), and recompute bm/cfp using monthly market equity.
+    value_cols = ["gvkey", "datadate", "sic", "ffi49", "be", "op", "ib", "dp", "bm_ia", "cfp_ia"]
     out = expand_monthly(annual, value_cols, crsp_monthly)
+    # Monthly bm and cfp use current market equity (out["me"] from crsp_monthly)
     out["bm"] = out["be"] / out["me"]
     out["cfp"] = np.select(
         [out["dp"].isna(), out["ib"].isna()],
         [out["ib"] / out["me"], np.nan],
         default=(out["ib"] + out["dp"]) / out["me"],
     )
-    ind = out.groupby(["datadate", "ffi49"], as_index=False)["bm"].mean().rename(columns={"bm": "bm_ind"})
-    out = out.merge(ind, how="left", on=["datadate", "ffi49"])
-    out["bm_ia"] = out["bm"] - out["bm_ind"]
-    return out[["gvkey", "permno", "jdate", "datadate", "sic", "bm", "bm_ia", "op", "cfp"]]
+    return out[["gvkey", "permno", "jdate", "datadate", "sic", "bm", "bm_ia", "cfp_ia", "op", "cfp"]]
 
 
 # ----------------------------------------------------------------------- quarterly
@@ -301,6 +325,7 @@ def expand_monthly(frame: pd.DataFrame, value_cols: list[str], crsp_monthly: pd.
 
 def blend(annual_m: pd.DataFrame, quarterly_m: pd.DataFrame) -> pd.DataFrame:
     chars = ["bm", "op", "cfp"]
+    # bm_ia and cfp_ia come only from the annual frame (no quarterly equivalent)
     a = annual_m.rename(columns={**{c: f"a_{c}" for c in chars}, "datadate": "a_datadate", "sic": "a_sic"})
     q = quarterly_m.rename(columns={**{c: f"q_{c}" for c in chars}, "datadate": "q_datadate", "sic": "q_sic"})
 
@@ -317,7 +342,7 @@ def blend(annual_m: pd.DataFrame, quarterly_m: pd.DataFrame) -> pd.DataFrame:
     df["datadate"] = df["a_datadate"]
     df["sic"] = df["a_sic"].combine_first(df["q_sic"])
     df = df.rename(columns={"op": "operprof"})
-    return df[["gvkey", "permno", "jdate", "datadate", "sic", "bm", "operprof", "cfp", "bm_ia"]]
+    return df[["gvkey", "permno", "jdate", "datadate", "sic", "bm", "operprof", "cfp", "bm_ia", "cfp_ia"]]
 
 
 def add_datashare_dates(df: pd.DataFrame, crsp_monthly: pd.DataFrame) -> pd.DataFrame:
@@ -402,6 +427,7 @@ def main() -> None:
         "bm_ia",
         "operprof",
         "cfp",
+        "cfp_ia",
     ]
     out[ordered].to_csv(out_path, index=False)
     print(f"Saved datashare-style comparison file: {out_path} rows={len(out):,}", flush=True)

@@ -323,11 +323,14 @@ def load_annual_orgcap_lookup(db):
     """)
     comp = _dedupe_annual_compustat(comp)
     comp["lag_at"] = lag(comp, "at")
-    avg_at = (comp["at"] + comp["lag_at"]) / 2
+    comp["avg_at"] = (comp["at"] + comp["lag_at"]) / 2
     comp["cpi"] = comp["fyear"].map(GREEN_CPI_BY_FYEAR)
     comp["xsga_cpi"] = safe_divide(comp["xsga"], comp["cpi"])
-    comp = comp.groupby("gvkey", group_keys=False).apply(_accumulate_orgcap)
-    comp["orgcap"] = safe_divide(comp["_orgcap_1"], avg_at)
+    orgcap_vals = []
+    for _, group in comp.groupby("gvkey", sort=False):
+        orgcap_vals.append(_accumulate_orgcap(group))
+    comp = pd.concat(orgcap_vals, ignore_index=True)
+    comp["orgcap"] = safe_divide(comp["_orgcap_1"], comp["avg_at"])
     comp.loc[comp.groupby("gvkey").cumcount() == 0, "orgcap"] = np.nan
     return comp[["gvkey", "datadate", "orgcap"]]
 
@@ -489,7 +492,13 @@ def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
         comp.loc[impute_capx, "ppent"] - comp.loc[impute_capx, "lag_ppent"]
     )
     comp["grcapx"] = safe_divide(comp["capx"] - comp["lag2_capx"], comp["lag2_capx"])
-    comp["pchcapx"] = safe_divide(comp["capx"] - comp["lag_capx"], comp["lag_capx"])
+    # Green SAS treats non-positive lag_capx as missing (denominator must be > 0
+    # for a growth rate to be meaningful).  Using negative denominators would
+    # sign-reverse pchcapx and contaminate the SIC2×fyear industry mean used in
+    # pchcapx_ia, causing a large divergence vs Green even though the base
+    # pchcapx values look similar at the permno level.
+    valid_lag_capx = comp["lag_capx"].where(comp["lag_capx"] > 0)
+    comp["pchcapx"] = safe_divide(comp["capx"] - valid_lag_capx, valid_lag_capx)
     act_i = comp["act"].where(comp["act"].notna(), comp["che"] + comp["rect"] + comp["invt"])
     lct_i = comp["lct"].where(comp["lct"].notna(), comp["ap"])
     lag_act_i = comp["lag_act"].where(
@@ -552,7 +561,7 @@ def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
     comp.loc[dc_mask1, "dc"] = comp.loc[dc_mask1, "dcpstk"] - comp.loc[dc_mask1, "pstk"]
     dc_mask2 = comp["dcvt"].isna() & comp["dcpstk"].notna() & comp["pstk"].isna()
     comp.loc[dc_mask2, "dc"] = comp.loc[dc_mask2, "dcpstk"]
-    comp.loc[comp["dc"].isna(), "dc"] = comp["dcvt"]
+    comp["dc"] = comp["dc"].combine_first(pd.to_numeric(comp["dcvt"], errors="coerce"))
     comp["convind"] = (
         (comp["dc"].notna() & (comp["dc"] != 0))
         | (comp["cshrc"].notna() & (comp["cshrc"] != 0))
@@ -614,7 +623,13 @@ def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
     else:
         comp["cpi"] = comp["fyear"].map(GREEN_CPI_BY_FYEAR)
         comp["xsga_cpi"] = safe_divide(comp["xsga"], comp["cpi"])
-        comp = comp.groupby("gvkey", group_keys=False).apply(_accumulate_orgcap)
+        # Use a loop instead of groupby().apply() to avoid pandas 3.0 include_groups
+        # behaviour where the group-key column is excluded from the sub-DataFrame,
+        # causing gvkey to land in the index rather than the columns after apply().
+        comp["_orgcap_1"] = np.nan
+        for _, grp in comp.groupby("gvkey"):
+            result = _accumulate_orgcap(grp)
+            comp.loc[grp.index, "_orgcap_1"] = result["_orgcap_1"].values
         comp["orgcap"] = safe_divide(comp["_orgcap_1"], avg_at)
         comp = comp.drop(columns=["_orgcap_1"], errors="ignore")
         comp.loc[comp.groupby("gvkey").cumcount() == 0, "orgcap"] = np.nan
@@ -640,9 +655,14 @@ def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
     comp["_roa_ms"] = safe_divide(comp["ni"], avg_at)
     comp["_cfroa_ms"] = safe_divide(comp["oancf"], avg_at)
     comp.loc[comp["oancf"].isna(), "_cfroa_ms"] = safe_divide(comp["ib"] + comp["dp"], avg_at)
-    comp["_xrdint_ms"] = safe_divide(comp["xrd"], avg_at)
+    # Green SAS treats missing xrd and xad as 0 (non-disclosing firms assumed to
+    # spend nothing), so the industry medians for m4/m6 include those zeros and
+    # are near-zero in non-R&D-intensive industries.  Using NaN (the Python default)
+    # would exclude non-reporters from the median, producing artificially high
+    # medians and far fewer m4=1 and m6=1 flags.
+    comp["_xrdint_ms"] = safe_divide(comp["xrd"].fillna(0), avg_at)
     comp["_capxint_ms"] = safe_divide(comp["capx"], avg_at)
-    comp["_xadint_ms"] = safe_divide(comp["xad"], avg_at)
+    comp["_xadint_ms"] = safe_divide(comp["xad"].fillna(0), avg_at)
     med_ms = comp.groupby(["fyear", "sic2"], dropna=False)[
         ["_roa_ms", "_cfroa_ms", "_xrdint_ms", "_capxint_ms", "_xadint_ms"]
     ].transform("median")

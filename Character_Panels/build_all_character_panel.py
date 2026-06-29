@@ -39,6 +39,8 @@ KNOWN_NON_CHARACTER_COLUMNS = {
     "permco",
     "gvkey",
     "date",
+    "DATE",
+    "jdate",
     "datadate",
     "source_date",
     "source_yyyymm",
@@ -174,6 +176,11 @@ def merge_panels(panels):
         if final is None:
             final = panel
         else:
+            # Drop columns already in final (except join keys) to prevent pandas 3.0
+            # MergeError from duplicate non-key columns across files.
+            dup_cols = [c for c in panel.columns if c in final.columns and c not in MONTHLY_KEYS]
+            if dup_cols:
+                panel = panel.drop(columns=dup_cols)
             final = final.merge(panel, on=MONTHLY_KEYS, how="outer")
 
     metadata = coalesce_metadata(panels)
@@ -203,7 +210,7 @@ def _load_crsp_month_index(paths):
     return build_crsp_month_index_from_panels(monthly_native)
 
 
-def build_all_character_panel(input_dir=None, force_june_annual=False, green_universe=False):
+def build_all_character_panel(input_dir=None, force_june_annual=False, green_universe=False, green_winsor=False):
     if input_dir is None:
         paths = list(iter_character_csv_paths())
     else:
@@ -245,6 +252,16 @@ def build_all_character_panel(input_dir=None, force_june_annual=False, green_uni
             f"Green universe screen on {resolved}: {before:,} -> {len(panel):,} rows "
             f"({len(panel) / before:.1%} retained)."
         )
+    if green_winsor:
+        import sys
+
+        builders_root = PROJECT_ROOT / "Character_Builders"
+        if str(builders_root) not in sys.path:
+            sys.path.insert(0, str(builders_root))
+        from _shared.green_winsor import apply_green_winsorization  # noqa: WPS433
+
+        panel = apply_green_winsorization(panel, month_col="signal_yyyymm")
+        print("Applied Green SAS monthly winsorization (p1/p99 or p99 by variable).")
     return panel, skipped
 
 
@@ -267,12 +284,21 @@ def main():
             "bm, mom1m, and mve) to match Green's CRSP-Compustat-merged universe."
         ),
     )
+    parser.add_argument(
+        "--green-winsor",
+        action="store_true",
+        help=(
+            "Apply Green SAS final monthly winsorization (Greens_code.sas L1160-1240) "
+            "so continuous predictors match Green/datashare export levels."
+        ),
+    )
     args = parser.parse_args()
 
     panel, skipped = build_all_character_panel(
         args.input_dir,
         force_june_annual=args.legacy_june_annual,
         green_universe=args.green_universe,
+        green_winsor=args.green_winsor,
     )
 
     output_path = Path(args.output)

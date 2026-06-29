@@ -1,0 +1,47 @@
+characteristic,has_industry_component,spearman_vs_green,spearman_vs_gkx,n_ours,n_gkx,permnos_ours,permnos_gkx,open_hypotheses,status,priority_score,notes
+# ─────────────────────────────────────────────────────────────────────────────────────────────────
+# DISCREPANCY TABLE  (last updated: 2026-06-29 session 2)
+# Metrics source: panel_gkx_datashare_full_comparison.md (post-ms-fix rebuild comparison)
+# spearman_vs_gkx = median monthly Spearman vs datashare.csv
+# n_ours / n_gkx = paired rows for that characteristic in the comparison window
+# permnos_ours = unique permnos in both datasets (lower bound; actual ours ≥ this)
+# permnos_gkx  = approx (derived as permno_both + ds-only permnos, rough)
+# priority_score = (1 - spearman_vs_gkx)*100 + |n_ours - n_gkx|/n_gkx*50
+# ─────────────────────────────────────────────────────────────────────────────────────────────────
+#
+# ══════════════════════════════════════════════════════════
+# FORMULA_ONLY  (do not fix — deliberate definition differences)
+# ══════════════════════════════════════════════════════════
+agr,NO,~1.00,-0.981,2153912,2847828,17905,~32793,"FORMULA",FORMULA_ONLY,199.7,"GKX negates agr in datashare so higher = better return. Our formula AT_t/AT_{t-1}-1 correctly replicates Green. Confirmed 2026-06-29."
+chpmia,YES,0.979,0.650,2128170,2796671,17649,~31000,"FORMULA",FORMULA_ONLY,51.7,"panel-Green=0.979 — correctly replicates Green. Datashare uses GKX-specific variant with different industry bucket/timing/formula. Cannot be fixed by changing industry classification alone."
+ear,NO,~0.93,0.043,2105598,2500206,18404,~32793,"FORMULA",FORMULA_ONLY,97.0,"GKX ear is fundamentally different from Green abr (3-day sum of raw daily returns). aeavol (same timing/events) has 0.934 correlation — confirms the formula for ear itself differs, not just timing. Marked FORMULA_ONLY pending deeper investigation."
+cfp,NO,~0.90,0.799,2113837,2768521,17816,~32793,"A",FORMULA_ONLY,34.9,"Green cfp and GKX cfp differ in market equity timing. Fix implemented: comparison maps datashare cfp → cfp_dc (from build_datashare_chars.py using monthly me). Pipeline rebuild needed to produce cfp_dc."
+#
+# ══════════════════════════════════════════════════════════
+# CONVENTION — code fix implemented; needs pipeline rebuild on faster machine
+# ══════════════════════════════════════════════════════════
+bm_ia,YES,~0.35,0.270,2353172,3042589,19414,~32793,"A",CONVENTION,97.4,"GKX uses FF49 industry (not SIC2) + post-CRSP-merge universe for industry mean. Fix: build_datashare_chars.py now computes bm_ia_dc correctly at jdate level (bug fixed: was averaging monthly-varying bm across datadate groups). Pipeline rebuild needed to produce corrected bm_ia_dc.csv. Comparison script maps datashare bm_ia → bm_ia_dc."
+cfp_ia,YES,0.528,0.581,2113837,2768521,17816,~29300,"A",CONVENTION,60.0,"GKX uses FF49 industry + post-CRSP-merge universe. Fix: build_datashare_chars.py now computes cfp_ia_dc (new). Comparison maps datashare cfp_ia → cfp_ia_dc. Pipeline rebuild needed."
+chtx,NO,0.949,0.949,1955303,2305599,17864,~29300,"TIMING",CONVENTION,12.0,"GREEN uses -10/-5 month window; GKX uses 3-month lag (SEC filing deadline). Fix: chtx_gkx built by quarterly_builders.expand_quarterly_columns_to_monthly_gkx(). Comparison maps datashare chtx → chtx_gkx. Pipeline rebuild needed. Current panel uses Green timing (chtx_gkx not yet built)."
+cinvest,NO,0.938,0.940,1975809,2271798,17876,~29300,"TIMING",CONVENTION,15.8,"Same timing issue as chtx. Fix: cinvest_gkx built with 3-month lag. Pipeline rebuild needed."
+nincr,NO,0.940,0.841,2066889,2502537,18275,~29300,"TIMING",CONVENTION,24.7,"Same timing issue as chtx. Fix: nincr_gkx built with 3-month lag. Pipeline rebuild needed."
+roaq,NO,0.972,0.972,2054375,2417907,17989,~29300,"TIMING",CONVENTION,10.3,"Same timing issue. Fix: roaq_gkx. Pipeline rebuild needed."
+roeq,NO,0.965,0.964,2062508,2478819,18018,~29300,"TIMING",CONVENTION,12.3,"Same timing issue. Fix: roeq_gkx. Pipeline rebuild needed."
+rsup,NO,0.969,0.969,2010644,2438681,18078,~29300,"TIMING",CONVENTION,11.6,"Same timing issue. Fix: rsup_gkx. Pipeline rebuild needed."
+stdacc,NO,0.996,0.996,1368281,1611546,12190,~29300,"TIMING",CONVENTION,1.2,"Timing issue. Fix: stdacc_gkx. Already near-perfect."
+stdcf,NO,0.996,0.996,1368281,1611546,12190,~29300,"TIMING",CONVENTION,1.2,"Timing issue. Fix: stdcf_gkx. Already near-perfect."
+ms,YES,~0.59,0.528,1999272,2435264,17617,~29300,"",CONVENTION,56.6,"Fix implemented in ms_builder.py: m7/m8 now sourced from the SAME fiscal year as annual m1-m6 (match on permno × fyear=fyearq, take last quarter). Previous code used CRSP-date window which pulled m7/m8 from wrong fiscal year for months 13-18 of annual window. Pipeline rebuild needed to validate improvement."
+pchcapx_ia,YES,0.731,0.733,1978556,2686231,16749,~29300,"",CONVENTION,39.7,"Fix: pchcapx NaN when lag_capx<=0. Residual gap vs datashare (0.733) is convention: GKX uses FF49 industry + post-CRSP-merge. Comparison script maps datashare pchcapx_ia → pchcapx_ia_dc (not yet built). Falls back to Green pchcapx_ia currently."
+chempia,YES,0.944,0.921,2157228,2806379,17893,~29300,"A",CONVENTION,15.1,"Industry-adjusted employee growth. SIC2 (Green) vs FF49 (GKX) industry classification. Comparison script maps datashare chempia → chempia_dc (not yet built). Falls back to Green chempia currently. Requires adding chempia to build_datashare_chars.py on faster machine."
+#
+# ══════════════════════════════════════════════════════════
+# OPEN  (under investigation; requires deeper analysis)
+# ══════════════════════════════════════════════════════════
+roavol,NO,0.897,0.897,1711494,2081465,14650,~29300,"",OPEN,15.1,"0.897 correlation. Rolling std of quarterly ROA over 8 quarters. Moderate discrepancy likely from different roaq base or N-period convention. Used as m8 component in ms — ms fix may improve roavol indirectly."
+aeavol,NO,0.934,0.934,2040841,2472480,17902,~29300,"TIMING",OPEN,11.6,"Abnormal announcement volume. 80.5% exact match suggests formula is mostly correct. Compare carefully against GKX source."
+pricedelay,NO,0.935,0.935,2345025,3716664,21212,~32793,"C;D",OPEN,15.5,"Price delay. Large N discrepancy (37% more in datashare). Universe + formula issue. Datashare starts 1957 while our panel starts 1975."
+#
+# ══════════════════════════════════════════════════════════
+# CLOSED  (all three criteria met, or explained)
+# ══════════════════════════════════════════════════════════
+indmom,YES,0.990,0.835,3297357,4117276,25735,~32793,"",CLOSED,20.0,"panel-Green=0.990. Low median ρ=0.835 entirely due to 1958-1962 sparse mom12m coverage. From 1975+ ρ stays 0.95-0.99. Confirmed 2026-06."

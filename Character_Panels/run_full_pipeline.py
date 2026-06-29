@@ -140,6 +140,26 @@ def build_hxz_characters(wrds_user, output_dir, cfg, profile="green"):
         run(cmd)
 
 
+def build_datashare_style_chars(wrds_user, output_dir, skip_existing=False):
+    """Build GKX datashare-style chars (bm_ia_dc, cfp_ia_dc, operprof_dc, cfp_dc, bm_dc).
+
+    These use the GKX/FF49-industry-adjusted methodology and are stored alongside the
+    Green chars in the individual output directory.  The signal panel builder picks
+    them up automatically since they share the same directory.
+    """
+    sentinel = output_dir / "bm_ia_dc.csv"
+    if skip_existing and sentinel.exists():
+        print("datashare-style chars (_dc): skipped (already exist)")
+        return
+    cmd = [
+        PYTHON,
+        "Character_Builders/GKX_datashare/build_datashare_chars.py",
+        "--wrds-user", wrds_user,
+        "--individual-dir", str(output_dir),
+    ]
+    run(cmd)
+
+
 def build_excess_returns(wrds_user, cfg):
     if EXCESS_RETURNS_FILE.exists():
         print("excess_returns: skipped (already exists)")
@@ -170,6 +190,8 @@ def build_panels(cfg):
     ]
     if cfg.green_universe:
         signal_cmd.append("--green-universe")
+    if cfg.green_winsor:
+        signal_cmd.append("--green-winsor")
     run(signal_cmd)
 
     if not cfg.build_research_panel:
@@ -270,6 +292,18 @@ def main():
         dest="green_universe",
         help="Disable Green universe screen even if profile would enable it.",
     )
+    parser.add_argument(
+        "--no-green-winsor",
+        action="store_false",
+        dest="green_winsor",
+        help="Disable Green monthly winsorization even if profile would enable it.",
+    )
+    parser.add_argument(
+        "--green-winsor",
+        action="store_true",
+        default=None,
+        help="Apply Green SAS monthly winsorization to the signal panel.",
+    )
     parser.add_argument("--ccm-linktypes", default=None, help="Override CCM linktypes for Green + HXZ builders.")
     parser.add_argument("--ccm-linkprim", default=None, help="Override CCM linkprim for HXZ builders.")
     parser.add_argument(
@@ -289,6 +323,7 @@ def main():
         sample_start=args.sample_start,
         sample_end=args.sample_end,
         green_universe=args.green_universe,
+        green_winsor=args.green_winsor,
         skip_ibes=True if args.skip_ibes else None,
         skip_special=True if args.skip_special else None,
         skip_daily=True if args.skip_daily else None,
@@ -312,6 +347,13 @@ def main():
         )
         if cfg.build_hxz:
             build_hxz_characters(args.wrds_user, CHARACTER_INDIVIDUAL_DIR, cfg, profile=cfg.profile)
+        # Build GKX datashare-style chars (_dc files: bm_ia_dc, cfp_ia_dc, etc.)
+        # These are required for accurate datashare comparison for bm_ia, cfp_ia.
+        build_datashare_style_chars(
+            args.wrds_user,
+            CHARACTER_INDIVIDUAL_DIR,
+            skip_existing=args.resume,
+        )
         build_excess_returns(args.wrds_user, cfg)
 
     build_panels(cfg)

@@ -26,6 +26,7 @@ class PipelineConfig:
     sample_start: str | None = None
     sample_end: str | None = None
     green_universe: bool = False
+    green_winsor: bool = False
     skip_ibes: bool = True
     build_hxz: bool = True
     build_research_panel: bool = True
@@ -55,6 +56,7 @@ def _profile_defaults(profile: str) -> PipelineConfig:
             profile="green",
             sample_start=None,  # green_builders default floor 1975-01-01
             green_universe=False,
+            green_winsor=True,
             skip_ibes=True,
             build_hxz=True,
             build_research_panel=True,
@@ -95,6 +97,7 @@ def resolve_config(
     sample_start: str | None = None,
     sample_end: str | None = None,
     green_universe: bool | None = None,
+    green_winsor: bool | None = None,
     skip_ibes: bool | None = None,
     build_hxz: bool | None = None,
     build_research_panel: bool | None = None,
@@ -117,6 +120,8 @@ def resolve_config(
         overrides["sample_end"] = sample_end or None
     if green_universe is not None:
         overrides["green_universe"] = green_universe
+    if green_winsor is not None:
+        overrides["green_winsor"] = green_winsor
     if skip_ibes is not None:
         overrides["skip_ibes"] = skip_ibes
     if build_hxz is not None:

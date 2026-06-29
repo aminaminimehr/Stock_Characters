@@ -1,0 +1,63 @@
+# Formula Differences Registry
+# ==============================
+# This file tracks cases where Green and GKX use DIFFERENT characteristic
+# definitions — not different implementation conventions, but genuinely
+# different formulas.
+#
+# A formula difference means:
+#   - Green computes variable X one way
+#   - GKX/HXZ compute it a different way
+#   - Matching GKX would require adopting a different formula definition
+#
+# These are categorically different from convention differences (which are
+# tracked in CONVENTIONS_REGISTRY.yaml). Mixing them creates confusion
+# about what is being reproduced and why.
+#
+# For each formula difference:
+#   - Document both formulas precisely
+#   - Cite the source for each (Green SAS code line, HXZ doc page, etc.)
+#   - Note the Spearman impact of using the HXZ formula vs Green formula
+#   - Mark whether the repo implements the HXZ formula as an option
+#
+# The repository implements BOTH formulas as configurable options.
+# Green formula = green_formula: (expression)
+# HXZ/GKX formula = hxz_formula: (expression)
+# Config parameter: formula_variant: 'green' | 'hxz'
+
+meta:
+  last_updated: "YYYY-MM-DD"
+  notes: >
+    Formula differences require a deliberate choice: do we implement the HXZ
+    formula, the Green formula, or both? The default for the GKX-matching
+    configuration is always the HXZ formula. The default for the Green-matching
+    configuration is always the Green formula. Both must remain available.
+
+formula_differences:
+
+  # Template:
+  #
+  # characteristic_name:
+  #   description: "One sentence describing what differs"
+  #   green_formula: "Mathematical expression or description"
+  #   green_source: "SAS code line reference or description"
+  #   hxz_formula: "Mathematical expression or description"
+  #   hxz_source: "HXZ doc page/section reference"
+  #   spearman_impact: "Approximate Spearman change from switching formulas"
+  #   implemented_as_option: false
+  #   config_parameter: "formula_[char]_variant"
+  #   notes: "Any additional context"
+
+  # Example (fill in once confirmed):
+  #
+  # book_equity:
+  #   description: "Treatment of deferred taxes in book equity calculation"
+  #   green_formula: "ceq + txditc"
+  #   green_source: "Greens_code.sas line ~240"
+  #   hxz_formula: "ceq + txditc - (pstkrv if available, else pstkl if available, else 0)"
+  #   hxz_source: "HXZ Technical Document, Section 2.1, equation (1)"
+  #   spearman_impact: "Small (~0.02 Spearman drop) — mostly affects firms with preferred stock"
+  #   implemented_as_option: false
+  #   config_parameter: "formula_book_equity_variant"
+  #   notes: >
+  #     The preferred stock subtraction affects a subset of firms. Effect is larger
+  #     in earlier years when preferred stock was more common.

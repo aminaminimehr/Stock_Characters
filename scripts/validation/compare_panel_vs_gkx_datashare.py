@@ -7,6 +7,10 @@ For every column in datashare.csv that maps to a panel column, compute:
   - pooled Spearman and median monthly cross-sectional Spearman
   - exact match |Δ| ≤ 1e-4 and round-to-4-decimal match
 
+All panel-side counts and comparisons are restricted to the datashare calendar
+window (min/max ``DATE // 100`` in datashare.csv) so post-2021 panel tail rows
+do not inflate panel-only keys or coverage stats.
+
 Month alignment: datashare ``DATE`` → ``YYYYMM`` via ``DATE // 100``; auto-pick panel
 ``signal_yyyymm`` vs ``target_yyyymm`` per column (whichever yields higher median ρ).
 """
@@ -48,7 +52,13 @@ PANEL_META = {
     "ffi49",
 }
 
-# datashare name -> panel column (when they differ)
+# datashare name -> panel column (when they differ).
+#
+# GKX-timed quarterly variants (_gkx suffix) are preferred over Green-timed versions
+# for datashare comparison because datashare uses a 3-month SEC-filing-deadline lag
+# while Green SAS uses a more conservative -10/-5 month window.  The _gkx columns
+# are built by build_quarterly_character_gkx() and stored as individual CSVs.
+# Fall-through: if the _gkx variant is absent, panel_column() finds Green version.
 PANEL_ALIAS: dict[str, str] = {
     "bm": "book_to_market",
     "operprof": "operating_profitability",
@@ -56,6 +66,28 @@ PANEL_ALIAS: dict[str, str] = {
     "rd_mve": "rdm",
     "retvol": "rvar_mean",
     "ear": "abr",
+    # GKX quarterly timing aliases (use _gkx variants when available)
+    "chtx": "chtx_gkx",
+    "cinvest": "cinvest_gkx",
+    "nincr": "nincr_gkx",
+    "roaq": "roaq_gkx",
+    "roeq": "roeq_gkx",
+    "rsup": "rsup_gkx",
+    "stdacc": "stdacc_gkx",
+    "stdcf": "stdcf_gkx",
+    # GKX datashare-style _dc variants for industry-adjusted chars and value chars.
+    # These are computed by build_datashare_chars.py using FF49 industries + post-CRSP
+    # merge universe, which matches the GKX datashare.csv construction methodology.
+    "bm_ia": "bm_ia_dc",
+    "cfp_ia": "cfp_ia_dc",
+    # GKX cfp uses (ib + dp) / monthly me (point-in-time) via CRSP merge; the Green
+    # panel cfp uses a different market equity timing.  cfp_dc matches the GKX approach.
+    "cfp": "cfp_dc",
+    # pchcapx_ia and chpmia: GKX uses FF49 + post-CRSP-merge universe for industry mean.
+    # When _dc variants are built, prefer them for datashare comparison.
+    "pchcapx_ia": "pchcapx_ia_dc",
+    "chempia": "chempia_dc",
+    "chpmia": "chpmia_dc",
 }
 
 
@@ -66,7 +98,15 @@ def datashare_predictors(datashare_path: Path = DEFAULT_DATASHARE) -> list[str]:
 
 def panel_column(ds_col: str, panel_cols: set[str]) -> str | None:
     pcol = PANEL_ALIAS.get(ds_col, ds_col)
-    return pcol if pcol in panel_cols else None
+    if pcol in panel_cols:
+        return pcol
+    # Fall back: if the alias is a _gkx variant that's missing, try the base column
+    if pcol.endswith("_gkx") and pcol[:-4] in panel_cols:
+        return pcol[:-4]
+    # Fall back: if the alias is a _dc variant that's missing, try the base column
+    if pcol.endswith("_dc") and pcol[:-3] in panel_cols:
+        return pcol[:-3]
+    return None
 
 
 def build_pairs(panel_cols: set[str], datashare_path: Path) -> tuple[list[tuple[str, str]], list[str]]:
@@ -90,6 +130,24 @@ def load_datashare(datashare_path: Path) -> pd.DataFrame:
                 chunk[c] = pd.to_numeric(chunk[c], errors="coerce").astype("float32")
         frames.append(chunk.drop(columns=["DATE"]))
     return pd.concat(frames, ignore_index=True)
+
+
+def datashare_month_bounds(ds: pd.DataFrame) -> tuple[int, int]:
+    months = ds["month"].dropna()
+    return int(months.min()), int(months.max())
+
+
+def restrict_panel_to_datashare_window(
+    panel: pd.DataFrame,
+    month_min: int,
+    month_max: int,
+) -> pd.DataFrame:
+    """Drop panel rows whose signal and target months both fall outside datashare span."""
+    in_window = (
+        panel["signal_yyyymm"].between(month_min, month_max)
+        | panel["target_yyyymm"].between(month_min, month_max)
+    )
+    return panel.loc[in_window].copy()
 
 
 def load_panel(panel_path: Path, panel_cols: list[str]) -> pd.DataFrame:
@@ -122,6 +180,8 @@ def compare_column(
     panel: pd.DataFrame,
     ds_col: str,
     pcol: str,
+    month_min: int,
+    month_max: int,
 ) -> dict:
     ds_sub = ds[["permno", "month", ds_col]].rename(columns={ds_col: "dv"})
     panel_sub = panel[["permno", "signal_yyyymm", "target_yyyymm", pcol]].rename(columns={pcol: "pv"})
@@ -130,6 +190,7 @@ def compare_column(
     best_row = None
     for month_col in ("signal_yyyymm", "target_yyyymm"):
         ps = panel_sub.rename(columns={month_col: "month"})[["permno", "month", "pv"]]
+        ps = ps[ps["month"].between(month_min, month_max)]
         panel_keys = set(map(tuple, ps.loc[ps["pv"].notna(), ["permno", "month"]].itertuples(index=False, name=None)))
         m = ds_sub.merge(ps, on=["permno", "month"], how="inner").dropna(subset=["dv", "pv"])
         n_pair = len(m)
@@ -179,6 +240,8 @@ def write_md(
     panel: pd.DataFrame,
     ds: pd.DataFrame,
     panel_path: Path,
+    month_min: int,
+    month_max: int,
 ) -> None:
     def f(x, d=4):
         return "—" if pd.isna(x) else f"{x:.{d}f}"
@@ -187,8 +250,10 @@ def write_md(
     d_permnos = set(ds["permno"].dropna().unique())
     p_months = panel["signal_yyyymm"].dropna()
     d_months = ds["month"].dropna()
+    panel_signal = panel[["permno", "signal_yyyymm"]].rename(columns={"signal_yyyymm": "month"})
+    panel_signal = panel_signal[panel_signal["month"].between(month_min, month_max)]
     overlap_keys = pd.merge(
-        panel[["permno", "signal_yyyymm"]].rename(columns={"signal_yyyymm": "month"}).drop_duplicates(),
+        panel_signal.drop_duplicates(),
         ds[["permno", "month"]].drop_duplicates(),
         on=["permno", "month"],
         how="inner",
@@ -201,15 +266,15 @@ def write_md(
         f"- Panel: `{panel_path.name}`",
         f"- Datashare: `{DEFAULT_DATASHARE.name}`",
         f"- Column universe: all **{len(res)}** mapped datashare predictors (of 95 excl. `permno`, `DATE`)",
-        "- Comparison: overlapping `permno × YYYYMM` cells on full datashare period.",
+        f"- Comparison window: datashare months **{month_min}–{month_max}** only (panel rows/month keys outside this span excluded).",
         "- Month: datashare `DATE // 100`; per-column best of panel `signal_yyyymm` vs `target_yyyymm`.",
         "- `exact%` = |Δ| ≤ 1e-4; `round4%` = values equal when rounded to 4 decimal places.",
         "",
-        "## Dataset-level",
+        "## Dataset-level (datashare window)",
         "",
         "| Dataset | Rows | Unique permnos | Month range |",
         "|---------|-----:|---------------:|-------------|",
-        f"| Panel | {len(panel):,} | {len(p_permnos):,} | {int(p_months.min())}–{int(p_months.max())} |",
+        f"| Panel (restricted) | {len(panel):,} | {len(p_permnos):,} | {int(p_months.min())}–{int(p_months.max())} |",
         f"| Datashare | {len(ds):,} | {len(d_permnos):,} | {int(d_months.min())}–{int(d_months.max())} |",
         "",
         f"- Overlapping `permno × month` cells (signal month): **{len(overlap_keys):,}**",
@@ -312,20 +377,31 @@ def main() -> None:
     print(f"Mapped {len(pairs)} datashare predictors; skipped {len(skipped)}", flush=True)
     print("Loading datashare...", flush=True)
     ds = load_datashare(datashare_path)
-    print(f"  datashare rows={len(ds):,} permnos={ds['permno'].nunique():,}", flush=True)
+    month_min, month_max = datashare_month_bounds(ds)
+    print(
+        f"  datashare rows={len(ds):,} permnos={ds['permno'].nunique():,} "
+        f"months={month_min}–{month_max}",
+        flush=True,
+    )
     print("Loading panel (this may take several minutes)...", flush=True)
     panel = load_panel(panel_path, needed)
-    print(f"  panel rows={len(panel):,} permnos={panel['permno'].nunique():,}", flush=True)
+    panel_full_rows = len(panel)
+    panel = restrict_panel_to_datashare_window(panel, month_min, month_max)
+    print(
+        f"  panel rows={len(panel):,} (restricted from {panel_full_rows:,}) "
+        f"permnos={panel['permno'].nunique():,}",
+        flush=True,
+    )
 
     rows = []
     for i, (ds_col, pcol) in enumerate(pairs, start=1):
         print(f"  [{i}/{len(pairs)}] {ds_col} -> {pcol}", flush=True)
-        rows.append(compare_column(ds, panel, ds_col, pcol))
+        rows.append(compare_column(ds, panel, ds_col, pcol, month_min, month_max))
 
     res = pd.DataFrame(rows).sort_values("median_monthly_spearman", ascending=False, na_position="last")
     OUT_CSV.parent.mkdir(parents=True, exist_ok=True)
     res.to_csv(OUT_CSV, index=False)
-    write_md(res, skipped, panel, ds, panel_path)
+    write_md(res, skipped, panel, ds, panel_path, month_min, month_max)
 
     print(f"\nWrote {OUT_CSV}")
     print(f"Wrote {OUT_MD}")

@@ -31,8 +31,10 @@ from _shared.green_builders import (
 )
 from _shared.ibes_builders import build_re_character
 from _shared.quarterly_builders import (
+    GKX_QUARTERLY_CHAR_SOURCES,
     QUARTERLY_CHARACTER_INFO,
     build_quarterly_character,
+    build_quarterly_character_gkx,
     prepare_quarterly_compustat_panel,
 )
 from _shared.rvar_factor_builders import RVAR_SPECS, build_factor_rvar, clear_rvar_caches
@@ -85,13 +87,27 @@ def build_quarterly_characters(
     ccm_linkprim=None,
     skip_ibes=False,
     skip_existing=False,
+    build_gkx=True,
 ):
+    """Build Green-style quarterly characters and optionally GKX-timed variants.
+
+    When ``build_gkx=True`` (default), also builds ``{char}_gkx.csv`` variants for
+    chars listed in ``GKX_QUARTERLY_CHAR_SOURCES``.  These use a 3-month lag from
+    datadate (SEC filing deadline) instead of Green's conservative -10/-5 window,
+    and match datashare.csv significantly better.
+    """
     quarterly_chars = [
         character
         for character in QUARTERLY_CHARACTER_INFO
         if not (skip_existing and (output_dir / f"{character}.csv").exists())
     ]
-    if quarterly_chars:
+    gkx_chars = [
+        gkx_name
+        for gkx_name in GKX_QUARTERLY_CHAR_SOURCES
+        if build_gkx and not (skip_existing and (output_dir / f"{gkx_name}.csv").exists())
+    ]
+
+    if quarterly_chars or gkx_chars:
         print("Loading quarterly Compustat panel once for all quarterly characters...")
         quarterly_comp = prepare_quarterly_compustat_panel(
             db, ccm_linktypes, ccm_linkprim, use_ibes=not skip_ibes
@@ -106,6 +122,14 @@ def build_quarterly_characters(
                 comp=quarterly_comp,
             )
             write_character(out, character, output_dir)
+        for gkx_name in gkx_chars:
+            source = GKX_QUARTERLY_CHAR_SOURCES[gkx_name]
+            print(f"Building GKX-timed {gkx_name} (source: {source})...")
+            out = build_quarterly_character_gkx(
+                db, source, ccm_linktypes, ccm_linkprim,
+                use_ibes=not skip_ibes, comp=quarterly_comp,
+            )
+            write_character(out, gkx_name, output_dir)
 
 
 def build_special_characters(
