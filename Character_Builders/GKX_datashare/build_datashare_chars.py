@@ -236,7 +236,10 @@ def finalize_annual_monthly(annual: pd.DataFrame, crsp_monthly: pd.DataFrame) ->
     # Step 2: expand to monthly. Forward-fill bm_ia and cfp_ia (holding them constant
     # within each fiscal year), and recompute bm/cfp using monthly market equity.
     value_cols = ["gvkey", "datadate", "sic", "ffi49", "be", "op", "ib", "dp", "bm_ia", "cfp_ia"]
-    out = expand_monthly(annual, value_cols, crsp_monthly)
+    # expand_monthly supplies `me` from crsp_monthly; drop the annual `me` first to avoid a
+    # merge column collision (me_x / me_y) when base.merge(frame) sees `me` on both sides.
+    annual_for_expand = annual.drop(columns=["me"])
+    out = expand_monthly(annual_for_expand, value_cols, crsp_monthly)
     # Monthly bm and cfp use current market equity (out["me"] from crsp_monthly)
     out["bm"] = out["be"] / out["me"]
     out["cfp"] = np.select(
