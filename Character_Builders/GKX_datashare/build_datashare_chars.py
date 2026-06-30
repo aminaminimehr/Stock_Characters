@@ -16,7 +16,7 @@ return month after the predictor ``jdate``.
 from __future__ import annotations
 
 import argparse
-import importlib.util
+import sys
 import time
 from pathlib import Path
 
@@ -26,13 +26,11 @@ import wrds
 from pandas.tseries.offsets import MonthEnd, YearEnd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-FFI_SOURCE = (
-    PROJECT_ROOT
-    / "Supplementary_assistive_files"
-    / "Python_codes"
-    / "GKX_Xiu_or_Xin_he"
-    / "functions.py"
-)
+
+# Use the repo's own Fama-French industry mapper (no external files required)
+sys.path.insert(0, str(PROJECT_ROOT))
+from Imputation.industry_codes import add_fama_french_industry_code  # noqa: E402
+
 DEFAULT_OUTPUT = PROJECT_ROOT / "outputs" / "characteristics" / "datashare_style" / "datashare_chars.csv"
 DEFAULT_INDIVIDUAL_DIR = PROJECT_ROOT / "outputs" / "characteristics" / "individual"
 DATASHARE_COLS = ["bm", "bm_ia", "operprof", "cfp", "cfp_ia"]
@@ -44,15 +42,6 @@ DC_NAMES = {
     "cfp_ia": "cfp_ia_dc",
 }
 
-
-def load_ffi49():
-    """Import GKX's FF49 mapper so industry buckets match his code."""
-    spec = importlib.util.spec_from_file_location("gkx_functions", FFI_SOURCE)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Could not load GKX functions from {FFI_SOURCE}")
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod.ffi49
 
 
 def raw_sql_with_retry(db, sql: str, attempts: int = 5, pause_seconds: int = 60) -> pd.DataFrame:
@@ -175,7 +164,7 @@ def _link_to_months(comp: pd.DataFrame, ccm: pd.DataFrame, crsp_monthly: pd.Data
 
 
 # ------------------------------------------------------------------------- annual
-def build_annual_components(db, ccm: pd.DataFrame, crsp_monthly: pd.DataFrame, ffi49) -> pd.DataFrame:
+def build_annual_components(db, ccm: pd.DataFrame, crsp_monthly: pd.DataFrame) -> pd.DataFrame:
     comp = raw_sql_with_retry(
         db,
         """
@@ -212,7 +201,8 @@ def build_annual_components(db, ccm: pd.DataFrame, crsp_monthly: pd.DataFrame, f
     linked = _link_to_months(comp, ccm, crsp_monthly, 4)
     coerce_numeric(linked, ["be", "op", "ib", "dp"])
     linked["sic"] = pd.to_numeric(linked["sic"], errors="coerce")
-    linked["ffi49"] = pd.Series(ffi49(linked), index=linked.index).fillna(49).astype("Int64")
+    linked = add_fama_french_industry_code(linked, scheme=49, sic_col="sic", output_col="ffi49", unmatched_value=pd.NA)
+    linked["ffi49"] = linked["ffi49"].fillna(49).astype("Int64")
     return linked[["gvkey", "permno", "jdate", "datadate", "sic", "ffi49", "be", "op", "ib", "dp"]]
 
 
@@ -366,7 +356,6 @@ def write_individual_files(df: pd.DataFrame, individual_dir: Path) -> None:
 
 
 def build_datashare_chars(db, start: str) -> pd.DataFrame:
-    ffi49 = load_ffi49()
     print("Loading CRSP monthly market equity...", flush=True)
     crsp_monthly = load_crsp_monthly(db, start)
     print(f"CRSP monthly rows: {len(crsp_monthly):,}", flush=True)
@@ -374,7 +363,7 @@ def build_datashare_chars(db, start: str) -> pd.DataFrame:
     print("Loading CCM links...", flush=True)
     ccm = load_ccm(db)
     print("Building annual components...", flush=True)
-    annual = build_annual_components(db, ccm, crsp_monthly, ffi49)
+    annual = build_annual_components(db, ccm, crsp_monthly)
     print(f"Annual linked rows: {len(annual):,}", flush=True)
     print("Building quarterly components...", flush=True)
     quarterly = build_quarterly_components(db, ccm, crsp_monthly)
