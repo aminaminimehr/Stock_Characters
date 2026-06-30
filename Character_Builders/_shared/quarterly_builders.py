@@ -629,13 +629,35 @@ def expand_quarterly_columns_to_monthly_gkx(
     q = q[["permno", "jdate", *characters]].sort_values(["permno", "jdate"])
 
     # For each (permno, CRSP month), find the most recent quarterly row whose jdate <= date.
-    merged = pd.merge_asof(
-        monthly.sort_values(["permno", "date"]),
-        q.rename(columns={"jdate": "date"}),
-        on="date",
-        by="permno",
-        direction="backward",
-    )
+    # We loop per-permno because pd.merge_asof requires the *global* on-key to be sorted,
+    # which is violated when using by="permno" (dates reset for each new permno).
+    q_by_permno: dict[int, pd.DataFrame] = {}
+    for p_val, grp in q.groupby("permno", sort=False):
+        q_by_permno[int(p_val)] = (
+            grp[["jdate", *characters]]
+            .rename(columns={"jdate": "date"})
+            .sort_values("date")
+            .reset_index(drop=True)
+        )
+
+    parts: list[pd.DataFrame] = []
+    for p_val, m_grp in monthly.sort_values(["permno", "date"]).groupby("permno", sort=False):
+        q_grp = q_by_permno.get(int(p_val))
+        if q_grp is None or q_grp.empty:
+            continue
+        merged_grp = pd.merge_asof(
+            m_grp.sort_values("date"),
+            q_grp,
+            on="date",
+            direction="backward",
+        )
+        parts.append(merged_grp)
+
+    if not parts:
+        empty_cols = base_cols + characters
+        return pd.DataFrame(columns=empty_cols)
+
+    merged = pd.concat(parts, ignore_index=True)
 
     if require_values and characters:
         valid = merged[characters[0]].replace([np.inf, -np.inf], np.nan).notna()
