@@ -203,7 +203,7 @@ def build_annual_components(db, ccm: pd.DataFrame, crsp_monthly: pd.DataFrame) -
     linked["sic"] = pd.to_numeric(linked["sic"], errors="coerce")
     linked = add_fama_french_industry_code(linked, scheme=49, sic_col="sic", output_col="ffi49", unmatched_value=pd.NA)
     linked["ffi49"] = linked["ffi49"].fillna(49).astype("Int64")
-    return linked[["gvkey", "permno", "jdate", "datadate", "sic", "ffi49", "be", "op", "ib", "dp"]]
+    return linked[["gvkey", "permno", "jdate", "datadate", "sic", "ffi49", "be", "op", "ib", "dp", "me"]]
 
 
 def finalize_annual_monthly(annual: pd.DataFrame, crsp_monthly: pd.DataFrame) -> pd.DataFrame:
