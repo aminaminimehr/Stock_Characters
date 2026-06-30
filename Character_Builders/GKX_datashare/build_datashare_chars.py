@@ -54,7 +54,10 @@ def raw_sql_with_retry(db, sql: str, attempts: int = 5, pause_seconds: int = 60)
             msg = str(exc).lower()
             retryable = any(
                 token in msg
-                for token in ("timeout", "timed out", "connection", "ssl", "closed", "reset", "rollback")
+                for token in (
+                "timeout", "timed out", "connection", "ssl", "closed", "reset", "rollback",
+                "conflict with recovery", "canceling statement", "serialization",
+            )
             )
             if attempt == attempts or not retryable:
                 raise

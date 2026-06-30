@@ -743,6 +743,10 @@ def raw_sql_with_retry(db, sql, attempts=5, pause_seconds=120):
                     "reset",
                     "rollback",
                     "invalid transaction",
+                    # PostgreSQL hot-standby replica conflicts (SerializationFailure)
+                    "conflict with recovery",
+                    "canceling statement",
+                    "serialization",
                 )
             )
             if attempt == attempts or not retryable:
