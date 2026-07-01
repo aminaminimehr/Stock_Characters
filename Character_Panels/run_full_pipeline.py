@@ -273,16 +273,16 @@ def main():
         help="Disable Green universe screen even if profile would enable it.",
     )
     parser.add_argument(
-        "--no-green-winsor",
-        action="store_false",
-        dest="green_winsor",
-        help="Disable Green monthly winsorization even if profile would enable it.",
-    )
-    parser.add_argument(
         "--green-winsor",
         action="store_true",
         default=None,
         help="Apply Green SAS monthly winsorization to the signal panel.",
+    )
+    parser.add_argument(
+        "--no-green-winsor",
+        action="store_false",
+        dest="green_winsor",
+        help="Disable Green monthly winsorization even if profile would enable it.",
     )
     parser.add_argument("--ccm-linktypes", default=None, help="Override CCM linktypes for Green + HXZ builders.")
     parser.add_argument("--ccm-linkprim", default=None, help="Override CCM linkprim for HXZ builders.")
