@@ -53,12 +53,10 @@ PANEL_META = {
 }
 
 # datashare name -> panel column (when they differ).
-#
-# GKX-timed quarterly variants (_gkx suffix) are preferred over Green-timed versions
-# for datashare comparison because datashare uses a 3-month SEC-filing-deadline lag
-# while Green SAS uses a more conservative -10/-5 month window.  The _gkx columns
-# are built by build_quarterly_character_gkx() and stored as individual CSVs.
-# Fall-through: if the _gkx variant is absent, panel_column() finds Green version.
+# Only true name remaps live here; all other datashare predictors are compared
+# directly against the Green-style panel columns (chtx, cinvest, bm_ia, cfp_ia,
+# cfp, pchcapx_ia, chpmia, ...).  The earlier experimental _gkx / _dc variants
+# have been removed from the repo.
 PANEL_ALIAS: dict[str, str] = {
     "bm": "book_to_market",
     "operprof": "operating_profitability",
@@ -66,28 +64,6 @@ PANEL_ALIAS: dict[str, str] = {
     "rd_mve": "rdm",
     "retvol": "rvar_mean",
     "ear": "abr",
-    # GKX quarterly timing aliases (use _gkx variants when available)
-    "chtx": "chtx_gkx",
-    "cinvest": "cinvest_gkx",
-    "nincr": "nincr_gkx",
-    "roaq": "roaq_gkx",
-    "roeq": "roeq_gkx",
-    "rsup": "rsup_gkx",
-    "stdacc": "stdacc_gkx",
-    "stdcf": "stdcf_gkx",
-    # GKX datashare-style _dc variants for industry-adjusted chars and value chars.
-    # These are computed by build_datashare_chars.py using FF49 industries + post-CRSP
-    # merge universe, which matches the GKX datashare.csv construction methodology.
-    "bm_ia": "bm_ia_dc",
-    "cfp_ia": "cfp_ia_dc",
-    # GKX cfp uses (ib + dp) / monthly me (point-in-time) via CRSP merge; the Green
-    # panel cfp uses a different market equity timing.  cfp_dc matches the GKX approach.
-    "cfp": "cfp_dc",
-    # pchcapx_ia and chpmia: GKX uses FF49 + post-CRSP-merge universe for industry mean.
-    # When _dc variants are built, prefer them for datashare comparison.
-    "pchcapx_ia": "pchcapx_ia_dc",
-    "chempia": "chempia_dc",
-    "chpmia": "chpmia_dc",
 }
 
 
@@ -100,12 +76,6 @@ def panel_column(ds_col: str, panel_cols: set[str]) -> str | None:
     pcol = PANEL_ALIAS.get(ds_col, ds_col)
     if pcol in panel_cols:
         return pcol
-    # Fall back: if the alias is a _gkx variant that's missing, try the base column
-    if pcol.endswith("_gkx") and pcol[:-4] in panel_cols:
-        return pcol[:-4]
-    # Fall back: if the alias is a _dc variant that's missing, try the base column
-    if pcol.endswith("_dc") and pcol[:-3] in panel_cols:
-        return pcol[:-3]
     return None
 
 

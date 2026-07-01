@@ -20,7 +20,6 @@ with configurable universe and timing (`--profile datashare`). **`bm_ia` is not 
 |---|---|---|---|
 | **Green** (canonical) | short names | `bm`, `operprof`, `cfp` | Replicate Green SAS; benchmark vs `Output_From_Greens_SAS_code.sas7bdat` |
 | **HXZ / FF June** | descriptive | `book_to_market`, `operating_profitability` | Datashare mapping for `bm` and `operprof` |
-| **Experimental** | `_dc` suffix | `bm_dc`, … | Rejected GKX port — kept for reference only (`GKX_datashare/`) |
 
 Datashare mapping (empirically validated): `bm` → `book_to_market`, `operprof` → `operating_profitability`,
 `cfp` → Green `cfp`. See `docs/gkx/datashare_reverse_engineering.md`.

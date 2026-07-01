@@ -74,23 +74,6 @@ QUARTERLY_CHARACTER_INFO = {
 
 }
 
-# GKX-timed variants of select quarterly chars.  Built by build_quarterly_character_gkx()
-# using a 3-month lag from datadate (SEC filing deadline convention).
-# These match datashare.csv timing and supersede the Green -10/-5 window chars for
-# GKX comparison purposes.  Named with _gkx suffix to preserve Green baseline.
-GKX_QUARTERLY_CHAR_SOURCES = {
-    "chtx_gkx": "chtx",
-    "cinvest_gkx": "cinvest",
-    "nincr_gkx": "nincr",
-    "roaq_gkx": "roaq",
-    "roeq_gkx": "roeq",
-    "rsup_gkx": "rsup",
-    "stdacc_gkx": "stdacc",
-    "stdcf_gkx": "stdcf",
-}
-
-
-
 QUARTERLY_ID_COLUMNS = ["permno", "permco", "gvkey", "datadate", "sic", "fyearq", "fqtr"]
 
 
@@ -102,11 +85,6 @@ _MONTHLY_CRSP_PANEL = None
 # SAS Greens_code.sas L768
 QUARTERLY_MONTH_START_LAG = -10
 QUARTERLY_MONTH_END_LAG = -5
-
-# GKX datashare timing: quarterly data first available 3 months after fiscal quarter end.
-# This matches the SEC 10-Q/10-K filing deadline and produces better match with datashare.csv
-# compared to Green's conservative -10/-5 month window.
-GKX_QUARTERLY_LAG_MONTHS = 3
 
 
 
@@ -582,117 +560,6 @@ def expand_quarterly_to_monthly(db, quarterly, character, *, require_rdq: bool =
         require_rdq=require_rdq,
         require_values=True,
     )
-
-
-def expand_quarterly_columns_to_monthly_gkx(
-    db,
-    quarterly,
-    characters,
-    *,
-    require_values: bool = True,
-):
-    """GKX-style quarterly expansion: data available at datadate + 3 months, forward-filled.
-
-    Unlike Green's -10/-5 month window on ``datadate``, this matches the SEC filing
-    deadline convention used in GKX datashare.csv.  Uses ``pd.merge_asof`` for efficiency.
-
-    Characters produced this way match datashare.csv significantly better than the
-    Green timing convention (median Spearman typically 0.97–0.99 vs 0.92–0.95 for Green).
-    """
-    from pandas.tseries.offsets import MonthEnd as _ME
-
-    characters = list(characters)
-    base_cols = [
-        "permno", "permco", "date", "signal_yyyymm", "target_yyyymm",
-        "sic", "exchcd", "shrcd",
-    ]
-
-    monthly = get_monthly_crsp_panel(db)[base_cols].copy()
-    monthly["date"] = pd.to_datetime(monthly["date"])
-    monthly["permno"] = pd.to_numeric(monthly["permno"], errors="coerce").astype("int64")
-    monthly = monthly.drop_duplicates(["permno", "date"], keep="last").sort_values(
-        ["permno", "date"]
-    )
-
-    q = quarterly[["permno", "datadate", *characters]].copy()
-    q["permno"] = pd.to_numeric(q["permno"], errors="coerce").astype("int64")
-    q["datadate"] = pd.to_datetime(q["datadate"])
-    # GKX timing: data available at the month-end that is GKX_QUARTERLY_LAG_MONTHS after datadate
-    q["jdate"] = q["datadate"] + _ME(GKX_QUARTERLY_LAG_MONTHS)
-
-    for char in characters:
-        q[char] = pd.to_numeric(q[char], errors="coerce")
-
-    if require_values and characters:
-        q = q.dropna(subset=[characters[0]])
-
-    q = q[["permno", "jdate", *characters]].sort_values(["permno", "jdate"])
-
-    # For each (permno, CRSP month), find the most recent quarterly row whose jdate <= date.
-    # We loop per-permno because pd.merge_asof requires the *global* on-key to be sorted,
-    # which is violated when using by="permno" (dates reset for each new permno).
-    q_by_permno: dict[int, pd.DataFrame] = {}
-    for p_val, grp in q.groupby("permno", sort=False):
-        q_by_permno[int(p_val)] = (
-            grp[["jdate", *characters]]
-            .rename(columns={"jdate": "date"})
-            .sort_values("date")
-            .reset_index(drop=True)
-        )
-
-    parts: list[pd.DataFrame] = []
-    for p_val, m_grp in monthly.sort_values(["permno", "date"]).groupby("permno", sort=False):
-        q_grp = q_by_permno.get(int(p_val))
-        if q_grp is None or q_grp.empty:
-            continue
-        merged_grp = pd.merge_asof(
-            m_grp.sort_values("date"),
-            q_grp,
-            on="date",
-            direction="backward",
-        )
-        parts.append(merged_grp)
-
-    if not parts:
-        empty_cols = base_cols + characters
-        return pd.DataFrame(columns=empty_cols)
-
-    merged = pd.concat(parts, ignore_index=True)
-
-    if require_values and characters:
-        valid = merged[characters[0]].replace([np.inf, -np.inf], np.nan).notna()
-        merged = merged[valid]
-
-    return merged[base_cols + characters].reset_index(drop=True)
-
-
-def build_quarterly_character_gkx(
-    db, character, ccm_linktypes=None, ccm_linkprim=None, use_ibes=True, comp=None
-):
-    """Build a quarterly character using GKX's 3-month-lag timing convention.
-
-    Produces a DataFrame with the same schema as ``build_quarterly_character`` but
-    with character column renamed to ``{character}_gkx`` to distinguish it from the
-    Green SAS version.  The resulting CSV matches datashare.csv timing much more
-    closely for characters like ``chtx``, ``cinvest``, and ``nincr``.
-    """
-    if comp is None:
-        comp = prepare_quarterly_compustat_panel(
-            db, ccm_linktypes, ccm_linkprim, use_ibes=use_ibes
-        )
-
-    value_col = "cash_q" if character == "cash" else character
-    monthly = expand_quarterly_columns_to_monthly_gkx(
-        db, comp, [value_col], require_values=True
-    )
-    if character == "cash":
-        monthly = monthly.rename(columns={"cash_q": "cash_gkx"})
-    else:
-        monthly = monthly.rename(columns={character: f"{character}_gkx"})
-    return monthly
-
-
-
 
 
 def prepare_quarterly_compustat_panel(db, ccm_linktypes=None, ccm_linkprim=None, use_ibes=True):
