@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
-"""Full-period similarity: server panel vs GKX datashare.csv (all predictors).
+"""Canonical panel-vs-GKX datashare closeness comparison.
 
-For every column in datashare.csv that maps to a panel column, compute:
+This is THE script used to measure how close the repo's character panel is to
+``datashare.csv`` (the GKX reference). It produced
+``docs/gkx/panel_gkx_datashare_full_comparison.PREV.md``, which is the benchmark
+to reproduce: panel ``outputs/panels/all_character_signal_panel.csv``
+(~29,361 permnos) compared using the Green-style columns defined in
+``PANEL_ALIAS`` (everything else maps by identical name).
+
+For every datashare predictor that maps to a panel column, compute:
   - dataset-level permno / month coverage
   - per-column key overlap (datashare-only, panel-only, both)
   - pooled Spearman and median monthly cross-sectional Spearman
@@ -13,6 +20,12 @@ do not inflate panel-only keys or coverage stats.
 
 Month alignment: datashare ``DATE`` → ``YYYYMM`` via ``DATE // 100``; auto-pick panel
 ``signal_yyyymm`` vs ``target_yyyymm`` per column (whichever yields higher median ρ).
+
+To reproduce the benchmark on the server:
+
+  python scripts/validation/compare_panel_vs_gkx_datashare.py \
+      --panel outputs/panels/all_character_signal_panel.csv \
+      --datashare Supplementary_assistive_files/datashare.csv
 """
 from __future__ import annotations
 
@@ -24,7 +37,7 @@ import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_PANEL = ROOT / "outputs" / "panels" / "all_character_signal_panel_for_GKX_comparison.csv"
+DEFAULT_PANEL = ROOT / "outputs" / "panels" / "all_character_signal_panel.csv"
 DEFAULT_DATASHARE = ROOT / "Supplementary_assistive_files" / "datashare.csv"
 OUT_CSV = ROOT / "docs" / "gkx" / "panel_gkx_datashare_full_comparison.csv"
 OUT_MD = ROOT / "docs" / "gkx" / "panel_gkx_datashare_full_comparison.md"
@@ -52,18 +65,19 @@ PANEL_META = {
     "ffi49",
 }
 
-# datashare name -> panel column (when they differ).
-# Only true name remaps live here; all other datashare predictors are compared
-# directly against the Green-style panel columns (chtx, cinvest, bm_ia, cfp_ia,
-# cfp, pchcapx_ia, chpmia, ...).  The earlier experimental _gkx / _dc variants
-# have been removed from the repo.
+# datashare name -> panel column, ONLY for true name remaps. Every other
+# datashare predictor is compared directly against the Green-style panel column
+# of the same name (chtx, cinvest, bm_ia, cfp_ia, cfp, pchcapx_ia, chpmia,
+# chempia, ms, roaq, roeq, rsup, stdacc, stdcf, nincr, agr, ...). This is the
+# exact mapping that produced the PREV.md benchmark. The experimental _gkx /
+# _dc variants have been removed from the repo and must NOT return here.
 PANEL_ALIAS: dict[str, str] = {
-    "bm": "book_to_market",
-    "operprof": "operating_profitability",
-    "mve_ia": "me_ia",
-    "rd_mve": "rdm",
-    "retvol": "rvar_mean",
-    "ear": "abr",
+    "bm": "book_to_market",                 # repo builds book_to_market (Green name)
+    "operprof": "operating_profitability",  # repo builds operating_profitability
+    "mve_ia": "me_ia",                      # industry-adjusted market equity -> me_ia
+    "rd_mve": "rdm",                        # R&D / market equity -> rdm
+    "retvol": "rvar_mean",                  # return volatility -> rvar_mean
+    "ear": "abr",                           # earnings announcement return -> abr
 }
 
 

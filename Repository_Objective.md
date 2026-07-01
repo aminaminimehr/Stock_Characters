@@ -263,8 +263,8 @@ flagged for deletion.
 | `tests/` | Unit tests. | **PUBLIC** |
 | `docs/` | Documentation (mixed — see §9.6). | **MIXED** |
 | `scripts/` | Validation / audit / rebuild tooling (past validations). | **INTERNAL** (exclude from public) |
-| `codex/` | AI task-delegation pack. | **INTERNAL** |
-| `Green_SAS_Replication/` | Duplicate, isolated Green SAS replication (not wired in). | **DELETE** (after confirming not useful) |
+| `codex/` | AI task-delegation pack. | **DELETED** (2026-06-28 cleanup) |
+| `Green_SAS_Replication/` | Duplicate, isolated Green SAS replication (not wired in). | **DELETED** (2026-06-28 cleanup) |
 | `graphify-out/` | Code-graph tool output (AST cache, HTML/JSON reports). | **DELETE** / GITIGNORED |
 | `outputs/` | Generated outputs (CSVs, panels, logs, diagnostics). | **GITIGNORED** |
 | `Supplementary_assistive_files/` | Third-party reference data + SAS code/outputs. | **GITIGNORED** (not redistributed) |
@@ -319,11 +319,11 @@ Additional items inside `Supplementary_assistive_files/` beyond the objective's 
 | `docs/CONFIGURATION.md` | Authoritative profiles/flags/env-var reference. | **PUBLIC** |
 | `docs/methodology/` (00–09) | Authoritative methodology (formulas, timing, linking, filters, imputation, validation). | **PUBLIC** |
 | `docs/RELEASE_NOTES.md` | Current restructuring release notes. | **PUBLIC** |
-| `docs/RESTRUCTURING_PLAN.md` | Historical restructuring plan (mostly implemented). | **INTERNAL** |
-| `docs/gkx/` (active reports) | Active datashare/Green comparison reports + diagnosis MDs. | **INTERNAL** (exclude from public) |
-| `docs/gkx/archive/` | Historical validation reports (phase1–7, timing/industry/ms/chatoia audits). | **INTERNAL** (consider **DELETE**) |
+| `docs/RESTRUCTURING_PLAN.md` | Historical restructuring plan (mostly implemented). | **DELETED** (2026-06-28 cleanup) |
+| `docs/gkx/` | Benchmark only: `panel_gkx_datashare_full_comparison.PREV.md/.csv` (the closeness target), `datashare_reverse_engineering.md`, `datashare_universe_comparison.md`. | **INTERNAL** (exclude from public) |
+| `docs/gkx/archive/` | Historical validation reports (phase1–7, timing/industry/ms/chatoia audits). | **DELETED** (2026-06-28 cleanup) |
 | `docs/agent/` | Agent protocol: `AGENT_RULES.md`, `INVESTIGATION_PROTOCOL.md`, `CONVENTIONS_REGISTRY.yaml`, `DISCREPANCY_TABLE.csv`, `SESSION_LOG.md`, `FORMULA_DIFFERENCES.yaml`. | **INTERNAL** — must not be public |
-| `docs/archive/agents_review/` | Prior agent handoff notes. | **INTERNAL** |
+| `docs/archive/agents_review/` | Prior agent handoff notes. | **DELETED** (2026-06-28 cleanup) |
 
 ### 9.7 Validation & investigation tooling (INTERNAL — exclude from public)
 
@@ -333,9 +333,9 @@ Additional items inside `Supplementary_assistive_files/` beyond the objective's 
 | `scripts/validation/` | Validation scripts incl. `compare_panel_vs_gkx_datashare.py`, `compare_panel_final_vs_green.py`, `debug_*.py`, `validate_*.py`, `green_sas_io.py`. | **INTERNAL** |
 | `scripts/audits/` | One-off audit scripts (`audit_gkx_*.py`, `audit_character_inventory.py`, etc.). | **INTERNAL** |
 | `scripts/rebuild/` | One-off rebuild/migration scripts. | **INTERNAL** |
-| `scripts/archive/` | Archived phase1–7 validation scripts. | **INTERNAL** (consider **DELETE**) |
-| `scripts/experiments/` | Experimental scripts (currently empty besides `__pycache__`). | **INTERNAL** (consider **DELETE**) |
-| `codex/` | AI task-delegation pack (`GETTING_STARTED.md`, `PROMPT_TIPS.md`, `TASK_INDEX.md`, `tasks/01–10_*.md`). | **INTERNAL** |
+| `scripts/archive/` | Archived phase1–7 validation scripts. | **DELETED** (2026-06-28 cleanup) |
+| `scripts/experiments/` | Experimental scripts (currently empty besides `__pycache__`). | **DELETED** (2026-06-28 cleanup) |
+| `codex/` | AI task-delegation pack (`GETTING_STARTED.md`, `PROMPT_TIPS.md`, `TASK_INDEX.md`, `tasks/01–10_*.md`). | **DELETED** (2026-06-28 cleanup) |
 
 ### 9.8 Generated artifacts (GITIGNORED)
 
@@ -355,10 +355,10 @@ Per the objective and the redundancy audit:
 
 | Item | Reason | Action |
 |---|---|---|
-| `Green_SAS_Replication/` | Duplicate, isolated replication; **not wired** into `Character_Builders/` or `Character_Panels/`; the main `_shared` engine already replicates Green SAS. | **Verify not useful → DELETE** (objective §10) |
-| `Repository Objective.txt` | Superseded by `Repository_Objective.md`. | **DELETE** after `.md` confirmed |
-| `graphify-out/` | Code-graph tool artifact, unrelated to character construction. | **DELETE** (or gitignore) |
-| `docs/gkx/archive/`, `scripts/archive/`, `scripts/experiments/` | Historical/obsolete validation artifacts. | **DELETE** or move to an internal archive outside the public repo |
+| `Green_SAS_Replication/` | Duplicate, isolated replication; **not wired** into `Character_Builders/` or `Character_Panels/`; the main `_shared` engine already replicates Green SAS. | **DELETED** (2026-06-28 cleanup) |
+| `Repository Objective.txt` | Superseded by `Repository_Objective.md`. | **DELETED** (2026-06-28 cleanup) |
+| `graphify-out/` | Code-graph tool artifact, unrelated to character construction. | **GITIGNORED** (2026-06-28 cleanup) |
+| `docs/gkx/archive/`, `scripts/archive/`, `scripts/experiments/`, `docs/archive/agents_review/`, `docs/RESTRUCTURING_PLAN.md`, `codex/` | Historical/obsolete validation artifacts. | **DELETED** (2026-06-28 cleanup) |
 | `outputs/diagnostics/` stale temp files (`green_comparable_temp*.csv`, `_audit_tmp.txt`, etc.) | Throwaway diagnostics. | **DELETE** (regenerated as needed) |
 | `Supplementary_assistive_files/green_vs_gkx_comparison/`, `BM_validation_private/` | Past/private comparison artifacts. | **DELETE** (already gitignored) |
 
@@ -370,11 +370,12 @@ Before publishing the repository:
    `Imputation/`, `tests/`, `output_paths.py`, `pipeline_config.py`, `README.md`, `LICENSE`,
    `CITATION.cff`, `requirements.txt`, `run_full_pipeline.sh/.ps1`, `.gitignore`,
    `docs/{README.md, CONFIGURATION.md, methodology/, RELEASE_NOTES.md}`.
-2. **Exclude (INTERNAL)**: `docs/agent/`, `docs/gkx/`, `docs/RESTRUCTURING_PLAN.md`,
-   `docs/archive/`, `scripts/`, `codex/`, `.cursorrules`, `Repository_Objective.md`,
-   `Repository Objective.txt`. Add a gitignore rule or move these out of the public tree.
-3. **Delete**: `Green_SAS_Replication/`, `graphify-out/`, and the stale archives/temp files
-   listed in §9.9.
+2. **Exclude (INTERNAL)**: `docs/agent/`, `docs/gkx/`, `scripts/`, `.cursorrules`,
+   `Repository_Objective.md`. Add a gitignore rule or move these out of the public tree.
+   (`codex/`, `docs/RESTRUCTURING_PLAN.md`, `docs/archive/`, `Repository Objective.txt`
+   were deleted in the 2026-06-28 cleanup.)
+3. **Delete**: `Green_SAS_Replication/` (done), `graphify-out/` (gitignored), and the stale
+   archives/temp files listed in §9.9 (all deleted 2026-06-28).
 4. **Update `README.md`** to (a) state reproducibility & transparency as the target, and
    (b) keep the `bm_ia` "not replicated" note accurate (the `_dc` GKX port has been removed).
 5. **Verify** `.gitignore` continues to exclude `Supplementary_assistive_files/`, `outputs/**`,
@@ -386,7 +387,9 @@ Before publishing the repository:
   They can be used if necessary, but **should be excluded from the public repo**.
 - **`scripts/`** — the codes used to calculate validations and tests through the process.
   These are **also to be excluded from the public repo**.
-- **`Green_SAS_Replication/`** — constructed separately. **Verify it is not useful, then delete it.**
+- **`Green_SAS_Replication/`** — constructed separately; **deleted** in the 2026-06-28 cleanup (the main `_shared` engine already replicates Green SAS).
+- **Closeness benchmark** — `docs/gkx/panel_gkx_datashare_full_comparison.PREV.md` is the target to reproduce: panel `outputs/panels/all_character_signal_panel.csv` (~29,361 permnos) compared via `scripts/validation/compare_panel_vs_gkx_datashare.py` using the Green `PANEL_ALIAS` mapping (6 name remaps). The experimental `_gkx`/`_dc` variants have been removed and must not return.
+- **Next phase** — verify the rebuilt main panel reproduces the PREV.md numbers; the one open gap is the permno universe (a "for GLM" panel regressed to 27,927 permnos vs 29,361), to be investigated before re-diagnosing individual mismatching characters.
 
 ## 11. README requirement
 
