@@ -17,3 +17,6 @@ outputs/**
 *.ipynb_checkpoints/
 .env
 .pgpass
+
+# Code-graph tool output (AST cache / HTML / JSON reports)
+graphify-out/
