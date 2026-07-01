@@ -94,6 +94,48 @@ python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER" --profile 
 
 Full flag reference: **`docs/CONFIGURATION.md`** (CCM link types, sample dates, `--skip-ibes`, `--resume`, env vars).
 
+## Required flags & recipes
+
+`run_full_pipeline.py` has **no silent defaults** for the universe/link/window filters. Five flags are
+**required** — pass them explicitly, or pass `--profile green|datashare|research` (a profile is a complete
+recipe that fills all five). If neither flags nor a profile are supplied, the pipeline errors and lists the
+missing flags. Resolved values are printed at startup for transparency.
+
+| Flag | Meaning | Green recipe (`--profile green`) | datashare recipe (`--profile datashare`) |
+|---|---|---|---|
+| `--ccm-linktypes` | CCM linktype filter (all builders) | `LU,LC,LD,LF,LN,LO,LS,LX` | `LU,LC` |
+| `--ccm-linkprim` | CCM linkprim filter; `ALL` = no filter | `ALL` | `P,C` |
+| `--crsp-shrcd` | CRSP share-code filter | `10,11` | `10,11` |
+| `--crsp-exchcd` | CRSP exchange-code filter | `1,2,3` | `1,2,3` |
+| `--sample-start` | WRDS download window start | `1975-01-01` | `1957-01-01` |
+
+`--sample-end` is optional (open-ended = latest available).
+
+**These flags are global — one set applies to every builder (Green and HXZ).** Because `--ccm-linkprim` is a
+single global choice, the recipes force a trade-off:
+
+- `--profile green` uses `linkprim=ALL` (no primary filter), so **HXZ `bm`/`operprof`/`cfp` differ** from a
+  strict Fama-French primary-link build.
+- `--profile datashare` uses `linkprim=P,C` (primary links only), so **Green characters differ** from a
+  broad-link Green SAS build.
+
+The legacy Green SAS **2015 link-date cap** (`linkdt` year ≤ 2015) has been **removed**; links starting in any
+year are kept, so recent permnos and values change vs the old `PREV.md` benchmark. Re-baseline against
+`datashare.csv` after upgrading.
+
+```bash
+# Green recipe
+python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER" --profile green
+
+# datashare recipe
+python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER" --profile datashare
+
+# Explicit flags (no profile) — all five required
+python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER" \
+  --ccm-linktypes LU,LC,LD,LF,LN,LO,LS,LX --ccm-linkprim ALL \
+  --crsp-shrcd 10,11 --crsp-exchcd 1,2,3 --sample-start 1975-01-01
+```
+
 ## Validation philosophy
 
 1. **Green SAS output is the benchmark.** Correctness = agreement with `Output_From_Greens_SAS_code.sas7bdat`.
@@ -106,9 +148,10 @@ Full flag reference: **`docs/CONFIGURATION.md`** (CCM link types, sample dates, 
 
 ## Stock universe
 
-Common stock on major exchanges: `exchcd ∈ {1,2,3}`, `shrcd ∈ {10,11}`. **No** price floor, **no**
-financial-firm exclusion, **no** microcap exclusion — matching both Green's SAS and GKX's
-`accounting_60.py`. The Green final-sample screen (`mve`, `mom1m`, `bm` non-missing) is reproduced by
+Common stock on major exchanges: `exchcd ∈ {1,2,3}`, `shrcd ∈ {10,11}` — now exposed as the required
+`--crsp-exchcd` / `--crsp-shrcd` flags (see **Required flags & recipes** above) and honored by every builder.
+**No** price floor, **no** financial-firm exclusion, **no** microcap exclusion — matching both Green's SAS and
+GKX's `accounting_60.py`. The Green final-sample screen (`mve`, `mom1m`, `bm` non-missing) is reproduced by
 the `--green-universe` flag (off by default). Full details and the GKX paper-vs-code discrepancy:
 `docs/methodology/04_filters_and_universe.md`.
 

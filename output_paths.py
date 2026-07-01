@@ -135,3 +135,28 @@ def sql_date_filter(column: str, table_alias: str | None = None) -> str:
     if end:
         parts.append(f"{col} <= DATE '{end}'")
     return " AND ".join(parts) if parts else "TRUE"
+
+
+def get_crsp_universe():
+    """CRSP share/exchange code filters via environment variables.
+
+    Defaults to common stock on major exchanges (shrcd 10,11; exchcd 1,2,3)
+    unless STOCK_CHARACTERS_CRSP_SHRCD / STOCK_CHARACTERS_CRSP_EXCHCD are set.
+    """
+    shrcd = os.environ.get("STOCK_CHARACTERS_CRSP_SHRCD", "10,11")
+    exchcd = os.environ.get("STOCK_CHARACTERS_CRSP_EXCHCD", "1,2,3")
+    return shrcd, exchcd
+
+
+def _sql_int_list(values: str) -> str:
+    codes = [v.strip() for v in str(values).split(",") if v.strip()]
+    return ", ".join(codes)
+
+
+def crsp_universe_filter(table_alias: str = "n") -> str:
+    """Return an SQL predicate fragment for the CRSP share/exchange code filters."""
+    shrcd, exchcd = get_crsp_universe()
+    return (
+        f"{table_alias}.shrcd IN ({_sql_int_list(shrcd)}) "
+        f"AND {table_alias}.exchcd IN ({_sql_int_list(exchcd)})"
+    )

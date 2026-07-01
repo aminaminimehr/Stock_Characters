@@ -1,20 +1,49 @@
 # Configuration reference
 
-All pipeline behavior is controlled by **profiles** (presets) plus **CLI flags** and **environment variables**.
-Nothing is hard-coded for datashare replication — use `--profile datashare` or set
-`STOCK_CHARACTERS_PROFILE=datashare`.
+All pipeline behavior is controlled by **profiles** (recipes) plus **CLI flags** and **environment variables**.
+The universe/link/window filters have **no silent defaults** — five flags are required, supplied either
+explicitly or via a profile. Use `--profile green|datashare|research` or set `STOCK_CHARACTERS_PROFILE`.
 
 Implementation: `pipeline_config.py`, wired through `Character_Panels/run_full_pipeline.py`.
 
 ---
 
+## Required flags & recipes
+
+`run_full_pipeline.py` requires five global flags. A profile fills all five; explicit flags override the
+profile. If neither flags nor a profile are supplied, the pipeline errors and lists the missing flags, then
+prints the resolved values at startup.
+
+| Flag | Meaning | Green recipe | datashare recipe |
+|---|---|---|---|
+| `--ccm-linktypes` | CCM linktype filter (all builders) | `LU,LC,LD,LF,LN,LO,LS,LX` | `LU,LC` |
+| `--ccm-linkprim` | CCM linkprim filter; `ALL` = no filter | `ALL` | `P,C` |
+| `--crsp-shrcd` | CRSP share-code filter | `10,11` | `10,11` |
+| `--crsp-exchcd` | CRSP exchange-code filter | `1,2,3` | `1,2,3` |
+| `--sample-start` | WRDS download window start | `1975-01-01` | `1957-01-01` |
+
+`--sample-end` is optional (open-ended = latest available).
+
+**Flags are global — one set applies to every builder (Green and HXZ).** A single global `--ccm-linkprim`
+forces a trade-off: `ALL` (Green recipe) changes HXZ `bm`/`operprof`/`cfp` vs a primary-link build; `P,C`
+(datashare recipe) changes Green characters vs a broad-link Green SAS build. The legacy Green SAS 2015
+link-date cap has been removed, so links from any start year are kept — re-baseline against `datashare.csv`
+after upgrading (the old `PREV.md` benchmark no longer applies).
+
+The CRSP share/exchange filters and CCM link filters are read from environment variables by every builder
+(see Environment variables below), so standalone builder scripts also honor them when the env is set.
+
+---
+
 ## Profiles
 
-| Profile | Purpose | Sample start | Green universe screen | Research panel | HXZ builders |
-|---|---|---|---|---|---|
-| **`green`** (default) | Replicate Green SAS library | 1975-01-01 (default) | Off unless `--green-universe` | Yes | All 4 |
-| **`datashare`** | Full library + datashare alignment for bm/operprof/cfp | **1957-01-01** | **Off** (sparse panel) | **No** | All 4 HXZ + all Green chars |
-| **`research`** | Ranked 1957+ ML panel | 1975-01-01 (default) | Off | Yes | All 4 |
+| Profile | Purpose | Sample start | CCM linktypes | CCM linkprim | Green universe | Research panel |
+|---|---|---|---|---|---|---|
+| **`green`** | Replicate Green SAS library | 1975-01-01 | broad (`LU,LC,LD,LF,LN,LO,LS,LX`) | `ALL` | Off unless `--green-universe` | Yes |
+| **`datashare`** | Full library + datashare alignment | **1957-01-01** | `LU,LC` | `P,C` | **Off** (sparse panel) | **No** |
+| **`research`** | Ranked 1957+ ML panel | 1975-01-01 | broad | `ALL` | Off | Yes |
+
+All profiles set `--crsp-shrcd 10,11 --crsp-exchcd 1,2,3`. HXZ builders run under the same global flags as Green.
 
 ### Datashare column mapping (bm_ia out of scope)
 
@@ -86,30 +115,41 @@ python scripts/rebuild/rebuild_green_cfp_full_history.py \
 | Flag | Default | Description |
 |---|---|---|
 | `--wrds-user` | (required) | WRDS PostgreSQL username |
-| `--profile` | `green` | `green`, `datashare`, or `research` |
+| `--profile` | none | `green`, `datashare`, or `research` (fills the 5 required flags) |
+| `--ccm-linktypes` | (required¹) | CCM linktype filter for all builders |
+| `--ccm-linkprim` | (required¹) | CCM linkprim filter for all builders; `ALL` = no filter |
+| `--crsp-shrcd` | (required¹) | CRSP share codes, e.g. `10,11` |
+| `--crsp-exchcd` | (required¹) | CRSP exchange codes, e.g. `1,2,3` |
+| `--sample-start` | (required¹) | WRDS lower date (`YYYY-MM-DD`) |
+| `--sample-end` | none | Optional WRDS upper date |
 | `--skip-build` | off | Rebuild panels only from existing CSVs |
 | `--skip-ibes` | on | Skip IBES-dependent `re` |
 | `--resume` | off | `--skip-existing` + `--skip-annual-monthly` on Green bulk build |
-| `--sample-start` | profile default | Override WRDS lower date (`YYYY-MM-DD`) |
-| `--sample-end` | none | Override WRDS upper date |
 | `--workers` | env or CPU | Parallel workers for beta/rvar/event builders |
 | `--green-universe` | off | Drop rows missing Green `bm`, `mom1m`, `mve`/`mvel1`/`me` |
 | `--no-green-universe` | — | Force screen off |
-| `--ccm-linktypes` | profile default | Override CCM link types |
-| `--ccm-linkprim` | profile default | Override CCM link primaries (HXZ; Green uses broad links) |
 | `--skip-special` | off | Debug only: skip beta/rvar/ear/ms |
 | `--skip-daily` | off | Debug only: skip daily-CRSP monthly chars |
 
+¹ Required unless a `--profile` (or `STOCK_CHARACTERS_PROFILE`) supplies them. Enforced by
+`validate_required()`; resolved values are printed at startup.
+
 ### Character builder flags (`build_all_implemented_characters.py`)
+
+These mirror the pipeline flags for standalone runs; `run_full_pipeline.py` forwards them and sets the
+matching env vars. The Green path no longer hard-codes its CCM set — it honors `--ccm-linktypes`/
+`--ccm-linkprim` like every other builder.
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ccm-linktypes` | `LU,LC` in argparse; Green path uses Green SAS set internally | Passed for API compatibility |
-| `--ccm-linkprim` | `P,C` | Passed for quarterly/special builders |
+| `--ccm-linktypes` | `LU,LC` (argparse) | CCM linktypes; also sets `STOCK_CHARACTERS_CCM_LINKTYPES` |
+| `--ccm-linkprim` | `P,C` (argparse) | CCM linkprim; `ALL` = no filter; sets `STOCK_CHARACTERS_CCM_LINKPRIM` |
+| `--crsp-shrcd` | `10,11` (env) | CRSP share codes; sets `STOCK_CHARACTERS_CRSP_SHRCD` |
+| `--crsp-exchcd` | `1,2,3` (env) | CRSP exchange codes; sets `STOCK_CHARACTERS_CRSP_EXCHCD` |
 | `--skip-existing` | off | Skip CSVs that already exist |
 | `--skip-annual-monthly` | off | Skip monthly/daily character blocks |
 | `--skip-ibes` | off | Skip IBES |
-| `--sample-start` / `--sample-end` | env / 1975 default | WRDS date window via `sql_date_filter` |
+| `--sample-start` / `--sample-end` | env / 1975 fallback | WRDS date window via `sql_date_filter` |
 
 ### Panel flags (`build_all_character_panel.py`)
 
@@ -129,6 +169,10 @@ python scripts/rebuild/rebuild_green_cfp_full_history.py \
 | `STOCK_CHARACTERS_PROFILE` | `run_full_pipeline` | Default profile if `--profile` omitted |
 | `STOCK_CHARACTERS_SAMPLE_START` | SQL filters | Set automatically by profile / `--sample-start` |
 | `STOCK_CHARACTERS_SAMPLE_END` | SQL filters | Optional upper bound |
+| `STOCK_CHARACTERS_CCM_LINKTYPES` | CCM linkers | CCM linktype filter (set by profile / `--ccm-linktypes`) |
+| `STOCK_CHARACTERS_CCM_LINKPRIM` | CCM linkers | CCM linkprim filter; `ALL`/unset = no filter |
+| `STOCK_CHARACTERS_CRSP_SHRCD` | CRSP SQL filters | CRSP share codes (set by profile / `--crsp-shrcd`); fallback `10,11` |
+| `STOCK_CHARACTERS_CRSP_EXCHCD` | CRSP SQL filters | CRSP exchange codes (set by profile / `--crsp-exchcd`); fallback `1,2,3` |
 | `STOCK_CHARACTERS_DEFAULT_ANNUAL_START` | `output_paths.py` | Default `1975-01-01` when no sample start set |
 | `STOCK_CHARACTERS_WORKERS` | Parallel **compute** (beta regressions, rvar, ear) | Default `min(cpu, 8)` |
 | `STOCK_CHARACTERS_WRDS_DOWNLOAD_WORKERS` | Parallel **WRDS** dsf chunk downloads | Default `4` (separate from compute) |
@@ -144,9 +188,14 @@ python scripts/rebuild/rebuild_green_cfp_full_history.py \
 
 | Context | Link types | Link primaries |
 |---|---|---|
-| Green annual/quarterly (production) | `LU,LC,LD,LF,LN,LO,LS,LX` | none (Green SAS) |
-| HXZ / datashare bm & operprof | `LU,LC` (default) | `P,C` |
-| Override | `--ccm-linktypes` / `--ccm-linkprim` | CLI |
+| Green recipe (`--profile green`) | `LU,LC,LD,LF,LN,LO,LS,LX` | `ALL` (no filter) |
+| datashare recipe (`--profile datashare`) | `LU,LC` | `P,C` |
+| Override | `--ccm-linktypes` / `--ccm-linkprim` | CLI (global, all builders) |
+
+Both Green and HXZ linkers honor the global `--ccm-linktypes` / `--ccm-linkprim` (read from
+`STOCK_CHARACTERS_CCM_LINKTYPES` / `_LINKPRIM` by `load_ccm_links_green`). The Green SAS 2015/1950 link-date
+cap has been removed. HXZ `attach_ccm_links` dedups to one primary permno per `(gvkey, datadate)`, so it stays
+well-defined when `linkprim=ALL`.
 
 See `docs/methodology/03_linking.md`.
 
@@ -169,12 +218,15 @@ See `docs/methodology/02_timing.md`.
 
 | Filter | Green profile | Datashare profile |
 |---|---|---|
-| Exchange | `exchcd 1–3` (in builders) | same |
-| Share code | `shrcd 10,11` | same |
+| Exchange | `--crsp-exchcd 1,2,3` | same |
+| Share code | `--crsp-shrcd 10,11` | same |
 | Price floor | none | none |
 | Financial exclusion | none | none |
 | Joint screen `mve & mom1m & bm` | optional `--green-universe` | **never** |
 | Panel style | wide merge; optional screen | **sparse** (keep rows with partial missingness) |
+
+Exchange and share-code filters are now the required `--crsp-exchcd` / `--crsp-shrcd` flags (read from
+`STOCK_CHARACTERS_CRSP_EXCHCD` / `_SHRCD` by every CRSP query), no longer hard-coded per builder.
 
 See `docs/gkx/datashare_universe_comparison.md`.
 

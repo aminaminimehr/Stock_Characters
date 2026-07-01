@@ -236,6 +236,16 @@ def main():
         help="Optional WRDS upper date (YYYY-MM-DD). Also reads STOCK_CHARACTERS_SAMPLE_END.",
     )
     parser.add_argument(
+        "--crsp-shrcd",
+        default=None,
+        help="Comma-separated CRSP share codes (e.g. 10,11). Sets STOCK_CHARACTERS_CRSP_SHRCD.",
+    )
+    parser.add_argument(
+        "--crsp-exchcd",
+        default=None,
+        help="Comma-separated CRSP exchange codes (e.g. 1,2,3). Sets STOCK_CHARACTERS_CRSP_EXCHCD.",
+    )
+    parser.add_argument(
         "--workers",
         type=int,
         default=None,
@@ -250,6 +260,14 @@ def main():
         os.environ["STOCK_CHARACTERS_SAMPLE_START"] = args.sample_start
     if args.sample_end:
         os.environ["STOCK_CHARACTERS_SAMPLE_END"] = args.sample_end
+    if args.ccm_linktypes:
+        os.environ["STOCK_CHARACTERS_CCM_LINKTYPES"] = args.ccm_linktypes
+    if args.ccm_linkprim:
+        os.environ["STOCK_CHARACTERS_CCM_LINKPRIM"] = args.ccm_linkprim
+    if args.crsp_shrcd:
+        os.environ["STOCK_CHARACTERS_CRSP_SHRCD"] = args.crsp_shrcd
+    if args.crsp_exchcd:
+        os.environ["STOCK_CHARACTERS_CRSP_EXCHCD"] = args.crsp_exchcd
 
     ensure_output_tree()
     output_dir = Path(args.output_dir)

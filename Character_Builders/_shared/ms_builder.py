@@ -76,7 +76,7 @@ def build_ms_character(db, ccm_linktypes=None, ccm_linkprim=None, use_ibes=False
     )
     comp = attach_permno(comp, load_green_ccm_links(db, ccm_linktypes, ccm_linkprim))
 
-    quarterly = prepare_quarterly_compustat_panel(db, use_ibes=use_ibes)
+    quarterly = prepare_quarterly_compustat_panel(db, ccm_linktypes, ccm_linkprim, use_ibes=use_ibes)
 
     # Attach m7/m8 from the same fiscal year (fyear = fyearq) rather than via
     # the CRSP-date window.  This ensures all 8 components come from the same

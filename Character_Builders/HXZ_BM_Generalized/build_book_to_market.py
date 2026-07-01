@@ -10,7 +10,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from _shared.ccm import add_ccm_arguments, attach_ccm_links, load_ccm_links
-from output_paths import resolve_output_path  # noqa: E402
+from output_paths import crsp_universe_filter, resolve_output_path  # noqa: E402
 
 
 WRDS_USER = None
@@ -71,7 +71,7 @@ def load_compustat(db):
 
 
 def load_crsp_monthly(db, use_imputed_market_equity):
-    crsp = db.raw_sql("""
+    crsp = db.raw_sql(f"""
         SELECT m.permno, m.permco, m.date, m.prc, m.shrout,
                n.exchcd, n.shrcd
         FROM crsp.msf AS m
@@ -79,8 +79,7 @@ def load_crsp_monthly(db, use_imputed_market_equity):
           ON m.permno = n.permno
          AND n.namedt <= m.date
          AND m.date <= COALESCE(n.nameendt, DATE '9999-12-31')
-        WHERE n.shrcd IN (10, 11)
-          AND n.exchcd IN (1, 2, 3)
+        WHERE {crsp_universe_filter("n")}
     """)
     crsp["date"] = pd.to_datetime(crsp["date"])
     crsp["year"] = crsp["date"].dt.year

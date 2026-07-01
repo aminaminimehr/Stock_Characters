@@ -95,10 +95,10 @@ def build_all_characters(
         "--output-dir",
         str(CHARACTER_INDIVIDUAL_DIR),
     ]
-    if cfg.green_ccm_linktypes:
-        cmd.extend(["--ccm-linktypes", cfg.green_ccm_linktypes])
-    if cfg.green_ccm_linkprim:
-        cmd.extend(["--ccm-linkprim", cfg.green_ccm_linkprim])
+    cmd.extend(["--ccm-linktypes", cfg.ccm_linktypes])
+    cmd.extend(["--ccm-linkprim", cfg.ccm_linkprim])
+    cmd.extend(["--crsp-shrcd", cfg.crsp_shrcd])
+    cmd.extend(["--crsp-exchcd", cfg.crsp_exchcd])
     if skip_ibes:
         cmd.append("--skip-ibes")
     if resume:
@@ -132,10 +132,10 @@ def build_hxz_characters(wrds_user, output_dir, cfg, profile="green"):
             "--output",
             str(out),
             "--ccm-linktypes",
-            cfg.hxz_ccm_linktypes,
+            cfg.ccm_linktypes,
+            "--ccm-linkprim",
+            cfg.ccm_linkprim,
         ]
-        if cfg.hxz_ccm_linkprim:
-            cmd.extend(["--ccm-linkprim", cfg.hxz_ccm_linkprim])
         cmd.extend(extra)
         run(cmd)
 
@@ -240,7 +240,8 @@ def main():
         "--profile",
         choices=("green", "datashare", "research"),
         default=None,
-        help="Pipeline preset (overridden by STOCK_CHARACTERS_PROFILE env). Default: green.",
+        help="Pipeline preset that supplies the 5 required flags (or set STOCK_CHARACTERS_PROFILE env, "
+        "or pass flags explicitly). One of these is required; see README 'Required flags & recipes'.",
     )
     parser.add_argument(
         "--skip-build",
@@ -284,8 +285,10 @@ def main():
         dest="green_winsor",
         help="Disable Green monthly winsorization even if profile would enable it.",
     )
-    parser.add_argument("--ccm-linktypes", default=None, help="Override CCM linktypes for Green + HXZ builders.")
-    parser.add_argument("--ccm-linkprim", default=None, help="Override CCM linkprim for HXZ builders.")
+    parser.add_argument("--ccm-linktypes", default=None, help="Required: CCM linktype filter for all builders (or use --profile).")
+    parser.add_argument("--ccm-linkprim", default=None, help="Required: CCM linkprim filter for all builders; ALL = no filter (or use --profile).")
+    parser.add_argument("--crsp-shrcd", default=None, help="Required: CRSP share codes, e.g. 10,11 (or use --profile).")
+    parser.add_argument("--crsp-exchcd", default=None, help="Required: CRSP exchange codes, e.g. 1,2,3 (or use --profile).")
     parser.add_argument(
         "--skip-special",
         action="store_true",
@@ -309,13 +312,21 @@ def main():
         skip_daily=True if args.skip_daily else None,
         ccm_linktypes=args.ccm_linktypes,
         ccm_linkprim=args.ccm_linkprim,
+        crsp_shrcd=args.crsp_shrcd,
+        crsp_exchcd=args.crsp_exchcd,
     )
+    cfg.validate_required()
     cfg.apply_env()
 
     ensure_output_tree()
     print(f"Using profile: {cfg.profile}", flush=True)
-    if cfg.sample_start:
-        print(f"Sample start: {cfg.sample_start}", flush=True)
+    print(
+        "Resolved flags: "
+        f"ccm_linktypes={cfg.ccm_linktypes} ccm_linkprim={cfg.ccm_linkprim} "
+        f"crsp_shrcd={cfg.crsp_shrcd} crsp_exchcd={cfg.crsp_exchcd} "
+        f"sample_start={cfg.sample_start} sample_end={cfg.sample_end or 'none'}",
+        flush=True,
+    )
 
     if not args.skip_build:
         build_all_characters(

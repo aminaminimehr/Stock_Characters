@@ -564,8 +564,6 @@ def expand_quarterly_to_monthly(db, quarterly, character, *, require_rdq: bool =
 
 def prepare_quarterly_compustat_panel(db, ccm_linktypes=None, ccm_linkprim=None, use_ibes=True):
 
-    _ = ccm_linktypes, ccm_linkprim
-
     comp = load_quarterly_compustat(db)
 
     if use_ibes:
@@ -592,7 +590,7 @@ def prepare_quarterly_compustat_panel(db, ccm_linktypes=None, ccm_linkprim=None,
 
     comp = compute_quarterly_characters(comp)
 
-    comp = attach_ccm_links_green(comp, load_ccm_links_green(db))
+    comp = attach_ccm_links_green(comp, load_ccm_links_green(db, ccm_linktypes, ccm_linkprim))
 
     return comp[comp["permno"].notna()].copy()
 

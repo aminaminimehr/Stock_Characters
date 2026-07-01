@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from _shared.green_builders import OUTPUT_DIR, connect_wrds, load_crsp_monthly
+from _shared.green_builders import OUTPUT_DIR, connect_wrds, crsp_universe_filter, load_crsp_monthly
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -32,7 +32,7 @@ def load_ibes_forecasts(db):
 
 
 def load_crsp_price_history(db):
-    crsp = db.raw_sql("""
+    crsp = db.raw_sql(f"""
         SELECT m.permno, m.date, m.prc, m.cfacpr, n.ncusip
         FROM crsp.msf AS m
         JOIN crsp.msenames AS n
@@ -40,8 +40,7 @@ def load_crsp_price_history(db):
          AND n.namedt <= m.date
          AND m.date <= COALESCE(n.nameendt, DATE '9999-12-31')
         WHERE m.date >= DATE '1980-01-01'
-          AND n.shrcd IN (10, 11)
-          AND n.exchcd IN (1, 2, 3)
+          AND {crsp_universe_filter("n")}
     """)
     crsp["date"] = pd.to_datetime(crsp["date"])
     crsp["merge_date"] = crsp["date"] + pd.offsets.MonthEnd(0) + pd.DateOffset(months=1) + pd.offsets.MonthEnd(0)

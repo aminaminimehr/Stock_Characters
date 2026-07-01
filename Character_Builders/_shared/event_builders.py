@@ -237,7 +237,7 @@ def _merge_ear_to_monthly(monthly: pd.DataFrame, events: pd.DataFrame, workers: 
 def build_ear_character(db, ccm_linktypes=None, ccm_linkprim=None, workers: int | None = None):
     print("EAR: loading quarterly Compustat + CCM links...", flush=True)
     comp = load_quarterly_compustat(db)
-    comp = attach_ccm_links_green(comp, load_ccm_links_green(db))
+    comp = attach_ccm_links_green(comp, load_ccm_links_green(db, ccm_linktypes, ccm_linkprim))
     comp = comp[comp["permno"].notna()].copy()
     events = _compute_ear_events(comp, db, workers=workers)
     if events.empty:
@@ -263,7 +263,7 @@ def build_ear_character(db, ccm_linktypes=None, ccm_linkprim=None, workers: int 
 def build_aeavol_character(db, ccm_linktypes=None, ccm_linkprim=None, workers: int | None = None):
     print("aeavol: loading quarterly Compustat + CCM links...", flush=True)
     comp = load_quarterly_compustat(db)
-    comp = attach_ccm_links_green(comp, load_ccm_links_green(db))
+    comp = attach_ccm_links_green(comp, load_ccm_links_green(db, ccm_linktypes, ccm_linkprim))
     comp = comp[comp["permno"].notna()].copy()
     events = _compute_earnings_events(comp, db, workers=workers)
     if events.empty:

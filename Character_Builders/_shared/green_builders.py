@@ -25,7 +25,9 @@ from output_paths import (  # noqa: E402
     CHARACTER_INDIVIDUAL_DIR,
     MONTHLY_ALIGNMENT_STEMS,
     OUTPUT_DIR,
+    crsp_universe_filter,
     ensure_output_tree,
+    get_crsp_universe,
     resolve_output_path,
     sql_date_filter,
 )
@@ -204,8 +206,7 @@ def attach_permno(comp, link, green_ccm: bool = True):
 
 
 def load_green_ccm_links(db, ccm_linktypes=None, ccm_linkprim=None):
-  _ = ccm_linktypes, ccm_linkprim
-  return load_ccm_links_green(db)
+  return load_ccm_links_green(db, ccm_linktypes, ccm_linkprim)
 
 
 ANNUAL_COMPUSTAT_WHERE = """
@@ -820,11 +821,13 @@ def load_monthly_alignment_frame(output_dir=OUTPUT_DIR, db=None):
 
 
 _MONTHLY_CRSP_CACHE = None
+_MONTHLY_CRSP_CACHE_KEY = None
 
 
 def clear_monthly_crsp_cache():
-    global _MONTHLY_CRSP_CACHE
+    global _MONTHLY_CRSP_CACHE, _MONTHLY_CRSP_CACHE_KEY
     _MONTHLY_CRSP_CACHE = None
+    _MONTHLY_CRSP_CACHE_KEY = None
 
 
 def load_crsp_monthly(db, use_cache=True):
@@ -834,9 +837,15 @@ def load_crsp_monthly(db, use_cache=True):
     Xin He / GKX reference scripts (e.g. Rvar_ff3.py, maxret_d.py) typically
     pull crsp.dsf only and never touch crsp.msf. Our Green-style panel needs msf for
     permco/sic/exchcd timing, but it must be queried once—not once per characteristic.
+
+    The share/exchange code filter follows STOCK_CHARACTERS_CRSP_SHRCD /
+    STOCK_CHARACTERS_CRSP_EXCHCD (set by run_full_pipeline); the cache is keyed by
+    that filter so a changed universe invalidates it.
     """
-    global _MONTHLY_CRSP_CACHE
-    if use_cache and _MONTHLY_CRSP_CACHE is not None:
+    global _MONTHLY_CRSP_CACHE, _MONTHLY_CRSP_CACHE_KEY
+
+    universe_key = get_crsp_universe()
+    if use_cache and _MONTHLY_CRSP_CACHE is not None and _MONTHLY_CRSP_CACHE_KEY == universe_key:
         return _MONTHLY_CRSP_CACHE
 
     crsp = raw_sql_with_retry(
@@ -849,8 +858,7 @@ def load_crsp_monthly(db, use_cache=True):
           ON m.permno = n.permno
          AND n.namedt <= m.date
          AND m.date <= COALESCE(n.nameendt, DATE '9999-12-31')
-        WHERE n.shrcd IN (10, 11)
-          AND n.exchcd IN (1, 2, 3)
+        WHERE {crsp_universe_filter("n")}
           AND {sql_date_filter("date", "m")}
     """,
     )
@@ -863,6 +871,7 @@ def load_crsp_monthly(db, use_cache=True):
     crsp["target_yyyymm"] = crsp["signal_yyyymm"].map(add_one_month)
     if use_cache:
         _MONTHLY_CRSP_CACHE = crsp
+        _MONTHLY_CRSP_CACHE_KEY = universe_key
     return crsp
 
 

@@ -9,7 +9,7 @@ import wrds
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from output_paths import resolve_output_path  # noqa: E402
+from output_paths import crsp_universe_filter, resolve_output_path  # noqa: E402
 
 WRDS_USER = None
 OUTPUT_FILE = "mvel1.csv"
@@ -25,7 +25,7 @@ def add_one_month(yyyymm):
 
 
 def load_crsp_monthly(db, use_imputed_market_equity):
-    crsp = db.raw_sql("""
+    crsp = db.raw_sql(f"""
         SELECT m.permno, m.permco, m.date, m.prc, m.shrout,
                n.exchcd, n.shrcd, n.siccd
         FROM crsp.msf AS m
@@ -33,8 +33,7 @@ def load_crsp_monthly(db, use_imputed_market_equity):
           ON m.permno = n.permno
          AND n.namedt <= m.date
          AND m.date <= COALESCE(n.nameendt, DATE '9999-12-31')
-        WHERE n.shrcd IN (10, 11)
-          AND n.exchcd IN (1, 2, 3)
+        WHERE {crsp_universe_filter("n")}
     """)
     crsp["date"] = pd.to_datetime(crsp["date"])
     crsp = crsp.sort_values(["permno", "date"])

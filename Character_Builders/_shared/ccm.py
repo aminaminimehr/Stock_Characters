@@ -51,14 +51,14 @@ def load_ccm_links(db, linktypes=None, linkprim=None):
     from _shared.green_builders import raw_sql_with_retry
 
     linktypes = parse_ccm_codes(linktypes, DEFAULT_CCM_LINKTYPES)
-    linkprim = parse_ccm_codes(linkprim, DEFAULT_CCM_LINKPRIM)
+    linkprim_clause = _linkprim_clause(linkprim)
 
     link = raw_sql_with_retry(db, f"""
         SELECT gvkey, lpermno AS permno, lpermco AS permco,
                linktype, linkprim, linkdt, linkenddt
         FROM crsp.ccmxpf_linktable
         WHERE linktype IN ({sql_code_list(linktypes)})
-          AND linkprim IN ({sql_code_list(linkprim)})
+          {linkprim_clause}
           AND lpermno IS NOT NULL
     """)
     link["linkdt"] = pd.to_datetime(link["linkdt"])
@@ -66,17 +66,48 @@ def load_ccm_links(db, linktypes=None, linkprim=None):
     return link
 
 
-def load_ccm_links_green(db):
-    """Green SAS link table filter (no linkprim restriction)."""
+def _linkprim_clause(linkprim):
+    """Return 'AND linkprim IN (...)' or '' when linkprim is ALL/empty (no filter).
+
+    ``None`` falls back to the STOCK_CHARACTERS_CCM_LINKPRIM env var (default ALL).
+    """
+    import os
+    if linkprim is None:
+        linkprim = os.environ.get("STOCK_CHARACTERS_CCM_LINKPRIM", "ALL")
+    if str(linkprim).strip().upper() in ("", "ALL", "*"):
+        return ""
+    codes = parse_ccm_codes(linkprim, ())
+    return f" AND linkprim IN ({sql_code_list(codes)})"
+
+
+def _resolve_linktypes(linktypes):
+    """Resolve linktypes: explicit value > STOCK_CHARACTERS_CCM_LINKTYPES env > Green recipe."""
+    import os
+    if linktypes is None or not str(linktypes).strip():
+        linktypes = os.environ.get("STOCK_CHARACTERS_CCM_LINKTYPES") or GREEN_CCM_LINKTYPES
+    if str(linktypes).strip().upper() in ("ALL", "*"):
+        raise ValueError("linktypes 'ALL' is not valid; specify explicit CCM linktype codes.")
+    return parse_ccm_codes(linktypes, GREEN_CCM_LINKTYPES)
+
+
+def load_ccm_links_green(db, linktypes=None, linkprim=None):
+    """Green-family CCM link table filter.
+
+    ``linktypes``/``linkprim`` fall back to the STOCK_CHARACTERS_CCM_LINKTYPES /
+    STOCK_CHARACTERS_CCM_LINKPRIM environment variables (set by run_full_pipeline),
+    then to the Green SAS recipe (broad linktypes, no linkprim filter). Pass
+    ``linkprim='ALL'`` (or '') to disable the linkprim filter. The legacy Green SAS
+    2015/1950 link-date cap has been removed, so links starting in any year are kept.
+    """
     from _shared.green_builders import raw_sql_with_retry
 
-    codes = sql_code_list(GREEN_CCM_LINKTYPES)
+    codes = sql_code_list(_resolve_linktypes(linktypes))
+    linkprim_clause = _linkprim_clause(linkprim)
     link = raw_sql_with_retry(db, f"""
         SELECT gvkey, lpermno AS permno, lpermco AS permco, linkdt, linkenddt, linktype
         FROM crsp.ccmxpf_linktable
         WHERE linktype IN ({codes})
-          AND (EXTRACT(YEAR FROM linkdt) <= 2015 OR linkdt IS NULL)
-          AND (EXTRACT(YEAR FROM linkenddt) >= 1950 OR linkenddt IS NULL)
+          {linkprim_clause}
           AND lpermno IS NOT NULL
     """)
     link["linkdt"] = pd.to_datetime(link["linkdt"])
@@ -106,6 +137,9 @@ def attach_ccm_links(comp, link):
 
     linked["linkprim_priority"] = linked["linkprim"].map({"P": 0, "C": 1}).fillna(2)
     linked = linked.sort_values(
-        ["gvkey", "datadate", "permno", "linkprim_priority", "linkdt"]
+        ["gvkey", "datadate", "linkprim_priority", "permno", "linkdt"]
     )
+    # Keep one permno per gvkey-datadate (primary link first), so HXZ builders stay
+    # well-defined even when --ccm-linkprim=ALL admits multiple links per firm.
+    linked = linked.drop_duplicates(["gvkey", "datadate"], keep="first")
     return linked.drop(columns=["linkdt", "linkenddt", "linkprim_priority"])
