@@ -34,7 +34,7 @@ universe_filtering:
   share_codes:
     description: "Which CRSP share codes are included in the stock universe"
     green_value: [10, 11]
-    gkx_value: UNKNOWN  # hypothesis: GKX may include additional codes
+    gkx_value: ALL  # datashare profile: no share-code SQL filter
     confirmed: false
     tested: false
     characteristics_affected: ALL

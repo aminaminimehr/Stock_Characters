@@ -18,7 +18,7 @@ prints the resolved values at startup.
 |---|---|---|---|
 | `--ccm-linktypes` | CCM linktype filter (all builders). `L*` = every linktype starting with L (Dacheng prefix rule). | `LU,LC,LD,LF,LN,LO,LS,LX` | `L*` |
 | `--ccm-linkprim` | CCM linkprim filter; `ALL` = no filter | `ALL` | `P,C` |
-| `--crsp-shrcd` | CRSP share-code filter | `10,11` | `10,11` |
+| `--crsp-shrcd` | CRSP share-code filter; `ALL` = no filter | `10,11` | `ALL` |
 | `--crsp-exchcd` | CRSP exchange-code filter | `1,2,3` | `1,2,3` |
 | `--sample-start` | WRDS download window start | `1975-01-01` | `1957-01-01` |
 | `--industry-agg` | When to compute annual industry benchmarks (see below) | `pre_ccm` | `post_ccm` |
@@ -68,7 +68,7 @@ Not affected by this flag:
 | **`datashare`** | Full library + datashare (Dacheng) alignment | **1957-01-01** | `L*` (prefix rule) | `P,C` | `post_ccm` | **Off** (sparse panel) | **No** |
 | **`research`** | Ranked 1957+ ML panel | 1975-01-01 | broad | `ALL` | `pre_ccm` | Off | Yes |
 
-All profiles set `--crsp-shrcd 10,11 --crsp-exchcd 1,2,3`. HXZ builders run under the same global flags as Green.
+All profiles set `--crsp-exchcd 1,2,3`. Green and research use `--crsp-shrcd 10,11`; datashare uses `--crsp-shrcd ALL` (no share-code restriction). HXZ builders run under the same global flags as Green.
 
 ### Datashare column mapping (bm_ia out of scope)
 
@@ -143,7 +143,7 @@ python scripts/rebuild/rebuild_green_cfp_full_history.py \
 | `--profile` | none | `green`, `datashare`, or `research` (fills the 5 required flags) |
 | `--ccm-linktypes` | (required¹) | CCM linktype filter for all builders |
 | `--ccm-linkprim` | (required¹) | CCM linkprim filter for all builders; `ALL` = no filter |
-| `--crsp-shrcd` | (required¹) | CRSP share codes, e.g. `10,11` |
+| `--crsp-shrcd` | (required¹) | CRSP share codes, e.g. `10,11`; `ALL` = no filter |
 | `--crsp-exchcd` | (required¹) | CRSP exchange codes, e.g. `1,2,3` |
 | `--sample-start` | (required¹) | WRDS lower date (`YYYY-MM-DD`) |
 | `--sample-end` | none | Optional WRDS upper date |
@@ -170,7 +170,7 @@ matching env vars. The Green path no longer hard-codes its CCM set — it honors
 |---|---|---|
 | `--ccm-linktypes` | `LU,LC` (argparse) | CCM linktypes; also sets `STOCK_CHARACTERS_CCM_LINKTYPES` |
 | `--ccm-linkprim` | `P,C` (argparse) | CCM linkprim; `ALL` = no filter; sets `STOCK_CHARACTERS_CCM_LINKPRIM` |
-| `--crsp-shrcd` | `10,11` (env) | CRSP share codes; sets `STOCK_CHARACTERS_CRSP_SHRCD` |
+| `--crsp-shrcd` | `10,11` (env) | CRSP share codes; `ALL` = no filter; sets `STOCK_CHARACTERS_CRSP_SHRCD` |
 | `--crsp-exchcd` | `1,2,3` (env) | CRSP exchange codes; sets `STOCK_CHARACTERS_CRSP_EXCHCD` |
 | `--skip-existing` | off | Skip CSVs that already exist |
 | `--skip-annual-monthly` | off | Skip monthly/daily character blocks |
@@ -197,7 +197,7 @@ matching env vars. The Green path no longer hard-codes its CCM set — it honors
 | `STOCK_CHARACTERS_SAMPLE_END` | SQL filters | Optional upper bound |
 | `STOCK_CHARACTERS_CCM_LINKTYPES` | CCM linkers | CCM linktype filter (set by profile / `--ccm-linktypes`); `L*` = Dacheng prefix rule |
 | `STOCK_CHARACTERS_CCM_LINKPRIM` | CCM linkers | CCM linkprim filter; `ALL`/unset = no filter |
-| `STOCK_CHARACTERS_CRSP_SHRCD` | CRSP SQL filters | CRSP share codes (set by profile / `--crsp-shrcd`); fallback `10,11` |
+| `STOCK_CHARACTERS_CRSP_SHRCD` | CRSP SQL filters | CRSP share codes (set by profile / `--crsp-shrcd`); `ALL` = no filter; fallback `10,11` |
 | `STOCK_CHARACTERS_CRSP_EXCHCD` | CRSP SQL filters | CRSP exchange codes (set by profile / `--crsp-exchcd`); fallback `1,2,3` |
 | `STOCK_CHARACTERS_INDUSTRY_AGG` | Annual industry benchmarks | `pre_ccm` (Green, default) or `post_ccm` (datashare/Dacheng) |
 | `STOCK_CHARACTERS_DEFAULT_ANNUAL_START` | `output_paths.py` | Default `1975-01-01` when no sample start set |
@@ -246,7 +246,7 @@ See `docs/methodology/02_timing.md`.
 | Filter | Green profile | Datashare profile |
 |---|---|---|
 | Exchange | `--crsp-exchcd 1,2,3` | same |
-| Share code | `--crsp-shrcd 10,11` | same |
+| Share code | `--crsp-shrcd 10,11` | `--crsp-shrcd ALL` (no restriction) |
 | Price floor | none | none |
 | Financial exclusion | none | none |
 | Joint screen `mve & mom1m & bm` | optional `--green-universe` | **never** |

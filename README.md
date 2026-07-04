@@ -105,7 +105,7 @@ missing flags. Resolved values are printed at startup for transparency.
 |---|---|---|---|
 | `--ccm-linktypes` | CCM linktype filter (all builders). `L*` = every linktype starting with L (Dacheng prefix rule). | `LU,LC,LD,LF,LN,LO,LS,LX` | `L*` |
 | `--ccm-linkprim` | CCM linkprim filter; `ALL` = no filter | `ALL` | `P,C` |
-| `--crsp-shrcd` | CRSP share-code filter | `10,11` | `10,11` |
+| `--crsp-shrcd` | CRSP share-code filter; `ALL` = no filter | `10,11` | `ALL` |
 | `--crsp-exchcd` | CRSP exchange-code filter | `1,2,3` | `1,2,3` |
 | `--sample-start` | WRDS download window start | `1975-01-01` | `1957-01-01` |
 | `--industry-agg` | When to compute annual industry benchmarks: `pre_ccm` (full Compustat) or `post_ccm` (CRSP-investable only) | `pre_ccm` | `post_ccm` |

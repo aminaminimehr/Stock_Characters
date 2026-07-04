@@ -287,7 +287,7 @@ def main():
     )
     parser.add_argument("--ccm-linktypes", default=None, help="Required: CCM linktype filter for all builders (or use --profile).")
     parser.add_argument("--ccm-linkprim", default=None, help="Required: CCM linkprim filter for all builders; ALL = no filter (or use --profile).")
-    parser.add_argument("--crsp-shrcd", default=None, help="Required: CRSP share codes, e.g. 10,11 (or use --profile).")
+    parser.add_argument("--crsp-shrcd", default=None, help="Required: CRSP share codes, e.g. 10,11; ALL = no filter (or use --profile).")
     parser.add_argument("--crsp-exchcd", default=None, help="Required: CRSP exchange codes, e.g. 1,2,3 (or use --profile).")
     parser.add_argument(
         "--industry-agg",

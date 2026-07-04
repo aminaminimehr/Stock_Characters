@@ -432,7 +432,7 @@ panel/return builders, `pipeline_config.py`, and the launcher scripts).
 | `datashare` | 1957+ start; sparse panel (no Green joint screen); HXZ `bm`/`operprof`; no research panel. |
 | `research` | Full pipeline through the ranked 1957+ research panel. |
 
-CCM defaults: Green = `LU,LC,LD,LF,LN,LO,LS,LX` (no `linkprim`); datashare (Dacheng) = `L*` (every linktype starting with L) with `linkprim P,C`; HXZ fallback = `LU,LC` with `linkprim P,C`. Industry aggregation: Green = `pre_ccm` (full Compustat); datashare = `post_ccm` (CRSP-investable only, Dacheng EAPVML SAS convention).
+CCM defaults: Green = `LU,LC,LD,LF,LN,LO,LS,LX` (no `linkprim`); datashare (Dacheng) = `L*` (every linktype starting with L) with `linkprim P,C`, `crsp-shrcd ALL` (no share-code filter); HXZ fallback = `LU,LC` with `linkprim P,C`. Industry aggregation: Green = `pre_ccm` (full Compustat); datashare = `post_ccm` (CRSP-investable only, Dacheng EAPVML SAS convention).
 
 ### 11.3 Character orchestrator — `Character_Builders/build_all_implemented_characters.py`
 

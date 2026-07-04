@@ -22,9 +22,12 @@ HXZ_CCM_LINKPRIM = "P,C"
 DATASHARE_CCM_LINKTYPES = "L*"
 DATASHARE_CCM_LINKPRIM = "P,C"
 
-# CRSP universe recipe (common stock on NYSE/AMEX/NASDAQ) — shared by all profiles.
+# CRSP universe recipe (common stock on NYSE/AMEX/NASDAQ) — Green/research default.
 DEFAULT_CRSP_SHRCD = "10,11"
 DEFAULT_CRSP_EXCHCD = "1,2,3"
+
+# Dacheng/datashare recipe: no share-code restriction (ALL = no SQL filter).
+DATASHARE_CRSP_SHRCD = "ALL"
 
 VALID_PROFILES = frozenset({"green", "datashare", "research"})
 
@@ -115,7 +118,7 @@ def _profile_defaults(profile: str) -> PipelineConfig:
             skip_daily=False,
             ccm_linktypes=DATASHARE_CCM_LINKTYPES,
             ccm_linkprim=DATASHARE_CCM_LINKPRIM,
-            crsp_shrcd=DEFAULT_CRSP_SHRCD,
+            crsp_shrcd=DATASHARE_CRSP_SHRCD,
             crsp_exchcd=DEFAULT_CRSP_EXCHCD,
             industry_agg="post_ccm",
             datashare_columns=("bm", "operprof", "cfp"),
@@ -203,7 +206,7 @@ def profile_help() -> str:
     return """
 Profiles (each is a complete recipe of the required flags; see README 'Required flags & recipes'):
   green      Replicate Green SAS: broad CCM linktypes, no linkprim (ALL), shrcd 10,11, exchcd 1,2,3, 1975+ start.
-  datashare  Match datashare.csv (Dacheng): linktype prefix rule L* (every L-code) + linkprim P,C, shrcd 10,11, exchcd 1,2,3, 1957+ start.
+  datashare  Match datashare.csv (Dacheng): linktype prefix rule L* (every L-code) + linkprim P,C, shrcd ALL (no filter), exchcd 1,2,3, 1957+ start.
   research   Full ranked 1957+ panel: Green recipe link rules, 1975+ build start.
 
 Required flags (or a profile that sets them): --ccm-linktypes, --ccm-linkprim, --crsp-shrcd, --crsp-exchcd, --sample-start.

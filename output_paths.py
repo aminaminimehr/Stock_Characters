@@ -137,11 +137,17 @@ def sql_date_filter(column: str, table_alias: str | None = None) -> str:
     return " AND ".join(parts) if parts else "TRUE"
 
 
+def _crsp_code_filter_disabled(value: str) -> bool:
+    """True when a CRSP code filter should be omitted (ALL / * / empty)."""
+    return str(value).strip().upper() in ("", "ALL", "*")
+
+
 def get_crsp_universe():
     """CRSP share/exchange code filters via environment variables.
 
     Defaults to common stock on major exchanges (shrcd 10,11; exchcd 1,2,3)
     unless STOCK_CHARACTERS_CRSP_SHRCD / STOCK_CHARACTERS_CRSP_EXCHCD are set.
+    Use ALL for either dimension to disable that filter.
     """
     shrcd = os.environ.get("STOCK_CHARACTERS_CRSP_SHRCD", "10,11")
     exchcd = os.environ.get("STOCK_CHARACTERS_CRSP_EXCHCD", "1,2,3")
@@ -156,7 +162,9 @@ def _sql_int_list(values: str) -> str:
 def crsp_universe_filter(table_alias: str = "n") -> str:
     """Return an SQL predicate fragment for the CRSP share/exchange code filters."""
     shrcd, exchcd = get_crsp_universe()
-    return (
-        f"{table_alias}.shrcd IN ({_sql_int_list(shrcd)}) "
-        f"AND {table_alias}.exchcd IN ({_sql_int_list(exchcd)})"
-    )
+    parts = []
+    if not _crsp_code_filter_disabled(shrcd):
+        parts.append(f"{table_alias}.shrcd IN ({_sql_int_list(shrcd)})")
+    if not _crsp_code_filter_disabled(exchcd):
+        parts.append(f"{table_alias}.exchcd IN ({_sql_int_list(exchcd)})")
+    return " AND ".join(parts) if parts else "TRUE"

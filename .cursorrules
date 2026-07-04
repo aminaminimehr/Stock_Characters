@@ -1,0 +1,97 @@
+# .cursorrules — Asset Pricing Characteristics Framework
+
+## Project context
+
+This repository builds a transparent, configurable framework for constructing
+empirical asset pricing characteristics from WRDS data.
+
+The primary goal is to reproduce GKX datashare.csv by identifying every
+implementation convention used in its construction. The baseline is a validated
+replication of Green's SAS implementation.
+
+All investigation work follows the staged reconstruction process documented in
+docs/agent/INVESTIGATION_PROTOCOL.md.
+
+## What this project is NOT
+
+This is not a project to produce matching numbers by any means necessary.
+It is a project to understand exactly WHY different implementations differ.
+Every discrepancy must be explained by a named, configurable parameter.
+
+## Required reading before any code change
+
+Before making any change related to characteristic construction or data pipeline,
+read these files:
+
+  docs/agent/AGENT_RULES.md
+  docs/agent/CONVENTIONS_REGISTRY.yaml
+  docs/agent/DISCREPANCY_TABLE.csv
+
+## Core constraints for all code in this repo
+
+1. The Green replication must remain reproducible at all times.
+   Never break the Green baseline configuration.
+
+2. Every implementation choice must be a configurable parameter.
+   No hard-coded conventions inside construction functions.
+
+3. Convention changes and formula changes must never be conflated.
+   They are tracked in separate files for a reason.
+
+4. Every test must report Spearman AND sample N AND unique permnos.
+   Spearman alone is never sufficient to claim a match.
+
+5. Hypotheses must be tested one at a time, across all affected
+   characteristics, never stacked.
+
+## File structure that must be respected
+
+  src/                     — characteristic construction code
+  src/config/              — ConventionConfig class and defaults
+  src/pipeline/            — data pipeline (CRSP pull, CCM merge, etc.)
+  src/characteristics/     — one file per characteristic or characteristic family
+  docs/agent/              — agent rules, registry, table, log (DO NOT RESTRUCTURE)
+  scripts/                 — validation and comparison scripts (NOT for public repo)
+  supplementary/           — reference files (datashare.csv, Green output, etc.)
+
+## ConventionConfig must be the single source of truth
+
+All configurable conventions must be accessed through the ConventionConfig object.
+No characteristic construction function may read configuration from anywhere else.
+
+```python
+# Correct
+def build_ep(data: pd.DataFrame, config: ConventionConfig) -> pd.DataFrame:
+    if config.industry_averaging_timing == 'post_crsp_merge':
+        ...
+
+# Wrong — hard-coded convention
+def build_ep(data: pd.DataFrame) -> pd.DataFrame:
+    # always uses post-merge — not reproducible for Green
+    ...
+```
+
+## Validation script interface
+
+Every characteristic must have a corresponding validation entry that can be run with:
+
+  python scripts/validate_characteristic.py --char [name] --target [green|gkx]
+
+This script must output all five required metrics:
+  Spearman vs target, Sample N, GKX N, Unique permnos, GKX permnos
+
+## What belongs in git and what does not
+
+IN the repo:
+  src/, docs/agent/, tests/, README.md, requirements.txt, .cursorrules
+
+NOT in the repo:
+  scripts/ (validation scripts), supplementary/ (data files), docs/validations/
+
+## README principles
+
+The README must clearly state:
+  - This repository prioritizes reproducibility and transparency
+  - Every implementation decision is a named, configurable parameter
+  - The framework can reproduce multiple published datasets by changing config
+  - Green's output is the validated baseline; GKX datashare.csv is the target

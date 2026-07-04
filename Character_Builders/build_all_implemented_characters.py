@@ -240,7 +240,7 @@ def main():
     parser.add_argument(
         "--crsp-shrcd",
         default=None,
-        help="Comma-separated CRSP share codes (e.g. 10,11). Sets STOCK_CHARACTERS_CRSP_SHRCD.",
+        help="Comma-separated CRSP share codes (e.g. 10,11). ALL = no filter. Sets STOCK_CHARACTERS_CRSP_SHRCD.",
     )
     parser.add_argument(
         "--crsp-exchcd",
