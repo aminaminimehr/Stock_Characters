@@ -382,6 +382,118 @@ def _accumulate_orgcap(group):
     return group
 
 
+def _industry_agg_mode():
+    """When to compute annual industry benchmarks.
+
+    'pre_ccm'  = on full Compustat (Green SAS L242-270, L261-285). Green profile.
+    'post_ccm' = on the CCM-linked, permno-pruned universe (Dacheng SAS L556-584).
+                 Set by the datashare/research profiles so industry means exclude
+                 firms with no CRSP link. Controlled by STOCK_CHARACTERS_INDUSTRY_AGG.
+    """
+    return os.environ.get("STOCK_CHARACTERS_INDUSTRY_AGG", "pre_ccm").strip().lower()
+
+
+def _apply_industry_adjusted_annual(comp):
+    """Compute the annual industry-adjusted block IN PLACE on ``comp``.
+
+    Produces cfp_ia, chatoia, chempia, chpmia, pchcapx_ia, bm_ia, me_ia, tb,
+    sales_share_sq, herf via groupby(sic2, fyear). Used in pre_ccm mode
+    (inside compute_annual_characters) and post_ccm mode (on the linked panel).
+    Requires comp to already contain chato, the base chars, and sic2.
+    """
+    grouped = comp.groupby(["sic2", "fyear"], dropna=False)
+    comp["cfp_ia"] = comp["cfp"] - grouped["cfp"].transform("mean")
+    comp["chatoia"] = comp["chato"] - grouped["chato"].transform("mean")
+    comp["chempia"] = comp["hire"] - grouped["hire"].transform("mean")
+    comp["chpmia"] = comp["chpm"] - grouped["chpm"].transform("mean")
+    comp["pchcapx_ia"] = comp["pchcapx"] - grouped["pchcapx"].transform("mean")
+    comp["bm_ia"] = comp["bm"] - grouped["bm"].transform("mean")
+    comp["me_ia"] = comp["mve_f"] - grouped["mve_f"].transform("mean")
+    comp["tb"] = comp["tb_1"] - grouped["tb_1"].transform("mean")
+    industry_sales = grouped["sale"].transform("sum")
+    comp["sales_share_sq"] = (comp["sale"] / industry_sales.replace(0, np.nan)) ** 2
+    comp["herf"] = grouped["sales_share_sq"].transform("sum")
+
+
+def _apply_ia_lag_nulling(comp):
+    """Null industry-adjusted chars for firms with insufficient lag history."""
+    _ia_cols_present = [c for c in ("chato", "chatoia") if c in comp.columns]
+    if _ia_cols_present:
+        comp.loc[comp.groupby("gvkey").cumcount() < 2, _ia_cols_present] = np.nan
+    _ia_first_year = ["chpmia", "chempia", "pchcapx_ia"]
+    _ia_first_present = [c for c in _ia_first_year if c in comp.columns]
+    if _ia_first_present:
+        comp.loc[comp.groupby("gvkey").cumcount() == 0, _ia_first_present] = np.nan
+
+
+def _apply_firm_lag_nulling(comp):
+    """Null firm-level chars for insufficient lag history (independent of industry agg timing)."""
+    comp.loc[comp.groupby("gvkey").cumcount() < 2, "chato"] = np.nan
+    _first_null_cols = [
+        "agr", "gma", "chcsho", "lgr", "acc", "pctacc", "hire", "sgr",
+        "chpm", "ato", "cashdebt", "roe", "noa", "grltnoa",
+        "invest", "egr", "chinv", "absacc", "pchdepr", "pchcurrat",
+        "pchcapx", "pchsaleinv", "pchquick", "obklg", "chobklg",
+        "pchsale_pchinvt", "pchsale_pchrect", "pchgm_pchsale", "pchsale_pchxsga",
+        "divi", "divo", "rd",
+    ]
+    _first_null_present = [c for c in _first_null_cols if c in comp.columns]
+    if _first_null_present:
+        comp.loc[comp.groupby("gvkey").cumcount() == 0, _first_null_present] = np.nan
+    comp.loc[comp.groupby("gvkey").cumcount() < 2, "grcapx"] = np.nan
+
+
+def _apply_mohanram_m1_m6(comp, avg_at):
+    """Compute Mohanram annual signals m1-m6 IN PLACE on ``comp``.
+
+    m3 (oancf > ni) is firm-level; m1,m2,m4,m5,m6 compare the firm to the
+    industry median (groupby fyear, sic2). Mirrors Greens_code.sas L261-285.
+    Writes m1-m6 into the caller's comp (does not reassign the frame).
+    """
+    roa_ms = safe_divide(comp["ni"], avg_at)
+    cfroa_ms = safe_divide(comp["oancf"], avg_at)
+    cfroa_ms = cfroa_ms.where(comp["oancf"].notna(), safe_divide(comp["ib"] + comp["dp"], avg_at))
+    # Green SAS treats missing xrd and xad as 0 (non-disclosing firms assumed to
+    # spend nothing), so the industry medians for m4/m6 include those zeros and
+    # are near-zero in non-R&D-intensive industries.  Using NaN (the Python default)
+    # would exclude non-reporters from the median, producing artificially high
+    # medians and far fewer m4=1 and m6=1 flags.
+    xrdint_ms = safe_divide(comp["xrd"].fillna(0), avg_at)
+    capxint_ms = safe_divide(comp["capx"], avg_at)
+    xadint_ms = safe_divide(comp["xad"].fillna(0), avg_at)
+    med = comp.assign(
+        _roa_ms=roa_ms, _cfroa_ms=cfroa_ms, _xrdint_ms=xrdint_ms,
+        _capxint_ms=capxint_ms, _xadint_ms=xadint_ms,
+    ).groupby(["fyear", "sic2"], dropna=False)[
+        ["_roa_ms", "_cfroa_ms", "_xrdint_ms", "_capxint_ms", "_xadint_ms"]
+    ].transform("median")
+    med.columns = ["md_roa", "md_cfroa", "md_xrdint", "md_capxint", "md_xadint"]
+    comp["m1"] = (roa_ms > med["md_roa"]).fillna(False).astype(int)
+    comp["m2"] = (cfroa_ms > med["md_cfroa"]).fillna(False).astype(int)
+    comp["m3"] = (comp["oancf"] > comp["ni"]).fillna(False).astype(int)
+    comp["m4"] = (xrdint_ms > med["md_xrdint"]).fillna(False).astype(int)
+    comp["m5"] = (capxint_ms > med["md_capxint"]).fillna(False).astype(int)
+    comp["m6"] = (xadint_ms > med["md_xadint"]).fillna(False).astype(int)
+    return comp
+
+
+def compute_industry_adjusted_annual(comp):
+    """Run annual industry aggregation on an already-CCM-linked panel.
+
+    Called AFTER attach_permno when STOCK_CHARACTERS_INDUSTRY_AGG=post_ccm so
+    the _ia / herf / m1-m6 benchmarks are computed only over CRSP-investable
+    firms (Dacheng SAS L556-584). No-op in pre_ccm mode (Green).
+    """
+    if _industry_agg_mode() != "post_ccm":
+        return comp
+    comp = comp.copy()
+    avg_at = (comp["at"] + comp["lag_at"]) / 2
+    _apply_industry_adjusted_annual(comp)
+    _apply_mohanram_m1_m6(comp, avg_at)
+    _apply_ia_lag_nulling(comp)
+    return comp
+
+
 def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
     comp = comp.copy()
     comp = add_book_equity(comp)
@@ -589,33 +701,13 @@ def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
     comp["obklg"] = safe_divide(comp["ob"], avg_at)
     comp["chobklg"] = safe_divide(comp["ob"] - comp["lag_ob"], avg_at)
 
-    grouped = comp.groupby(["sic2", "fyear"], dropna=False)
     comp["chato"] = safe_divide(comp["sale"], avg_at) - safe_divide(
         comp["lag_sale"], (comp["lag_at"] + comp["lag2_at"]) / 2
     )
-    comp["cfp_ia"] = comp["cfp"] - grouped["cfp"].transform("mean")
-    comp["chatoia"] = comp["chato"] - grouped["chato"].transform("mean")
-    comp["chempia"] = comp["hire"] - grouped["hire"].transform("mean")
-    chpm_group_mean = grouped["chpm"].transform("mean")
-    comp["chpmia"] = comp["chpm"] - chpm_group_mean
-    comp["pchcapx_ia"] = comp["pchcapx"] - grouped["pchcapx"].transform("mean")
-    comp["bm_ia"] = comp["bm"] - grouped["bm"].transform("mean")
-    comp["me_ia"] = comp["mve_f"] - grouped["mve_f"].transform("mean")
-    comp["tb"] = comp["tb_1"] - grouped["tb_1"].transform("mean")
-    industry_sales = grouped["sale"].transform("sum")
-    comp["sales_share_sq"] = (comp["sale"] / industry_sales.replace(0, np.nan)) ** 2
-    comp["herf"] = grouped["sales_share_sq"].transform("sum")
-
-    comp.loc[comp.groupby("gvkey").cumcount() < 2, ["chato", "chatoia"]] = np.nan
-    comp.loc[comp.groupby("gvkey").cumcount() == 0, [
-        "agr", "gma", "chcsho", "lgr", "acc", "pctacc", "hire", "sgr",
-        "chpm", "ato", "cashdebt", "roe", "noa", "grltnoa",
-        "invest", "egr", "chinv", "absacc", "pchdepr", "pchcurrat",
-        "pchcapx", "pchsaleinv", "pchquick", "obklg", "chobklg",
-        "pchsale_pchinvt", "pchsale_pchrect", "pchgm_pchsale", "pchsale_pchxsga",
-        "divi", "divo", "rd", "chpmia", "chempia", "pchcapx_ia",
-    ]] = np.nan
-    comp.loc[comp.groupby("gvkey").cumcount() < 2, "grcapx"] = np.nan
+    if _industry_agg_mode() == "pre_ccm":
+        _apply_industry_adjusted_annual(comp)
+        _apply_ia_lag_nulling(comp)
+    _apply_firm_lag_nulling(comp)
 
     if orgcap_lookup is not None:
         orgcap_lookup = orgcap_lookup.drop_duplicates(["gvkey", "datadate"], keep="last")
@@ -653,35 +745,11 @@ def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
     comp.loc[comp.groupby("gvkey").cumcount() == 0, "ps"] = np.nan
 
     # Mohanram annual signals m1-m6 (Greens_code.sas L261-285) for ms score.
-    comp["_roa_ms"] = safe_divide(comp["ni"], avg_at)
-    comp["_cfroa_ms"] = safe_divide(comp["oancf"], avg_at)
-    comp.loc[comp["oancf"].isna(), "_cfroa_ms"] = safe_divide(comp["ib"] + comp["dp"], avg_at)
-    # Green SAS treats missing xrd and xad as 0 (non-disclosing firms assumed to
-    # spend nothing), so the industry medians for m4/m6 include those zeros and
-    # are near-zero in non-R&D-intensive industries.  Using NaN (the Python default)
-    # would exclude non-reporters from the median, producing artificially high
-    # medians and far fewer m4=1 and m6=1 flags.
-    comp["_xrdint_ms"] = safe_divide(comp["xrd"].fillna(0), avg_at)
-    comp["_capxint_ms"] = safe_divide(comp["capx"], avg_at)
-    comp["_xadint_ms"] = safe_divide(comp["xad"].fillna(0), avg_at)
-    med_ms = comp.groupby(["fyear", "sic2"], dropna=False)[
-        ["_roa_ms", "_cfroa_ms", "_xrdint_ms", "_capxint_ms", "_xadint_ms"]
-    ].transform("median")
-    med_ms.columns = ["md_roa", "md_cfroa", "md_xrdint", "md_capxint", "md_xadint"]
-    comp = pd.concat([comp, med_ms], axis=1)
-    comp["m1"] = (comp["_roa_ms"] > comp["md_roa"]).fillna(False).astype(int)
-    comp["m2"] = (comp["_cfroa_ms"] > comp["md_cfroa"]).fillna(False).astype(int)
-    comp["m3"] = (comp["oancf"] > comp["ni"]).fillna(False).astype(int)
-    comp["m4"] = (comp["_xrdint_ms"] > comp["md_xrdint"]).fillna(False).astype(int)
-    comp["m5"] = (comp["_capxint_ms"] > comp["md_capxint"]).fillna(False).astype(int)
-    comp["m6"] = (comp["_xadint_ms"] > comp["md_xadint"]).fillna(False).astype(int)
-    comp = comp.drop(
-        columns=[
-            "_roa_ms", "_cfroa_ms", "_xrdint_ms", "_capxint_ms", "_xadint_ms",
-            "md_roa", "md_cfroa", "md_xrdint", "md_capxint", "md_xadint",
-        ],
-        errors="ignore",
-    )
+    # The industry medians are deferred to the post-CCM step when running in
+    # post_ccm mode (datashare/Dacheng convention), so that only CRSP-investable
+    # firms define the m1-m6 benchmarks.
+    if _industry_agg_mode() == "pre_ccm":
+        _apply_mohanram_m1_m6(comp, avg_at)
 
     return comp
 
@@ -702,6 +770,7 @@ def build_annual_character(db, character, ccm_linktypes=None, ccm_linkprim=None)
     )
     link = load_green_ccm_links(db, ccm_linktypes, ccm_linkprim)
     comp = attach_permno(comp, link)
+    comp = compute_industry_adjusted_annual(comp)
     comp = comp.rename(columns={character: "character_value"})
     comp = comp[comp["character_value"].replace([np.inf, -np.inf], np.nan).notna()].copy()
     return comp[
@@ -895,6 +964,7 @@ def _compustat_sic2_monthly_map(db, crsp: pd.DataFrame) -> pd.DataFrame:
 
     comp = compute_annual_characters(load_annual_compustat(db))
     comp = attach_permno(comp, load_green_ccm_links(db))
+    comp = compute_industry_adjusted_annual(comp)
     annual = comp[comp["permno"].notna()][
         ["permno", "permco", "gvkey", "datadate", "sic", "fyear", "sic2"]
     ].copy()

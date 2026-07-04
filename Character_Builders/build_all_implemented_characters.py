@@ -20,6 +20,7 @@ from _shared.green_builders import (
     clear_monthly_crsp_cache,
     build_monthly_character,
     compute_annual_characters,
+    compute_industry_adjusted_annual,
     connect_wrds,
     load_annual_age_lookup,
     load_annual_orgcap_lookup,
@@ -57,6 +58,7 @@ def build_annual_characters(
         orgcap_lookup=load_annual_orgcap_lookup(db),
     )
     comp = attach_permno(comp, load_green_ccm_links(db, ccm_linktypes, ccm_linkprim))
+    comp = compute_industry_adjusted_annual(comp)
 
     for character in ANNUAL_CHARACTER_INFO:
         if skip_existing and (output_dir / f"{character}.csv").exists():
@@ -246,6 +248,14 @@ def main():
         help="Comma-separated CRSP exchange codes (e.g. 1,2,3). Sets STOCK_CHARACTERS_CRSP_EXCHCD.",
     )
     parser.add_argument(
+        "--industry-agg",
+        choices=("pre_ccm", "post_ccm"),
+        default=None,
+        help="When to compute annual industry benchmarks: pre_ccm (Green, full Compustat) "
+        "or post_ccm (datashare/Dacheng, CRSP-investable only). "
+        "Sets STOCK_CHARACTERS_INDUSTRY_AGG.",
+    )
+    parser.add_argument(
         "--workers",
         type=int,
         default=None,
@@ -268,6 +278,8 @@ def main():
         os.environ["STOCK_CHARACTERS_CRSP_SHRCD"] = args.crsp_shrcd
     if args.crsp_exchcd:
         os.environ["STOCK_CHARACTERS_CRSP_EXCHCD"] = args.crsp_exchcd
+    if args.industry_agg:
+        os.environ["STOCK_CHARACTERS_INDUSTRY_AGG"] = args.industry_agg
 
     ensure_output_tree()
     output_dir = Path(args.output_dir)

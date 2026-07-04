@@ -103,11 +103,12 @@ missing flags. Resolved values are printed at startup for transparency.
 
 | Flag | Meaning | Green recipe (`--profile green`) | datashare recipe (`--profile datashare`) |
 |---|---|---|---|
-| `--ccm-linktypes` | CCM linktype filter (all builders) | `LU,LC,LD,LF,LN,LO,LS,LX` | `LU,LC` |
+| `--ccm-linktypes` | CCM linktype filter (all builders). `L*` = every linktype starting with L (Dacheng prefix rule). | `LU,LC,LD,LF,LN,LO,LS,LX` | `L*` |
 | `--ccm-linkprim` | CCM linkprim filter; `ALL` = no filter | `ALL` | `P,C` |
 | `--crsp-shrcd` | CRSP share-code filter | `10,11` | `10,11` |
 | `--crsp-exchcd` | CRSP exchange-code filter | `1,2,3` | `1,2,3` |
 | `--sample-start` | WRDS download window start | `1975-01-01` | `1957-01-01` |
+| `--industry-agg` | When to compute annual industry benchmarks: `pre_ccm` (full Compustat) or `post_ccm` (CRSP-investable only) | `pre_ccm` | `post_ccm` |
 
 `--sample-end` is optional (open-ended = latest available).
 
@@ -116,8 +117,16 @@ single global choice, the recipes force a trade-off:
 
 - `--profile green` uses `linkprim=ALL` (no primary filter), so **HXZ `bm`/`operprof`/`cfp` differ** from a
   strict Fama-French primary-link build.
-- `--profile datashare` uses `linkprim=P,C` (primary links only), so **Green characters differ** from a
-  broad-link Green SAS build.
+- `--profile datashare` uses the Dacheng convention: `linktypes=L*` (every linktype starting with L, which
+  matches Green's explicit 8-code list on current CRSP data) plus `linkprim=P,C` (primary links only), and
+  `--industry-agg post_ccm` (industry benchmarks on the CRSP-investable universe only).
+
+Annual industry benchmarks (`_ia`, `herf`, Mohanram `m1`–`m6`) are computed relative to an industry
+mean/median. `--industry-agg` controls which firms define the benchmark: `pre_ccm` includes the full
+Compustat universe (Green SAS); `post_ccm` restricts to firms that survived the CCM merge and permno prune
+(Dacheng EAPVML SAS L556–584). Quarterly Mohanram `m7`/`m8` and `indmom` are unaffected (always computed
+on quarterly Compustat / monthly CRSP respectively, matching Dacheng). See
+`docs/CONFIGURATION.md` "Industry aggregation timing" for details.
 
 The legacy Green SAS **2015 link-date cap** (`linkdt` year ≤ 2015) has been **removed**; links starting in any
 year are kept, so recent permnos and values change vs the old `PREV.md` benchmark. Re-baseline against

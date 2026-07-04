@@ -7,6 +7,11 @@ DEFAULT_CCM_LINKTYPES = ("LU", "LC")
 DEFAULT_CCM_LINKPRIM = ("P", "C")
 # Green SAS L410-412 (broader linktype set, no linkprim filter).
 GREEN_CCM_LINKTYPES = ("LU", "LC", "LD", "LF", "LN", "LO", "LS", "LX")
+# Dacheng SAS L197 / Python accounting_100.py L190 prefix rule: every linktype
+# whose first character is 'L' (LC, LU, LD, LN, LS, LX; excludes NR, NU). 'LF'
+# and 'LO' are not real CRSP codes, so this matches Green's 8-code list on
+# current data while staying forward-compatible with any future L-code.
+DACHENG_CCM_LINKTYPE_PREFIX = "L*"
 
 
 def parse_ccm_codes(value, default):
@@ -28,21 +33,34 @@ def sql_code_list(codes):
     return ", ".join(f"'{code}'" for code in codes)
 
 
+def _is_prefix_rule(linktypes):
+    """True when linktypes resolves to the Dacheng 'any L-prefixed code' rule.
+
+    Accepted spellings: 'L*', 'L' (single), or a list/tuple containing 'L*'.
+    An explicit code list (e.g. LU,LC) returns False.
+    """
+    if linktypes is None:
+        return False
+    if isinstance(linktypes, str):
+        return linktypes.strip().upper() in ("L*", "L")
+    return any(str(c).strip().upper() == "L*" for c in linktypes)
+
+
 def add_ccm_arguments(parser):
     parser.add_argument(
         "--ccm-linktypes",
         default=",".join(DEFAULT_CCM_LINKTYPES),
         help=(
-            "Comma-separated CCM linktype filter. Default is LU,LC: link used "
-            "and research-complete links."
+            "Comma-separated CCM linktype filter (e.g. LU,LC). Use 'L*' for "
+            "the Dacheng prefix rule: every linktype starting with L."
         ),
     )
     parser.add_argument(
         "--ccm-linkprim",
         default=",".join(DEFAULT_CCM_LINKPRIM),
         help=(
-            "Comma-separated CCM linkprim filter. Default is P,C: Compustat "
-            "primary and CRSP primary links."
+            "Comma-separated linkprim filter. Default is P,C: Compustat "
+            "primary and CRSP primary links. Use 'ALL' to disable."
         ),
     )
 
@@ -50,14 +68,18 @@ def add_ccm_arguments(parser):
 def load_ccm_links(db, linktypes=None, linkprim=None):
     from _shared.green_builders import raw_sql_with_retry
 
-    linktypes = parse_ccm_codes(linktypes, DEFAULT_CCM_LINKTYPES)
     linkprim_clause = _linkprim_clause(linkprim)
+    if _is_prefix_rule(linktypes):
+        linktype_clause = "linktype LIKE 'L%'"
+    else:
+        codes = parse_ccm_codes(linktypes, DEFAULT_CCM_LINKTYPES)
+        linktype_clause = f"linktype IN ({sql_code_list(codes)})"
 
     link = raw_sql_with_retry(db, f"""
         SELECT gvkey, lpermno AS permno, lpermco AS permco,
                linktype, linkprim, linkdt, linkenddt
         FROM crsp.ccmxpf_linktable
-        WHERE linktype IN ({sql_code_list(linktypes)})
+        WHERE {linktype_clause}
           {linkprim_clause}
           AND lpermno IS NOT NULL
     """)
@@ -81,12 +103,18 @@ def _linkprim_clause(linkprim):
 
 
 def _resolve_linktypes(linktypes):
-    """Resolve linktypes: explicit value > STOCK_CHARACTERS_CCM_LINKTYPES env > Green recipe."""
+    """Resolve linktypes: explicit value > STOCK_CHARACTERS_CCM_LINKTYPES env > Green recipe.
+
+    Returns either the token 'L*' (Dacheng prefix rule) or a tuple of explicit
+    codes. The caller is responsible for translating 'L*' into SQL.
+    """
     import os
     if linktypes is None or not str(linktypes).strip():
         linktypes = os.environ.get("STOCK_CHARACTERS_CCM_LINKTYPES") or GREEN_CCM_LINKTYPES
+    if _is_prefix_rule(linktypes):
+        return "L*"
     if str(linktypes).strip().upper() in ("ALL", "*"):
-        raise ValueError("linktypes 'ALL' is not valid; specify explicit CCM linktype codes.")
+        raise ValueError("linktypes 'ALL' is not valid; specify explicit CCM linktype codes or 'L*'.")
     return parse_ccm_codes(linktypes, GREEN_CCM_LINKTYPES)
 
 
@@ -96,17 +124,23 @@ def load_ccm_links_green(db, linktypes=None, linkprim=None):
     ``linktypes``/``linkprim`` fall back to the STOCK_CHARACTERS_CCM_LINKTYPES /
     STOCK_CHARACTERS_CCM_LINKPRIM environment variables (set by run_full_pipeline),
     then to the Green SAS recipe (broad linktypes, no linkprim filter). Pass
-    ``linkprim='ALL'`` (or '') to disable the linkprim filter. The legacy Green SAS
-    2015/1950 link-date cap has been removed, so links starting in any year are kept.
+    ``linkprim='ALL'`` (or '') to disable the linkprim filter. Pass
+    ``linktypes='L*'`` for the Dacheng prefix rule (every linktype starting with
+    L). The legacy Green SAS 2015/1950 link-date cap has been removed, so links
+    starting in any year are kept.
     """
     from _shared.green_builders import raw_sql_with_retry
 
-    codes = sql_code_list(_resolve_linktypes(linktypes))
+    resolved = _resolve_linktypes(linktypes)
+    if resolved == "L*":
+        linktype_clause = "linktype LIKE 'L%'"
+    else:
+        linktype_clause = f"linktype IN ({sql_code_list(resolved)})"
     linkprim_clause = _linkprim_clause(linkprim)
     link = raw_sql_with_retry(db, f"""
         SELECT gvkey, lpermno AS permno, lpermco AS permco, linkdt, linkenddt, linktype
         FROM crsp.ccmxpf_linktable
-        WHERE linktype IN ({codes})
+        WHERE {linktype_clause}
           {linkprim_clause}
           AND lpermno IS NOT NULL
     """)

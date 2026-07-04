@@ -16,32 +16,57 @@ prints the resolved values at startup.
 
 | Flag | Meaning | Green recipe | datashare recipe |
 |---|---|---|---|
-| `--ccm-linktypes` | CCM linktype filter (all builders) | `LU,LC,LD,LF,LN,LO,LS,LX` | `LU,LC` |
+| `--ccm-linktypes` | CCM linktype filter (all builders). `L*` = every linktype starting with L (Dacheng prefix rule). | `LU,LC,LD,LF,LN,LO,LS,LX` | `L*` |
 | `--ccm-linkprim` | CCM linkprim filter; `ALL` = no filter | `ALL` | `P,C` |
 | `--crsp-shrcd` | CRSP share-code filter | `10,11` | `10,11` |
 | `--crsp-exchcd` | CRSP exchange-code filter | `1,2,3` | `1,2,3` |
 | `--sample-start` | WRDS download window start | `1975-01-01` | `1957-01-01` |
+| `--industry-agg` | When to compute annual industry benchmarks (see below) | `pre_ccm` | `post_ccm` |
 
 `--sample-end` is optional (open-ended = latest available).
 
 **Flags are global — one set applies to every builder (Green and HXZ).** A single global `--ccm-linkprim`
 forces a trade-off: `ALL` (Green recipe) changes HXZ `bm`/`operprof`/`cfp` vs a primary-link build; `P,C`
-(datashare recipe) changes Green characters vs a broad-link Green SAS build. The legacy Green SAS 2015
-link-date cap has been removed, so links from any start year are kept — re-baseline against `datashare.csv`
-after upgrading (the old `PREV.md` benchmark no longer applies).
+(datashare recipe) changes Green characters vs a broad-link Green SAS build. The datashare profile uses
+the Dacheng linktype prefix rule `L*` (every linktype starting with L: LC, LU, LD, LN, LS, LX), which is
+equivalent to Green's explicit 8-code list on current CRSP data. The legacy Green SAS 2015 link-date cap
+has been removed, so links from any start year are kept — re-baseline against `datashare.csv` after
+upgrading (the old `PREV.md` benchmark no longer applies).
 
 The CRSP share/exchange filters and CCM link filters are read from environment variables by every builder
 (see Environment variables below), so standalone builder scripts also honor them when the env is set.
+
+### Industry aggregation timing
+
+Annual industry benchmarks (`cfp_ia`, `chatoia`, `chempia`, `chpmia`, `pchcapx_ia`, `bm_ia`, `me_ia`,
+`tb`, `herf`, and Mohanram `m1`–`m6` medians) are computed relative to an industry mean/median. The
+**`--industry-agg`** flag controls which firms define that benchmark:
+
+- `pre_ccm` (Green): benchmarks computed on the **full Compustat universe** before the CCM merge, so
+  firms with no CRSP permno are included in the denominator (Green SAS L242–270, L261–285).
+- `post_ccm` (datashare/Dacheng): benchmarks computed **after** the CCM merge + permno prune, so only
+  CRSP-investable firms define the benchmark (Dacheng SAS L556–584).
+
+**Permno prune:** Compustat firms are keyed by `gvkey`; CRSP firms by `permno`. Many Compustat firms have
+no CRSP permno (foreign, private, unlinked). The permno prune drops every Compustat observation that did
+not receive a valid permno after the CCM merge. Industry means computed *before* the prune include those
+non-traded firms; *after* the prune they do not.
+
+Not affected by this flag:
+- **Quarterly Mohanram `m7`/`m8`** medians are always computed pre-CCM on quarterly Compustat, matching
+  Dacheng SAS L1098–1119 (Dacheng's only authority for Mohanram; the Python builder does not compute m1–m8).
+- **`indmom`** is always computed post-CCM on the monthly CRSP panel (both Green and Dacheng).
+- **`cinvest`** uses a firm-level `groupby("gvkey")` rolling mean (not industry).
 
 ---
 
 ## Profiles
 
-| Profile | Purpose | Sample start | CCM linktypes | CCM linkprim | Green universe | Research panel |
-|---|---|---|---|---|---|---|
-| **`green`** | Replicate Green SAS library | 1975-01-01 | broad (`LU,LC,LD,LF,LN,LO,LS,LX`) | `ALL` | Off unless `--green-universe` | Yes |
-| **`datashare`** | Full library + datashare alignment | **1957-01-01** | `LU,LC` | `P,C` | **Off** (sparse panel) | **No** |
-| **`research`** | Ranked 1957+ ML panel | 1975-01-01 | broad | `ALL` | Off | Yes |
+| Profile | Purpose | Sample start | CCM linktypes | CCM linkprim | Industry agg | Green universe | Research panel |
+|---|---|---|---|---|---|---|---|
+| **`green`** | Replicate Green SAS library | 1975-01-01 | broad (`LU,LC,LD,LF,LN,LO,LS,LX`) | `ALL` | `pre_ccm` | Off unless `--green-universe` | Yes |
+| **`datashare`** | Full library + datashare (Dacheng) alignment | **1957-01-01** | `L*` (prefix rule) | `P,C` | `post_ccm` | **Off** (sparse panel) | **No** |
+| **`research`** | Ranked 1957+ ML panel | 1975-01-01 | broad | `ALL` | `pre_ccm` | Off | Yes |
 
 All profiles set `--crsp-shrcd 10,11 --crsp-exchcd 1,2,3`. HXZ builders run under the same global flags as Green.
 
@@ -122,6 +147,7 @@ python scripts/rebuild/rebuild_green_cfp_full_history.py \
 | `--crsp-exchcd` | (required¹) | CRSP exchange codes, e.g. `1,2,3` |
 | `--sample-start` | (required¹) | WRDS lower date (`YYYY-MM-DD`) |
 | `--sample-end` | none | Optional WRDS upper date |
+| `--industry-agg` | profile | `pre_ccm` (Green) or `post_ccm` (datashare); when to compute annual industry benchmarks |
 | `--skip-build` | off | Rebuild panels only from existing CSVs |
 | `--skip-ibes` | on | Skip IBES-dependent `re` |
 | `--resume` | off | `--skip-existing` + `--skip-annual-monthly` on Green bulk build |
@@ -169,10 +195,11 @@ matching env vars. The Green path no longer hard-codes its CCM set — it honors
 | `STOCK_CHARACTERS_PROFILE` | `run_full_pipeline` | Default profile if `--profile` omitted |
 | `STOCK_CHARACTERS_SAMPLE_START` | SQL filters | Set automatically by profile / `--sample-start` |
 | `STOCK_CHARACTERS_SAMPLE_END` | SQL filters | Optional upper bound |
-| `STOCK_CHARACTERS_CCM_LINKTYPES` | CCM linkers | CCM linktype filter (set by profile / `--ccm-linktypes`) |
+| `STOCK_CHARACTERS_CCM_LINKTYPES` | CCM linkers | CCM linktype filter (set by profile / `--ccm-linktypes`); `L*` = Dacheng prefix rule |
 | `STOCK_CHARACTERS_CCM_LINKPRIM` | CCM linkers | CCM linkprim filter; `ALL`/unset = no filter |
 | `STOCK_CHARACTERS_CRSP_SHRCD` | CRSP SQL filters | CRSP share codes (set by profile / `--crsp-shrcd`); fallback `10,11` |
 | `STOCK_CHARACTERS_CRSP_EXCHCD` | CRSP SQL filters | CRSP exchange codes (set by profile / `--crsp-exchcd`); fallback `1,2,3` |
+| `STOCK_CHARACTERS_INDUSTRY_AGG` | Annual industry benchmarks | `pre_ccm` (Green, default) or `post_ccm` (datashare/Dacheng) |
 | `STOCK_CHARACTERS_DEFAULT_ANNUAL_START` | `output_paths.py` | Default `1975-01-01` when no sample start set |
 | `STOCK_CHARACTERS_WORKERS` | Parallel **compute** (beta regressions, rvar, ear) | Default `min(cpu, 8)` |
 | `STOCK_CHARACTERS_WRDS_DOWNLOAD_WORKERS` | Parallel **WRDS** dsf chunk downloads | Default `4` (separate from compute) |

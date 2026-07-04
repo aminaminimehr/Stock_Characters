@@ -290,6 +290,13 @@ def main():
     parser.add_argument("--crsp-shrcd", default=None, help="Required: CRSP share codes, e.g. 10,11 (or use --profile).")
     parser.add_argument("--crsp-exchcd", default=None, help="Required: CRSP exchange codes, e.g. 1,2,3 (or use --profile).")
     parser.add_argument(
+        "--industry-agg",
+        choices=("pre_ccm", "post_ccm"),
+        default=None,
+        help="When to compute annual industry benchmarks: pre_ccm (Green, full Compustat) "
+        "or post_ccm (datashare/Dacheng, CRSP-investable only). Default follows the profile.",
+    )
+    parser.add_argument(
         "--skip-special",
         action="store_true",
         help="Skip beta/rvar/ear/ms and other special builders (debug only).",
@@ -314,6 +321,7 @@ def main():
         ccm_linkprim=args.ccm_linkprim,
         crsp_shrcd=args.crsp_shrcd,
         crsp_exchcd=args.crsp_exchcd,
+        industry_agg=args.industry_agg,
     )
     cfg.validate_required()
     cfg.apply_env()
@@ -324,6 +332,7 @@ def main():
         "Resolved flags: "
         f"ccm_linktypes={cfg.ccm_linktypes} ccm_linkprim={cfg.ccm_linkprim} "
         f"crsp_shrcd={cfg.crsp_shrcd} crsp_exchcd={cfg.crsp_exchcd} "
+        f"industry_agg={cfg.industry_agg} "
         f"sample_start={cfg.sample_start} sample_end={cfg.sample_end or 'none'}",
         flush=True,
     )

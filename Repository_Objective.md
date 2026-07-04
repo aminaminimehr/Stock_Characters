@@ -419,7 +419,8 @@ panel/return builders, `pipeline_config.py`, and the launcher scripts).
 | `--workers N` | Parallel CPU workers for `beta`, `rvar_*`, `abr`, `ear` (default `min(cpu,8)`). |
 | `--green-universe` / `--no-green-universe` | Apply Green's final sample screen (`bm`, `mom1m`, `mve` non-missing). |
 | `--green-winsor` / `--no-green-winsor` | Apply Green's monthly winsorization to the signal panel. |
-| `--ccm-linktypes`, `--ccm-linkprim` | Override CCM linking rules (applies to Green **and** HXZ builders). |
+| `--ccm-linktypes`, `--ccm-linkprim` | Override CCM linking rules (applies to Green **and** HXZ builders). `L*` = Dacheng prefix rule. |
+| `--industry-agg` | When to compute annual industry benchmarks: `pre_ccm` (Green) or `post_ccm` (datashare/Dacheng). |
 | `--skip-special` | Skip `beta`/`rvar`/`ear`/`ms` and other special builders (debug). |
 | `--skip-daily` | Skip daily-CRSP-based monthly characters (debug). |
 
@@ -431,7 +432,7 @@ panel/return builders, `pipeline_config.py`, and the launcher scripts).
 | `datashare` | 1957+ start; sparse panel (no Green joint screen); HXZ `bm`/`operprof`; no research panel. |
 | `research` | Full pipeline through the ranked 1957+ research panel. |
 
-CCM defaults: Green = `LU,LC,LD,LF,LN,LO,LS,LX` (no `linkprim`); HXZ = `LU,LC` with `linkprim P,C`.
+CCM defaults: Green = `LU,LC,LD,LF,LN,LO,LS,LX` (no `linkprim`); datashare (Dacheng) = `L*` (every linktype starting with L) with `linkprim P,C`; HXZ fallback = `LU,LC` with `linkprim P,C`. Industry aggregation: Green = `pre_ccm` (full Compustat); datashare = `post_ccm` (CRSP-investable only, Dacheng EAPVML SAS convention).
 
 ### 11.3 Character orchestrator — `Character_Builders/build_all_implemented_characters.py`
 

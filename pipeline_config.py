@@ -17,6 +17,11 @@ GREEN_CCM_LINKPRIM = "ALL"
 HXZ_CCM_LINKTYPES = "LU,LC"
 HXZ_CCM_LINKPRIM = "P,C"
 
+# Dacheng EAPVML recipe: prefix rule (every linktype starting with L) +
+# primary links. Matches Dacheng SAS L197 and Python accounting_100.py L190.
+DATASHARE_CCM_LINKTYPES = "L*"
+DATASHARE_CCM_LINKPRIM = "P,C"
+
 # CRSP universe recipe (common stock on NYSE/AMEX/NASDAQ) — shared by all profiles.
 DEFAULT_CRSP_SHRCD = "10,11"
 DEFAULT_CRSP_EXCHCD = "1,2,3"
@@ -42,6 +47,9 @@ class PipelineConfig:
     ccm_linkprim: str | None = None
     crsp_shrcd: str | None = None
     crsp_exchcd: str | None = None
+    # 'pre_ccm' = Green SAS (industry benchmarks on full Compustat);
+    # 'post_ccm' = Dacheng/datashare (benchmarks on CRSP-investable panel only).
+    industry_agg: str = "pre_ccm"
     datashare_columns: tuple[str, ...] = field(default_factory=tuple)
 
     def apply_env(self) -> None:
@@ -53,6 +61,7 @@ class PipelineConfig:
             ("STOCK_CHARACTERS_CCM_LINKPRIM", self.ccm_linkprim),
             ("STOCK_CHARACTERS_CRSP_SHRCD", self.crsp_shrcd),
             ("STOCK_CHARACTERS_CRSP_EXCHCD", self.crsp_exchcd),
+            ("STOCK_CHARACTERS_INDUSTRY_AGG", self.industry_agg),
         ):
             if value:
                 os.environ[key] = value
@@ -92,6 +101,7 @@ def _profile_defaults(profile: str) -> PipelineConfig:
             ccm_linkprim=GREEN_CCM_LINKPRIM,
             crsp_shrcd=DEFAULT_CRSP_SHRCD,
             crsp_exchcd=DEFAULT_CRSP_EXCHCD,
+            industry_agg="pre_ccm",
         )
     if profile == "datashare":
         return PipelineConfig(
@@ -103,10 +113,11 @@ def _profile_defaults(profile: str) -> PipelineConfig:
             build_research_panel=False,
             skip_special=False,
             skip_daily=False,
-            ccm_linktypes=HXZ_CCM_LINKTYPES,
-            ccm_linkprim=HXZ_CCM_LINKPRIM,
+            ccm_linktypes=DATASHARE_CCM_LINKTYPES,
+            ccm_linkprim=DATASHARE_CCM_LINKPRIM,
             crsp_shrcd=DEFAULT_CRSP_SHRCD,
             crsp_exchcd=DEFAULT_CRSP_EXCHCD,
+            industry_agg="post_ccm",
             datashare_columns=("bm", "operprof", "cfp"),
         )
     if profile == "research":
@@ -121,6 +132,7 @@ def _profile_defaults(profile: str) -> PipelineConfig:
             ccm_linkprim=GREEN_CCM_LINKPRIM,
             crsp_shrcd=DEFAULT_CRSP_SHRCD,
             crsp_exchcd=DEFAULT_CRSP_EXCHCD,
+            industry_agg="pre_ccm",
         )
     raise ValueError(f"Unknown profile: {profile!r}. Choose from {sorted(VALID_PROFILES)}")
 
@@ -141,6 +153,7 @@ def resolve_config(
     ccm_linkprim: str | None = None,
     crsp_shrcd: str | None = None,
     crsp_exchcd: str | None = None,
+    industry_agg: str | None = None,
 ) -> PipelineConfig:
     """Merge profile defaults with explicit CLI overrides."""
     prof = (profile or os.environ.get("STOCK_CHARACTERS_PROFILE") or "").strip().lower()
@@ -178,6 +191,8 @@ def resolve_config(
         overrides["crsp_shrcd"] = crsp_shrcd
     if crsp_exchcd is not None:
         overrides["crsp_exchcd"] = crsp_exchcd
+    if industry_agg is not None:
+        overrides["industry_agg"] = industry_agg
 
     if overrides:
         return PipelineConfig(**{**base.__dict__, **overrides})
@@ -188,7 +203,7 @@ def profile_help() -> str:
     return """
 Profiles (each is a complete recipe of the required flags; see README 'Required flags & recipes'):
   green      Replicate Green SAS: broad CCM linktypes, no linkprim (ALL), shrcd 10,11, exchcd 1,2,3, 1975+ start.
-  datashare  Match datashare.csv: LU,LC + linkprim P,C, shrcd 10,11, exchcd 1,2,3, 1957+ start, sparse panel.
+  datashare  Match datashare.csv (Dacheng): linktype prefix rule L* (every L-code) + linkprim P,C, shrcd 10,11, exchcd 1,2,3, 1957+ start.
   research   Full ranked 1957+ panel: Green recipe link rules, 1975+ build start.
 
 Required flags (or a profile that sets them): --ccm-linktypes, --ccm-linkprim, --crsp-shrcd, --crsp-exchcd, --sample-start.

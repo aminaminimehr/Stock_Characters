@@ -14,6 +14,7 @@ from Character_Panels.timing import expand_annual_file_green  # noqa: E402
 from _shared.green_builders import (
     attach_permno,
     compute_annual_characters,
+    compute_industry_adjusted_annual,
     load_annual_age_lookup,
     load_annual_compustat,
     load_annual_orgcap_lookup,
@@ -75,6 +76,7 @@ def build_ms_character(db, ccm_linktypes=None, ccm_linkprim=None, use_ibes=False
         orgcap_lookup=load_annual_orgcap_lookup(db),
     )
     comp = attach_permno(comp, load_green_ccm_links(db, ccm_linktypes, ccm_linkprim))
+    comp = compute_industry_adjusted_annual(comp)
 
     quarterly = prepare_quarterly_compustat_panel(db, ccm_linktypes, ccm_linkprim, use_ibes=use_ibes)
 
