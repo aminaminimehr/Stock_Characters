@@ -29,6 +29,7 @@ from output_paths import (  # noqa: E402
     ensure_output_tree,
     get_crsp_universe,
     resolve_output_path,
+    read_wrds_sql,
     sql_date_filter,
 )
 
@@ -798,7 +799,7 @@ def raw_sql_with_retry(db, sql, attempts=5, pause_seconds=120):
     last_exc = None
     for attempt in range(1, attempts + 1):
         try:
-            return db.raw_sql(sql)
+            return read_wrds_sql(db, sql)
         except Exception as exc:
             last_exc = exc
             msg = str(exc).lower()

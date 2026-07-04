@@ -10,13 +10,13 @@ sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from _shared.green_builders import connect_wrds, load_crsp_monthly
-from output_paths import resolve_output_path  # noqa: E402
+from output_paths import read_wrds_sql, resolve_output_path  # noqa: E402
 
 DEFAULT_OUTPUT = "zerotrade.csv"
 
 
 def load_monthly_zerotrade(db):
-    daily = db.raw_sql("""
+    daily = read_wrds_sql(db, """
         SELECT permno,
                DATE_TRUNC('month', date)::date AS month_start,
                SUM(CASE WHEN vol = 0 THEN 1 ELSE 0 END)::double precision AS countzero,

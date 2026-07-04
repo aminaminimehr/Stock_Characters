@@ -11,13 +11,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 import sys
 
 sys.path.insert(0, str(PROJECT_ROOT))
-from output_paths import EXCESS_RETURNS_FILE, crsp_universe_filter, sql_date_filter  # noqa: E402
+from output_paths import EXCESS_RETURNS_FILE, crsp_universe_filter, read_wrds_sql, sql_date_filter  # noqa: E402
 
 OUTPUT_FILE = EXCESS_RETURNS_FILE
 
 
 def load_crsp_monthly_returns(db):
-    crsp = db.raw_sql(
+    crsp = read_wrds_sql(db,
         f"""
         SELECT m.permno, m.permco, m.date, m.ret, m.retx,
                n.exchcd, n.shrcd
@@ -37,7 +37,7 @@ def load_crsp_monthly_returns(db):
 
 
 def load_delisting_returns(db):
-    dlret = db.raw_sql("""
+    dlret = read_wrds_sql(db, """
         SELECT permno, dlstdt, dlret, dlstcd
         FROM crsp.msedelist
         WHERE dlstdt IS NOT NULL
@@ -48,7 +48,7 @@ def load_delisting_returns(db):
 
 
 def load_risk_free_rate(db):
-    factors = db.raw_sql("""
+    factors = read_wrds_sql(db, """
         SELECT date, rf
         FROM ff.factors_monthly
     """)

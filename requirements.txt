@@ -1,4 +1,6 @@
 pandas==2.3.3
 numpy==2.4.1
 wrds==3.4.0
+sqlalchemy==2.0.36
+psycopg2-binary==2.9.10
 tqdm==4.67.1

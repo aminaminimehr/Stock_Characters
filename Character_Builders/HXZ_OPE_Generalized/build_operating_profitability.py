@@ -10,7 +10,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from _shared.ccm import add_ccm_arguments, attach_ccm_links, load_ccm_links
-from output_paths import resolve_output_path  # noqa: E402
+from output_paths import read_wrds_sql, resolve_output_path  # noqa: E402
 
 
 WRDS_USER = None
@@ -18,7 +18,7 @@ OUTPUT_FILE = "operating_profitability.csv"
 
 
 def load_compustat(db):
-    comp = db.raw_sql("""
+    comp = read_wrds_sql(db, """
         SELECT gvkey, datadate, fyear,
                revt, cogs, xsga, xint,
                seq, ceq, at, lt,
@@ -32,7 +32,7 @@ def load_compustat(db):
     """)
     comp["datadate"] = pd.to_datetime(comp["datadate"])
 
-    company = db.raw_sql("""
+    company = read_wrds_sql(db, """
         SELECT gvkey, sic
         FROM comp.company
     """)

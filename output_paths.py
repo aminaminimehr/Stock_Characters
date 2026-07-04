@@ -4,6 +4,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import pandas as pd
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 OUTPUT_ROOT = PROJECT_ROOT / "outputs"
@@ -168,3 +170,19 @@ def crsp_universe_filter(table_alias: str = "n") -> str:
     if not _crsp_code_filter_disabled(exchcd):
         parts.append(f"{table_alias}.exchcd IN ({_sql_int_list(exchcd)})")
     return " AND ".join(parts) if parts else "TRUE"
+
+
+def read_wrds_sql(db, sql: str) -> pd.DataFrame:
+    """Execute SQL on WRDS via a DBAPI connection.
+
+    Bypasses wrds.Connection.raw_sql / SQLAlchemy exec_driver_sql, which can pass
+    immutabledict parameters that psycopg2 rejects on newer SQLAlchemy builds.
+    """
+    engine = getattr(db, "engine", None) or getattr(db, "connection", None)
+    if engine is None:
+        raise AttributeError("Expected WRDS connection with .engine or .connection")
+    conn = engine.raw_connection()
+    try:
+        return pd.read_sql_query(sql, conn)
+    finally:
+        conn.close()

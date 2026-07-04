@@ -4,14 +4,17 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+import sys
+
 from _shared.green_builders import OUTPUT_DIR, connect_wrds, crsp_universe_filter, load_crsp_monthly
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT))
+from output_paths import read_wrds_sql  # noqa: E402
 
 
 def load_ibes_forecasts(db):
-    ibes = db.raw_sql("""
+    ibes = read_wrds_sql(db, """
         SELECT ticker, cusip, fpedats, statpers, meanest
         FROM ibes.statsum_epsus
         WHERE fpi = '1'
@@ -32,7 +35,7 @@ def load_ibes_forecasts(db):
 
 
 def load_crsp_price_history(db):
-    crsp = db.raw_sql(f"""
+    crsp = read_wrds_sql(db, f"""
         SELECT m.permno, m.date, m.prc, m.cfacpr, n.ncusip
         FROM crsp.msf AS m
         JOIN crsp.msenames AS n
