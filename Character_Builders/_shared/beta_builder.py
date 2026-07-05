@@ -80,6 +80,21 @@ def _weekly_compound(ret_series: pd.Series) -> float:
     return float(np.exp(np.log1p(vals).sum()) - 1)
 
 
+def _aggregate_daily_to_weekly(dsf: pd.DataFrame) -> pd.DataFrame:
+    """Compound daily returns to week-ending Friday (vectorized).
+
+    Same formula as ``_weekly_compound``: exp(sum(log1p(ret))) - 1 per permno×week.
+    """
+    log_ret = np.log1p(dsf["ret"])
+    wk = (
+        log_ret.groupby([dsf["permno"], dsf["wkdt"]], sort=False)
+        .sum(min_count=1)
+        .reset_index(name="log_wkret")
+    )
+    wk["wkret"] = np.expm1(wk["log_wkret"])
+    return wk.drop(columns=["log_wkret"])
+
+
 def _weekly_cache_path() -> Path:
     start, end = get_sample_bounds()
     end_tag = end or "open"
@@ -96,7 +111,8 @@ def _load_weekly_returns_from_wrds(db, permnos: list[int]) -> pd.DataFrame:
     dsf["date"] = pd.to_datetime(dsf["date"])
     dsf["ret"] = pd.to_numeric(dsf["ret"], errors="coerce")
     dsf["wkdt"] = dsf["date"] + pd.to_timedelta(4 - dsf["date"].dt.dayofweek, unit="D")
-    wk = dsf.groupby(["permno", "wkdt"], as_index=False).agg(wkret=("ret", _weekly_compound))
+    print("Weekly returns WRDS download complete; aggregating to weeks...", flush=True)
+    wk = _aggregate_daily_to_weekly(dsf)
     wk = wk[wk["wkdt"] >= "1975-01-01"].drop_duplicates(["permno", "wkdt"])
     wk["ewret"] = wk.groupby("wkdt")["wkret"].transform("mean")
     return wk
@@ -120,7 +136,6 @@ def get_weekly_returns(db, permnos: list[int]) -> pd.DataFrame:
 
     print(f"Loading weekly returns for {len(permnos):,} permnos from WRDS...", flush=True)
     wk = _load_weekly_returns_from_wrds(db, permnos)
-    print("Weekly returns WRDS download complete; aggregating to weeks...", flush=True)
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     with cache_path.open("wb") as handle:
         pickle.dump(wk, handle, protocol=pickle.HIGHEST_PROTOCOL)
