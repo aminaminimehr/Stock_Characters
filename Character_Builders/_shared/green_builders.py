@@ -44,6 +44,7 @@ ANNUAL_CHARACTER_INFO = {
     "ato": "Asset turnover",
     "bm": "Book-to-market equity",
     "bm_ia": "Industry-adjusted book-to-market",
+    "bm_ia_ff49": "FF49 × datadate industry-adjusted book-to-market (GKX convention)",
     "cashdebt": "Cash to debt",
     "cashpr": "Cash productivity",
     "cfp": "Cash-flow-to-price",
