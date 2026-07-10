@@ -12,6 +12,7 @@ For every datashare predictor that maps to a panel column, compute:
   - dataset-level permno / month coverage
   - per-column key overlap (datashare-only, panel-only, both)
   - pooled Spearman and median monthly cross-sectional Spearman
+  - mean monthly cross-sectional Spearman and share of months with ρ below threshold
   - exact match |Δ| ≤ 1e-4 and round-to-4-decimal match
 
 All panel-side counts and comparisons are restricted to the datashare calendar
@@ -43,6 +44,7 @@ OUT_CSV = ROOT / "docs" / "gkx" / "panel_gkx_datashare_full_comparison.csv"
 OUT_MD = ROOT / "docs" / "gkx" / "panel_gkx_datashare_full_comparison.md"
 
 MIN_PAIRS = 50
+LOW_RHO_THRESHOLD = 0.5  # downside cut: share of months whose monthly Spearman < this
 
 PANEL_META = {
     "permno",
@@ -151,7 +153,7 @@ def load_panel(panel_path: Path, panel_cols: list[str]) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True)
 
 
-def monthly_median_spearman(df: pd.DataFrame, a: str, b: str) -> tuple[float, int]:
+def monthly_spearman_values(df: pd.DataFrame, a: str, b: str) -> list[float]:
     vals = []
     for _, grp in df.groupby("month", sort=True):
         sub = grp[[a, b]].dropna()
@@ -160,7 +162,7 @@ def monthly_median_spearman(df: pd.DataFrame, a: str, b: str) -> tuple[float, in
         r = sub[a].corr(sub[b], method="spearman")
         if pd.notna(r):
             vals.append(r)
-    return (float(np.median(vals)), len(vals)) if vals else (np.nan, 0)
+    return vals
 
 
 def compare_column(
@@ -191,10 +193,15 @@ def compare_column(
             match_1e4 = float((diff <= 1e-4).mean())
             match_round4 = float((np.round(pv, 4) == np.round(dv, 4)).mean())
             match_rel = float((diff <= 1e-3 * denom).mean())
-            mm, mm_n = monthly_median_spearman(m, "pv", "dv")
+            vals = monthly_spearman_values(m, "pv", "dv")
+            mm = float(np.median(vals)) if vals else np.nan
+            mm_n = len(vals)
+            mm_mean = float(np.mean(vals)) if vals else np.nan
+            mm_pct_low = float(np.mean([v < LOW_RHO_THRESHOLD for v in vals])) if vals else np.nan
         else:
             pooled = match_1e4 = match_round4 = match_rel = np.nan
-            mm, mm_n = np.nan, 0
+            mm = mm_mean = mm_pct_low = np.nan
+            mm_n = 0
 
         both = ds_keys & panel_keys
         row = {
@@ -212,6 +219,8 @@ def compare_column(
             "paired_obs": int(n_pair),
             "pooled_spearman": pooled,
             "median_monthly_spearman": mm,
+            "mean_monthly_spearman": mm_mean,
+            "pct_months_rho_lt_05": mm_pct_low,
             "spearman_months": mm_n,
             "match_rate_abs1e-4": match_1e4,
             "match_rate_round4": match_round4,
@@ -257,6 +266,7 @@ def write_md(
         f"- Comparison window: datashare months **{month_min}–{month_max}** only (panel rows/month keys outside this span excluded).",
         "- Month: datashare `DATE // 100`; per-column best of panel `signal_yyyymm` vs `target_yyyymm`.",
         "- `exact%` = |Δ| ≤ 1e-4; `round4%` = values equal when rounded to 4 decimal places.",
+        f"- `%mρ<0.5` = share of months whose monthly Spearman ρ is below {LOW_RHO_THRESHOLD}.",
         "",
         "## Dataset-level (datashare window)",
         "",
@@ -271,17 +281,23 @@ def write_md(
         "",
         "## Per-column similarity (sorted by median monthly Spearman)",
         "",
-        "| datashare | panel col | align | median ρ | pooled ρ | exact% | round4% | rel% | paired | ds N | panel N | ds-only keys | panel-only keys | permno both |",
-        "|-----------|-----------|-------|---------:|---------:|-------:|--------:|-----:|-------:|-----:|--------:|-------------:|----------------:|------------:|",
+        "| datashare | panel col | align | median ρ | mean ρ | %mρ<0.5 | pooled ρ | exact% | round4% | rel% | paired | ds N | panel N | ds-only keys | panel-only keys | permno both |",
+        "|-----------|-----------|-------|---------:|-------:|--------:|---------:|-------:|--------:|-----:|-------:|-----:|--------:|-------------:|----------------:|------------:|",
     ]
     for _, r in res.iterrows():
         em = f(r["match_rate_abs1e-4"] * 100, 1) if pd.notna(r["match_rate_abs1e-4"]) else "—"
         r4 = f(r["match_rate_round4"] * 100, 1) if pd.notna(r["match_rate_round4"]) else "—"
         rl = f(r["match_rate_rel1e-3"] * 100, 1) if pd.notna(r["match_rate_rel1e-3"]) else "—"
+        pct_low = (
+            f(r["pct_months_rho_lt_05"] * 100, 1)
+            if pd.notna(r["pct_months_rho_lt_05"])
+            else "—"
+        )
         align = "signal" if r["month_align"] == "signal_yyyymm" else "target"
         lines.append(
             f"| `{r['datashare_col']}` | `{r['panel_col']}` | {align} | "
-            f"{f(r['median_monthly_spearman'], 3)} | {f(r['pooled_spearman'], 3)} | {em} | {r4} | {rl} | "
+            f"{f(r['median_monthly_spearman'], 3)} | {f(r['mean_monthly_spearman'], 3)} | {pct_low} | "
+            f"{f(r['pooled_spearman'], 3)} | {em} | {r4} | {rl} | "
             f"{r['paired_obs']:,} | {r['datashare_nonnull']:,} | {r['panel_nonnull']:,} | "
             f"{r['datashare_only']:,} | {r['panel_only']:,} | {r['permno_both']:,} |"
         )
@@ -298,8 +314,8 @@ def write_md(
         "",
         "### Below ρ = 0.95 (review)",
         "",
-        "| datashare | panel col | median ρ | pooled ρ | exact% | round4% | note |",
-        "|-----------|-----------|---------:|---------:|-------:|--------:|------|",
+        "| datashare | panel col | median ρ | mean ρ | %mρ<0.5 | pooled ρ | exact% | round4% | note |",
+        "|-----------|-----------|---------:|-------:|--------:|---------:|-------:|--------:|------|",
     ]
     low = res[num < 0.95].sort_values("median_monthly_spearman")
     notes = {
@@ -311,9 +327,15 @@ def write_md(
     for _, r in low.iterrows():
         em = f(r["match_rate_abs1e-4"] * 100, 1) if pd.notna(r["match_rate_abs1e-4"]) else "—"
         r4 = f(r["match_rate_round4"] * 100, 1) if pd.notna(r["match_rate_round4"]) else "—"
+        pct_low = (
+            f(r["pct_months_rho_lt_05"] * 100, 1)
+            if pd.notna(r["pct_months_rho_lt_05"])
+            else "—"
+        )
         note = notes.get(r["datashare_col"], "")
         lines.append(
             f"| `{r['datashare_col']}` | `{r['panel_col']}` | {f(r['median_monthly_spearman'], 3)} | "
+            f"{f(r['mean_monthly_spearman'], 3)} | {pct_low} | "
             f"{f(r['pooled_spearman'], 3)} | {em} | {r4} | {note} |"
         )
 
