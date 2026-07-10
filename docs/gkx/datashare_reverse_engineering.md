@@ -230,6 +230,70 @@ Current inference:
 classification, or timing convention than the published `bm` values. It should not be treated as
 solved by applying a simple industry mean to the public `bm`.
 
+2026-07-09 update: RESOLVED via the implied-adjustment diagnostic (Dr. Qin's suggestion).
+Scripts: `scripts/audits/audit_bmia_implied_adjustment.py`,
+`audit_bmia_industry_fingerprint.py`, `audit_bmia_benchmark_recovery.py`,
+`audit_bmia_reconstruction_check.py`. Outputs in `outputs/diagnostics/bmia_*`.
+
+Method: define `implied := bm - bm_ia` (the industry benchmark each firm actually received).
+If `bm_ia = bm - mean(bm)` over some grouping, `implied` must be identical for all firms in a cell.
+
+Findings:
+
+1. Grouping is **SIC2 x calendar month** (monthly recomputation), not FF49 x datadate:
+   - within (month, sic2): 44.4% of cells exactly constant (<1e-6), cell-mean R^2 = 0.958;
+   - within (year, sic2): 1.2% constant, R^2 = 0.698 -> annual cohorts rejected;
+   - month-only / year-only: R^2 < 0.08 -> rejected;
+   - ~62-66 distinct benchmark values per month (SIC2 granularity; FF49 would give <= 49;
+     FF12/17/30/38/48/49 ambiguity fingerprints all fail, agreement <= 59%).
+2. The benchmark is the **equal-weight mean of the published bm itself**: in cells with no
+   misassigned firms the recovered benchmark equals the in-cell mean of published `bm`
+   exactly (45.2% of cells; median benchmark/mean ratio = 1.000 in every decade).
+3. **97.09% of firm-months sit exactly on their cell's modal benchmark.** The remaining 2.91%
+   carry a different benchmark; ~19.5% of those exactly match ANOTHER sic2's benchmark the same
+   month -> their construction-time SIC differs from the published `sic2` (SIC vintage issue).
+4. The monthly-CRSP-ME mechanism from `accounting_60.py` (`bm_ia_t = be/me_t - const`) is
+   rejected: within constant-`bm` windows, `bm_ia` is NOT linear in 1/mvel1 (median R^2 ~ 0.21-0.25).
+5. Reconstruction check (five-metric):
+   - `bm - mean(published bm)` by (sic2, month): median monthly Spearman 0.8323, exact 17.5%;
+   - `bm - modal implied benchmark` by (sic2, month): **median monthly Spearman 0.9921, pooled
+     0.9938, exact 97.1%**, paired N 3,030,618, permnos 23,448.
+
+Conclusion: published `bm_ia` = published `bm` minus the equal-weight mean of `bm` over
+(SIC2 x month), with the mean recomputed EVERY MONTH over that month's universe. `bm` itself
+keeps its annual holding convention; the monthly movement of `bm_ia` comes entirely from
+monthly benchmark recomputation (membership churn + staggered fiscal-year refreshes of peers).
+The residual gap vs the naive mean reconstruction is the ~3% of firms whose construction-time
+SIC assignment differs from the published `sic2`, plus possible benchmark-universe firms that
+were screened out of the published rows.
+
+2026-07-10 update: remaining blocker tests (`scripts/audits/audit_bmia_remaining_blockers.py`):
+
+- **Why a monthly mean moves when every firm's bm is annual** (falsification test): over
+  41,118 consecutive-month (sic2, month) cell pairs, the benchmark moved in 99.0-99.9% of
+  pairs with membership churn, 78.4% of pairs where some member refreshed its bm (staggered
+  fiscal year-ends), and only **1.4%** of pairs with neither. Monthly movement is fully
+  explained by peer refreshes + membership churn; the grouping needs no other mechanism.
+- **Benchmark timing**: recovered benchmark(t) matches the in-cell mean at k=0 (45.2% exact)
+  vs 21% at k=+/-1 and 12% at k=+/-2 -> same-month benchmark, no shift.
+- **Benchmark universe**: no bm/bm_ia null asymmetry (0 rows either way); winsorized (1/99 by
+  month) and trimmed (1/99 by cell) means explain none of the mismatch cells. In cells where
+  the benchmark equals the plain mean, reconstruction is pooled rho 1.0000 / exact 99.9%;
+  mismatch cells are contaminated by the ~3% construction-SIC-vintage firms (one such firm
+  shifts its entire cell's mean).
+
+Builder implemented from these findings: `bm_ia_sic2m`
+(`Character_Builders/_shared/bm_ia_sic2m_builder.py` +
+`Character_Builders/Datashare_BM_IA_Generalized/build_bm_ia_sic2m.py`), WRDS-free:
+June-expands `book_to_market.csv` monthly and demeans by (SIC2, signal month).
+Formula validation on datashare's own bm/sic2 inputs
+(`scripts/validation/validate_bmia_sic2m_formula.py`): median monthly Spearman **0.8357**,
+pooled 0.7955, exact 17.8%, paired N 3,042,589, permnos 23,489. This is the replication
+ceiling without the original construction universe/SIC vintage; a WRDS rebuild inherits our
+`book_to_market` quality (rho 0.971) on top. `bm_ia_ff49` (FF49 x datadate, the
+accounting_60.py recipe) is retained as documented evidence but is NOT how the published
+file was built; the comparison alias now maps datashare `bm_ia` -> `bm_ia_sic2m`.
+
 ## Practical Mapping For Now
 
 For reproducing the public file as closely as the current evidence supports:
@@ -239,7 +303,7 @@ For reproducing the public file as closely as the current evidence supports:
 | `bm` | `book_to_market` |
 | `operprof` | `operating_profitability` |
 | `cfp` | full-history Green `cfp`; scratch rebuild validates cleanly and can replace the shorter local history after review |
-| `bm_ia` | unresolved; do not replace with repo `bm_ia` without a warning |
+| `bm_ia` | solved 2026-07-09: `bm - mean(bm)` by (SIC2 x month), monthly recomputation; see update above |
 
 ## Remaining Blocker For `bm_ia`
 

@@ -71,11 +71,13 @@ PANEL_META = {
 # chempia, ms, roaq, roeq, rsup, stdacc, stdcf, nincr, agr, ...). This is the
 # exact mapping that produced the PREV.md benchmark. The experimental _gkx /
 # _dc variants have been removed from the repo and must NOT return here.
-# datashare bm_ia is compared against bm_ia_ff49 (FF49 × datadate demeaning).
+# datashare bm_ia is compared against bm_ia_sic2m (SIC2 × month demeaning of
+# book_to_market, the reverse-engineered datashare convention; see
+# docs/gkx/datashare_reverse_engineering.md 2026-07-09/10 updates).
 PANEL_ALIAS: dict[str, str] = {
     "bm": "book_to_market",                 # repo builds book_to_market (Green name)
     "operprof": "operating_profitability",  # repo builds operating_profitability
-    "bm_ia": "bm_ia_ff49",                  # GKX FF49 × datadate vs Green SIC2 bm_ia
+    "bm_ia": "bm_ia_sic2m",                 # SIC2 × month demeaned book_to_market
     "mve_ia": "me_ia",                      # industry-adjusted market equity -> me_ia
     "rd_mve": "rdm",                        # R&D / market equity -> rdm
     "retvol": "rvar_mean",                  # return volatility -> rvar_mean
@@ -301,7 +303,7 @@ def write_md(
     ]
     low = res[num < 0.95].sort_values("median_monthly_spearman")
     notes = {
-        "bm_ia": "compared via bm_ia_ff49 (FF49 × datadate demeaning)",
+        "bm_ia": "compared via bm_ia_sic2m (SIC2 × month demeaning, datashare convention)",
         "bm": "HXZ `book_to_market` mapping",
         "operprof": "HXZ `operating_profitability` mapping",
         "cfp": "Green `cfp` mapping",
