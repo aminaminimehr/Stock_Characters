@@ -64,6 +64,9 @@ def build_annual_characters(
         if skip_existing and (output_dir / f"{character}.csv").exists():
             print(f"{character}: skipped (already exists)")
             continue
+        if character not in comp.columns:
+            print(f"{character}: skipped (built by standalone builder, not in annual comp frame)")
+            continue
         write_character(comp[ANNUAL_ID_COLUMNS + [character]], character, output_dir)
 
 
