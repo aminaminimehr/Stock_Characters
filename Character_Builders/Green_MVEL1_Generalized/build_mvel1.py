@@ -9,6 +9,9 @@ import wrds
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from _shared.green_builders import attach_monthly_sic_metadata  # noqa: E402
 from output_paths import crsp_universe_filter, read_wrds_sql, resolve_output_path  # noqa: E402
 
 WRDS_USER = None
@@ -52,7 +55,7 @@ def load_crsp_monthly(db, use_imputed_market_equity):
     return crsp
 
 
-def build_mvel1(crsp):
+def build_mvel1(crsp, db=None):
     mvel1 = crsp.sort_values(["permno", "date"]).copy()
     mvel1["lagged_market_equity"] = mvel1.groupby("permno")["market_equity"].shift(1)
     mvel1["source_date"] = mvel1.groupby("permno")["date"].shift(1)
@@ -66,7 +69,7 @@ def build_mvel1(crsp):
     )
     mvel1["signal_yyyymm"] = mvel1["date"].dt.year * 100 + mvel1["date"].dt.month
     mvel1["target_yyyymm"] = mvel1["signal_yyyymm"].map(add_one_month)
-    mvel1 = mvel1.rename(columns={"siccd": "sic"})
+    mvel1 = attach_monthly_sic_metadata(mvel1, db=db)
 
     return mvel1[
         [
@@ -109,10 +112,9 @@ def main():
     )
     try:
         crsp = load_crsp_monthly(db, args.use_imputed_market_equity)
+        mvel1 = build_mvel1(crsp, db=db)
     finally:
         db.close()
-
-    mvel1 = build_mvel1(crsp)
     output_path = resolve_output_path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     mvel1.to_csv(output_path, index=False)

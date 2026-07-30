@@ -297,6 +297,13 @@ def main():
         "or post_ccm (datashare/Dacheng, CRSP-investable only). Default follows the profile.",
     )
     parser.add_argument(
+        "--sic-source",
+        choices=("comp_company", "crsp_msenames"),
+        default=None,
+        help="SIC metadata source for monthly CRSP rows: comp_company (Green/Dacheng SAS) "
+        "or crsp_msenames (legacy CRSP siccd). Default follows the profile.",
+    )
+    parser.add_argument(
         "--skip-special",
         action="store_true",
         help="Skip beta/rvar/ear/ms and other special builders (debug only).",
@@ -322,6 +329,7 @@ def main():
         crsp_shrcd=args.crsp_shrcd,
         crsp_exchcd=args.crsp_exchcd,
         industry_agg=args.industry_agg,
+        sic_source=args.sic_source,
     )
     cfg.validate_required()
     cfg.apply_env()
@@ -332,7 +340,7 @@ def main():
         "Resolved flags: "
         f"ccm_linktypes={cfg.ccm_linktypes} ccm_linkprim={cfg.ccm_linkprim} "
         f"crsp_shrcd={cfg.crsp_shrcd} crsp_exchcd={cfg.crsp_exchcd} "
-        f"industry_agg={cfg.industry_agg} "
+        f"industry_agg={cfg.industry_agg} sic_source={cfg.sic_source} "
         f"sample_start={cfg.sample_start} sample_end={cfg.sample_end or 'none'}",
         flush=True,
     )

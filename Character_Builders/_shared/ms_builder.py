@@ -20,6 +20,7 @@ from _shared.green_builders import (
     load_annual_orgcap_lookup,
     load_green_ccm_links,
     load_crsp_monthly,
+    monthly_crsp_alignment_frame,
 )
 from _shared.quarterly_builders import (
     prepare_quarterly_compustat_panel,
@@ -94,9 +95,7 @@ def build_ms_character(db, ccm_linktypes=None, ccm_linkprim=None, use_ibes=False
     ].copy()
     annual_expanded = expand_annual_file_green(annual_all, M_COLUMNS, crsp_month_index=monthly_index)
 
-    monthly = load_crsp_monthly(db)[
-        ["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "siccd", "exchcd", "shrcd"]
-    ].rename(columns={"siccd": "sic"})
+    monthly = monthly_crsp_alignment_frame(db)
     monthly["date"] = pd.to_datetime(monthly["date"])
 
     merged = monthly.merge(

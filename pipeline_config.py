@@ -30,6 +30,7 @@ DEFAULT_CRSP_EXCHCD = "1,2,3"
 DATASHARE_CRSP_SHRCD = "ALL"
 
 VALID_PROFILES = frozenset({"green", "datashare", "research"})
+VALID_SIC_SOURCES = frozenset({"comp_company", "crsp_msenames"})
 
 
 @dataclass(frozen=True)
@@ -53,6 +54,9 @@ class PipelineConfig:
     # 'pre_ccm' = Green SAS (industry benchmarks on full Compustat);
     # 'post_ccm' = Dacheng/datashare (benchmarks on CRSP-investable panel only).
     industry_agg: str = "pre_ccm"
+    # 'comp_company' = Compustat comp.company.sic (Green/Dacheng SAS default);
+    # 'crsp_msenames' = legacy CRSP msenames.siccd with Compustat sic2 fallback.
+    sic_source: str = "comp_company"
     datashare_columns: tuple[str, ...] = field(default_factory=tuple)
 
     def apply_env(self) -> None:
@@ -65,6 +69,7 @@ class PipelineConfig:
             ("STOCK_CHARACTERS_CRSP_SHRCD", self.crsp_shrcd),
             ("STOCK_CHARACTERS_CRSP_EXCHCD", self.crsp_exchcd),
             ("STOCK_CHARACTERS_INDUSTRY_AGG", self.industry_agg),
+            ("STOCK_CHARACTERS_SIC_SOURCE", self.sic_source),
         ):
             if value:
                 os.environ[key] = value
@@ -105,6 +110,7 @@ def _profile_defaults(profile: str) -> PipelineConfig:
             crsp_shrcd=DEFAULT_CRSP_SHRCD,
             crsp_exchcd=DEFAULT_CRSP_EXCHCD,
             industry_agg="pre_ccm",
+            sic_source="comp_company",
         )
     if profile == "datashare":
         return PipelineConfig(
@@ -121,6 +127,7 @@ def _profile_defaults(profile: str) -> PipelineConfig:
             crsp_shrcd=DATASHARE_CRSP_SHRCD,
             crsp_exchcd=DEFAULT_CRSP_EXCHCD,
             industry_agg="post_ccm",
+            sic_source="comp_company",
             datashare_columns=("bm", "operprof", "cfp"),
         )
     if profile == "research":
@@ -136,6 +143,7 @@ def _profile_defaults(profile: str) -> PipelineConfig:
             crsp_shrcd=DEFAULT_CRSP_SHRCD,
             crsp_exchcd=DEFAULT_CRSP_EXCHCD,
             industry_agg="pre_ccm",
+            sic_source="comp_company",
         )
     raise ValueError(f"Unknown profile: {profile!r}. Choose from {sorted(VALID_PROFILES)}")
 
@@ -157,6 +165,7 @@ def resolve_config(
     crsp_shrcd: str | None = None,
     crsp_exchcd: str | None = None,
     industry_agg: str | None = None,
+    sic_source: str | None = None,
 ) -> PipelineConfig:
     """Merge profile defaults with explicit CLI overrides."""
     prof = (profile or os.environ.get("STOCK_CHARACTERS_PROFILE") or "").strip().lower()
@@ -196,6 +205,12 @@ def resolve_config(
         overrides["crsp_exchcd"] = crsp_exchcd
     if industry_agg is not None:
         overrides["industry_agg"] = industry_agg
+    if sic_source is not None:
+        if sic_source not in VALID_SIC_SOURCES:
+            raise ValueError(
+                f"Invalid sic_source {sic_source!r}. Choose from {sorted(VALID_SIC_SOURCES)}"
+            )
+        overrides["sic_source"] = sic_source
 
     if overrides:
         return PipelineConfig(**{**base.__dict__, **overrides})

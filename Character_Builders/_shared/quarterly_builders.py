@@ -96,11 +96,9 @@ def get_monthly_crsp_panel(db):
 
     if _MONTHLY_CRSP_PANEL is None:
 
-        _MONTHLY_CRSP_PANEL = load_crsp_monthly(db)[
+        from _shared.green_builders import monthly_crsp_alignment_frame
 
-            ["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "siccd", "exchcd", "shrcd"]
-
-        ].rename(columns={"siccd": "sic"})
+        _MONTHLY_CRSP_PANEL = monthly_crsp_alignment_frame(db)
 
     return _MONTHLY_CRSP_PANEL
 

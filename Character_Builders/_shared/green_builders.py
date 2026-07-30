@@ -395,6 +395,83 @@ def _industry_agg_mode():
     return os.environ.get("STOCK_CHARACTERS_INDUSTRY_AGG", "pre_ccm").strip().lower()
 
 
+VALID_SIC_SOURCES = frozenset({"comp_company", "crsp_msenames"})
+
+
+def _sic_source_mode() -> str:
+    """Which SIC field to attach to monthly CRSP alignment rows."""
+    mode = os.environ.get("STOCK_CHARACTERS_SIC_SOURCE", "comp_company").strip().lower()
+    if mode not in VALID_SIC_SOURCES:
+        raise ValueError(
+            f"Invalid STOCK_CHARACTERS_SIC_SOURCE={mode!r}. "
+            f"Choose from {sorted(VALID_SIC_SOURCES)}"
+        )
+    return mode
+
+
+def _sic2_from_sic_series(sic: pd.Series) -> pd.Series:
+    sic_num = pd.to_numeric(sic, errors="coerce")
+    return sic_num.apply(lambda x: f"{int(x):04d}"[:2] if pd.notna(x) else np.nan)
+
+
+def _compustat_sic_annual_expanded(db, crsp: pd.DataFrame) -> pd.DataFrame:
+    """Map permno x signal month to Compustat company.sic and sic2 via Green timing."""
+    from Character_Panels.timing import expand_annual_file_green  # noqa: WPS433
+
+    comp = compute_annual_characters(load_annual_compustat(db))
+    comp = attach_permno(comp, load_green_ccm_links(db))
+    comp = compute_industry_adjusted_annual(comp)
+    annual = comp[comp["permno"].notna()][
+        ["permno", "permco", "gvkey", "datadate", "sic", "fyear", "sic2"]
+    ].copy()
+    crsp_idx = crsp[["permno", "signal_yyyymm"]].drop_duplicates()
+    expanded = expand_annual_file_green(annual, ["sic", "sic2"], crsp_month_index=crsp_idx)
+    return expanded[["permno", "signal_yyyymm", "sic", "sic2"]].drop_duplicates().rename(
+        columns={"sic": "sic_comp", "sic2": "sic2_comp"}
+    )
+
+
+def attach_monthly_sic_metadata(frame: pd.DataFrame, db=None) -> pd.DataFrame:
+    """Attach ``sic`` (and ``sic2`` when present upstream) using configured sic_source."""
+    out = frame.copy()
+    mode = _sic_source_mode()
+
+    if mode == "comp_company":
+        if db is None:
+            raise ValueError("Compustat SIC source requires a WRDS connection (db=).")
+        sic_map = _compustat_sic_annual_expanded(db, out)
+        out = out.merge(sic_map, on=["permno", "signal_yyyymm"], how="left")
+        out["sic"] = out["sic_comp"]
+        if "sic2" not in out.columns:
+            out["sic2"] = out["sic2_comp"]
+        out = out.drop(columns=["sic_comp", "sic2_comp"], errors="ignore")
+    else:
+        if "siccd" not in out.columns:
+            raise ValueError("CRSP sic source requires siccd on the monthly frame.")
+        out["sic2_crsp"] = _sic2_from_sic_series(out["siccd"])
+        if db is not None:
+            sic2_map = _compustat_sic2_monthly_map(db, out)
+            out = out.merge(sic2_map, on=["permno", "signal_yyyymm"], how="left")
+            out["sic2"] = out["sic2_comp"].fillna(out["sic2_crsp"])
+            out = out.drop(columns=["sic2_comp"], errors="ignore")
+        else:
+            out["sic2"] = out["sic2_crsp"]
+        out["sic"] = out["siccd"]
+
+    return out.drop(columns=["siccd", "sic2_crsp"], errors="ignore")
+
+
+def monthly_crsp_alignment_frame(db) -> pd.DataFrame:
+    """Standard monthly CRSP alignment columns with configured sic metadata."""
+    cols = ["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "exchcd", "shrcd"]
+    crsp = load_crsp_monthly(db)
+    if _sic_source_mode() == "crsp_msenames":
+        cols = cols[:5] + ["siccd"] + cols[5:]
+    frame = crsp[[column for column in cols if column in crsp.columns]].copy()
+    frame["date"] = pd.to_datetime(frame["date"])
+    return attach_monthly_sic_metadata(frame, db=db)
+
+
 def _apply_industry_adjusted_annual(comp):
     """Compute the annual industry-adjusted block IN PLACE on ``comp``.
 
@@ -956,37 +1033,44 @@ def rolling_return_product(crsp, start_lag, end_lag):
 
 def _compustat_sic2_monthly_map(db, crsp: pd.DataFrame) -> pd.DataFrame:
     """Map permno x signal month to Compustat sic2 via Green annual timing."""
-    import sys
-    from pathlib import Path
+    expanded = _compustat_sic_annual_expanded(db, crsp)
+    return expanded[["permno", "signal_yyyymm", "sic2_comp"]]
 
-    project_root = Path(__file__).resolve().parents[2]
-    if str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
-    from Character_Panels.timing import expand_annual_file_green  # noqa: WPS433
 
-    comp = compute_annual_characters(load_annual_compustat(db))
-    comp = attach_permno(comp, load_green_ccm_links(db))
-    comp = compute_industry_adjusted_annual(comp)
-    annual = comp[comp["permno"].notna()][
-        ["permno", "permco", "gvkey", "datadate", "sic", "fyear", "sic2"]
-    ].copy()
-    crsp_idx = crsp[["permno", "signal_yyyymm"]].drop_duplicates()
-    expanded = expand_annual_file_green(annual, ["sic2"], crsp_month_index=crsp_idx)
-    return expanded[["permno", "signal_yyyymm", "sic2"]].drop_duplicates().rename(columns={"sic2": "sic2_comp"})
+def _attach_monthly_sic_for_features(crsp: pd.DataFrame, db=None) -> pd.DataFrame:
+    """Attach sic/sic2 columns used by monthly feature builders (incl. indmom)."""
+    out = crsp.copy()
+    mode = _sic_source_mode()
+
+    if mode == "comp_company":
+        if db is None:
+            raise ValueError("Compustat SIC source requires a WRDS connection (db=).")
+        sic_map = _compustat_sic_annual_expanded(db, out)
+        out = out.merge(sic_map, on=["permno", "signal_yyyymm"], how="left")
+        out["sic2"] = out["sic2_comp"]
+        out["sic"] = out["sic_comp"]
+        out = out.drop(columns=["sic_comp", "sic2_comp"], errors="ignore")
+    else:
+        sic_num = pd.to_numeric(out["siccd"], errors="coerce")
+        out["sic2_crsp"] = sic_num.apply(lambda x: f"{int(x):04d}"[:2] if pd.notna(x) else np.nan)
+        if db is not None:
+            sic2_map = _compustat_sic2_monthly_map(db, out)
+            out = out.merge(sic2_map, on=["permno", "signal_yyyymm"], how="left")
+            out["sic2"] = out["sic2_comp"].fillna(out["sic2_crsp"])
+            out = out.drop(columns=["sic2_comp"], errors="ignore")
+        else:
+            out["sic2"] = out["sic2_crsp"]
+        out["sic"] = out["siccd"]
+        out = out.drop(columns=["siccd", "sic2_crsp"], errors="ignore")
+
+    return out
 
 
 def prepare_monthly_crsp_features(crsp, db=None):
     """Compute all shared monthly CRSP characteristics on one loaded panel."""
     crsp = crsp[crsp["ret"].notna()].copy()
     crsp["return_count"] = crsp.groupby("permno").cumcount() + 1
-    sic_num = pd.to_numeric(crsp["siccd"], errors="coerce")
-    crsp["sic2_crsp"] = sic_num.apply(lambda x: f"{int(x):04d}"[:2] if pd.notna(x) else np.nan)
-    if db is not None:
-        sic2_map = _compustat_sic2_monthly_map(db, crsp)
-        crsp = crsp.merge(sic2_map, on=["permno", "signal_yyyymm"], how="left")
-        crsp["sic2"] = crsp["sic2_comp"].fillna(crsp["sic2_crsp"])
-    else:
-        crsp["sic2"] = crsp["sic2_crsp"]
+    crsp = _attach_monthly_sic_for_features(crsp, db=db)
     crsp["me"] = np.log(crsp.groupby("permno")["market_equity"].shift(1))
     crsp["mvel1"] = crsp["me"]
     crsp["mom1m"] = crsp.groupby("permno")["ret"].shift(1)
@@ -1011,7 +1095,7 @@ def prepare_monthly_crsp_features(crsp, db=None):
     # firm in the industry-month (equal-weighted industry momentum), NOT the firm's
     # deviation from the industry mean.
     crsp["indmom"] = crsp.groupby(["sic2", "date"])["mom12m"].transform("mean")
-    return crsp.rename(columns={"siccd": "sic"})
+    return crsp
 
 
 def finalize_monthly_character(crsp, character):
@@ -1077,9 +1161,7 @@ def load_daily_monthly(db, workers: int | None = None):
 
 def build_daily_monthly_character(db, character):
     daily = load_daily_monthly(db)
-    monthly = load_crsp_monthly(db)[
-        ["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "siccd", "exchcd", "shrcd"]
-    ].rename(columns={"siccd": "sic"})
+    monthly = monthly_crsp_alignment_frame(db)
     monthly["source_yyyymm"] = monthly.groupby("permno")["signal_yyyymm"].shift(1)
     out = monthly.merge(daily[["permno", "source_yyyymm", character]], on=["permno", "source_yyyymm"], how="left")
     out = out[out[character].replace([np.inf, -np.inf], np.nan).notna()].copy()

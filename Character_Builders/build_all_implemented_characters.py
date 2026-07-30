@@ -256,6 +256,12 @@ def main():
         "Sets STOCK_CHARACTERS_INDUSTRY_AGG.",
     )
     parser.add_argument(
+        "--sic-source",
+        choices=("comp_company", "crsp_msenames"),
+        default=None,
+        help="SIC metadata source for monthly CRSP rows. Sets STOCK_CHARACTERS_SIC_SOURCE.",
+    )
+    parser.add_argument(
         "--workers",
         type=int,
         default=None,
@@ -280,6 +286,8 @@ def main():
         os.environ["STOCK_CHARACTERS_CRSP_EXCHCD"] = args.crsp_exchcd
     if args.industry_agg:
         os.environ["STOCK_CHARACTERS_INDUSTRY_AGG"] = args.industry_agg
+    if args.sic_source:
+        os.environ["STOCK_CHARACTERS_SIC_SOURCE"] = args.sic_source
 
     ensure_output_tree()
     output_dir = Path(args.output_dir)

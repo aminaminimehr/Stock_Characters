@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 from _shared.ccm import add_ccm_arguments, attach_ccm_links_green, load_ccm_links_green
-from _shared.green_builders import OUTPUT_DIR, connect_wrds, load_crsp_monthly
+from _shared.green_builders import OUTPUT_DIR, connect_wrds, load_crsp_monthly, monthly_crsp_alignment_frame
 from _shared.wrds_chunk_download import fetch_dsf_by_permno_batches
 from _shared.parallel_daily_windows import run_permno_parallel
 from _shared.quarterly_builders import (
@@ -244,9 +244,7 @@ def build_ear_character(db, ccm_linktypes=None, ccm_linkprim=None, workers: int 
         raise ValueError("No EAR events were constructed. Check WRDS inputs and CCM links.")
 
     print("EAR: loading CRSP monthly alignment frame...", flush=True)
-    monthly = load_crsp_monthly(db)[
-        ["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "siccd", "exchcd", "shrcd"]
-    ].rename(columns={"siccd": "sic"})
+    monthly = monthly_crsp_alignment_frame(db)
     monthly["date"] = pd.to_datetime(monthly["date"])
     monthly["permno"] = pd.to_numeric(monthly["permno"], errors="coerce").astype("int64")
     events["permno"] = pd.to_numeric(events["permno"], errors="coerce").astype("int64")
@@ -269,9 +267,7 @@ def build_aeavol_character(db, ccm_linktypes=None, ccm_linkprim=None, workers: i
     if events.empty:
         raise ValueError("No aeavol events were constructed.")
 
-    monthly = load_crsp_monthly(db)[
-        ["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "siccd", "exchcd", "shrcd"]
-    ].rename(columns={"siccd": "sic"})
+    monthly = monthly_crsp_alignment_frame(db)
     monthly["date"] = pd.to_datetime(monthly["date"])
     monthly["permno"] = pd.to_numeric(monthly["permno"], errors="coerce").astype("int64")
     events["permno"] = pd.to_numeric(events["permno"], errors="coerce").astype("int64")

@@ -19,7 +19,7 @@
 #     a measurable, expected change in Spearman or sample N.
 
 meta:
-  last_updated: "2026-06-29"
+  last_updated: "2026-07-30"
   baseline: "Green SAS replication (validated)"
   target: "GKX datashare.csv"
   validator: "Cross-sectional Spearman > 0.95 AND N within 2% AND permnos within 2%"
@@ -108,6 +108,18 @@ crsp_compustat_linking:
       Some implementations use a looser date filter (e.g. treating missing
       linkenddt as still-active). Test by counting matched firms in years
       near known structural breaks.
+
+  sic_source:
+    description: "Source of the SIC code attached to each firm-month observation in monthly CRSP builders"
+    green_value: "comp.company.sic (constant per gvkey, via CCM + Green annual timing)"
+    gkx_value: "comp.company.sic (constant per gvkey, via CCM + Green annual timing)"
+    confirmed: true
+    tested: true
+    characteristics_affected: ALL
+    notes: >
+      Green SAS and Dacheng SAS pull sic from comp.company and drop crsp.siccd.
+      Controlled by PipelineConfig.sic_source / STOCK_CHARACTERS_SIC_SOURCE
+      (comp_company default; crsp_msenames legacy).
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -325,6 +337,26 @@ confirmed_conventions:
     action: >
       bm_ia_dc and cfp_ia_dc computed by build_datashare_chars.py. Comparison script
       maps datashare bm_ia → bm_ia_dc and cfp_ia → cfp_ia_dc.
+
+  sic_source_convention:
+    description: >
+      Monthly CRSP alignment rows must use Compustat comp.company.sic (constant per gvkey),
+      not CRSP msenames.siccd. Green and Dacheng SAS both drop crsp.siccd at the CCM merge.
+      Legacy repo behavior renamed siccd -> sic in monthly-native builders, causing CRSP SIC
+      to win coalesce_metadata for permno-months without annual Green expansion.
+    green_value: "comp_company"
+    gkx_value: "comp_company"
+    confirmed: true
+    date_confirmed: "2026-07-30"
+    evidence: >
+      Diagnostic scripts/diagnose_sic_source_mismatch.py on existing panel: 839,494 sic2
+      mismatches vs datashare (79.58% match rate); sample rows show panel sic from CRSP
+      while datashare uses Compustat sic2. Code fix: PipelineConfig.sic_source +
+      attach_monthly_sic_metadata / monthly_crsp_alignment_frame in green_builders.py.
+    characteristics_affected: ALL
+    action: >
+      Default sic_source=comp_company on all profiles. Rebuild monthly + panel artifacts
+      and re-run compare_panel_vs_gkx_datashare.py to validate industry chars (indmom, bm_ia, etc.).
 
   agr_sign_convention:
     description: >

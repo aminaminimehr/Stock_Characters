@@ -9,7 +9,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _shared.green_builders import connect_wrds, load_crsp_monthly
+from _shared.green_builders import connect_wrds, monthly_crsp_alignment_frame
 from output_paths import read_wrds_sql, resolve_output_path  # noqa: E402
 
 DEFAULT_OUTPUT = "zerotrade.csv"
@@ -33,9 +33,7 @@ def load_monthly_zerotrade(db):
 
 def build_zerotrade(db):
     daily = load_monthly_zerotrade(db)
-    monthly = load_crsp_monthly(db)[
-        ["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "siccd", "exchcd", "shrcd"]
-    ].rename(columns={"siccd": "sic"})
+    monthly = monthly_crsp_alignment_frame(db)
     monthly["source_yyyymm"] = monthly.groupby("permno")["signal_yyyymm"].shift(1)
     out = monthly.merge(daily, on=["permno", "source_yyyymm"], how="left")
     out = out[out["zerotrade"].replace([np.inf, -np.inf], np.nan).notna()].copy()

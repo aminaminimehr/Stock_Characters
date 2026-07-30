@@ -200,6 +200,7 @@ matching env vars. The Green path no longer hard-codes its CCM set — it honors
 | `STOCK_CHARACTERS_CRSP_SHRCD` | CRSP SQL filters | CRSP share codes (set by profile / `--crsp-shrcd`); `ALL` = no filter; fallback `10,11` |
 | `STOCK_CHARACTERS_CRSP_EXCHCD` | CRSP SQL filters | CRSP exchange codes (set by profile / `--crsp-exchcd`); fallback `1,2,3` |
 | `STOCK_CHARACTERS_INDUSTRY_AGG` | Annual industry benchmarks | `pre_ccm` (Green, default) or `post_ccm` (datashare/Dacheng) |
+| `STOCK_CHARACTERS_SIC_SOURCE` | Monthly CRSP `sic` metadata | `comp_company` (Green/Dacheng SAS, default) or `crsp_msenames` (legacy) |
 | `STOCK_CHARACTERS_DEFAULT_ANNUAL_START` | `output_paths.py` | Default `1975-01-01` when no sample start set |
 | `STOCK_CHARACTERS_WORKERS` | Parallel **compute** (beta regressions, rvar, ear) | Default `min(cpu, 8)` |
 | `STOCK_CHARACTERS_WRDS_DOWNLOAD_WORKERS` | Parallel **WRDS** dsf chunk downloads | Default `4` (separate from compute) |

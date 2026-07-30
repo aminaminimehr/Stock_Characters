@@ -44,4 +44,4 @@ pricedelay,NO,0.935,0.935,2345025,3716664,21212,~32793,"C;D",OPEN,15.5,"Price de
 # ══════════════════════════════════════════════════════════
 # CLOSED  (all three criteria met, or explained)
 # ══════════════════════════════════════════════════════════
-indmom,YES,0.990,0.835,3297357,4117276,25735,~32793,"",CLOSED,20.0,"panel-Green=0.990. Low median ρ=0.835 entirely due to 1958-1962 sparse mom12m coverage. From 1975+ ρ stays 0.95-0.99. Confirmed 2026-06."
+indmom,YES,0.990,0.835,3297357,4117276,25735,~32793,"A;SIC",CONVENTION,20.0,"panel-Green=0.990. Low median ρ=0.835 partly due to 1958-1962 sparse mom12m coverage and partly sic2 grouping: indmom used hybrid sic2_comp.fillna(sic2_crsp). Fix 2026-07-30: sic_source=comp_company uses Compustat sic2 only for indmom (Green/Dacheng SAS). Pipeline rebuild needed to validate ρ improvement vs datashare."

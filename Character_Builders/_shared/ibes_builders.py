@@ -6,11 +6,11 @@ import pandas as pd
 
 import sys
 
-from _shared.green_builders import OUTPUT_DIR, connect_wrds, crsp_universe_filter, load_crsp_monthly
+from _shared.green_builders import OUTPUT_DIR, connect_wrds, monthly_crsp_alignment_frame
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
-from output_paths import read_wrds_sql  # noqa: E402
+from output_paths import crsp_universe_filter, read_wrds_sql  # noqa: E402
 
 
 def load_ibes_forecasts(db):
@@ -100,9 +100,7 @@ def build_re_character(db):
     merged = merged.drop_duplicates(["permno", "statpers"], keep="last")
     merged["signal_yyyymm"] = merged["statpers"].dt.year * 100 + merged["statpers"].dt.month
 
-    monthly = load_crsp_monthly(db)[
-        ["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "siccd", "exchcd", "shrcd"]
-    ].rename(columns={"siccd": "sic"})
+    monthly = monthly_crsp_alignment_frame(db)
     re_panel = merged[["permno", "signal_yyyymm", "re"]].drop_duplicates(["permno", "signal_yyyymm"], keep="last")
     out = monthly.merge(re_panel, on=["permno", "signal_yyyymm"], how="inner")
     out = out[out["re"].replace([np.inf, -np.inf], np.nan).notna()].copy()
