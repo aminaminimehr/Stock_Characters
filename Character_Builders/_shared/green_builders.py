@@ -425,7 +425,7 @@ def _compustat_sic_annual_expanded(db, crsp: pd.DataFrame) -> pd.DataFrame:
         ["permno", "permco", "gvkey", "datadate", "sic", "fyear", "sic2"]
     ].copy()
     crsp_idx = crsp[["permno", "signal_yyyymm"]].drop_duplicates()
-    expanded = expand_annual_file_green(annual, ["sic", "sic2"], crsp_month_index=crsp_idx)
+    expanded = expand_annual_file_green(annual, ["sic2"], crsp_month_index=crsp_idx)
     return expanded[["permno", "signal_yyyymm", "sic", "sic2"]].drop_duplicates().rename(
         columns={"sic": "sic_comp", "sic2": "sic2_comp"}
     )
@@ -1047,6 +1047,8 @@ def _attach_monthly_sic_for_features(crsp: pd.DataFrame, db=None) -> pd.DataFram
             raise ValueError("Compustat SIC source requires a WRDS connection (db=).")
         sic_map = _compustat_sic_annual_expanded(db, out)
         out = out.merge(sic_map, on=["permno", "signal_yyyymm"], how="left")
+        if isinstance(out["sic_comp"], pd.DataFrame):
+            out = out.loc[:, ~out.columns.duplicated()]
         out["sic2"] = out["sic2_comp"]
         out["sic"] = out["sic_comp"]
         out = out.drop(columns=["sic_comp", "sic2_comp"], errors="ignore")
