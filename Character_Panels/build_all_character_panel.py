@@ -14,6 +14,7 @@ from output_paths import (  # noqa: E402
     SIGNAL_PANEL_FILE,
     iter_character_csv_paths,
 )
+from pipeline_config import VALID_PROFILES, datashare_output_columns  # noqa: E402
 from Character_Panels.timing import (  # noqa: E402
     MONTHLY_KEYS,
     TimingConvention,
@@ -202,15 +203,23 @@ def _load_monthly_native_panels(paths):
 
 
 def _load_crsp_month_index(paths):
-    """CRSP month universe for Green annual expansion (prefer me.csv)."""
-    me_path = CHARACTER_INDIVIDUAL_DIR / "me.csv"
-    if me_path.exists():
-        return pd.read_csv(me_path, usecols=["permno", "signal_yyyymm"]).drop_duplicates()
+    """CRSP month universe for Green annual expansion (prefer me.csv, else mvel1)."""
+    for stem in ("me", "mvel1"):
+        path = CHARACTER_INDIVIDUAL_DIR / f"{stem}.csv"
+        if path.exists():
+            return pd.read_csv(path, usecols=["permno", "signal_yyyymm"]).drop_duplicates()
     monthly_native = _load_monthly_native_panels(paths)
     return build_crsp_month_index_from_panels(monthly_native)
 
 
-def build_all_character_panel(input_dir=None, force_june_annual=False, green_universe=False, green_winsor=False):
+def build_all_character_panel(
+    input_dir=None,
+    force_june_annual=False,
+    green_universe=False,
+    green_winsor=False,
+    profile=None,
+):
+    allowlist = datashare_output_columns() if profile == "datashare" else None
     if input_dir is None:
         paths = list(iter_character_csv_paths())
     else:
@@ -228,6 +237,8 @@ def build_all_character_panel(input_dir=None, force_june_annual=False, green_uni
     skipped = []
     for path in paths:
         if path.name in NON_CHARACTER_FILES:
+            continue
+        if allowlist is not None and path.stem not in allowlist:
             continue
         panel = normalize_character_file(
             path,
@@ -292,6 +303,12 @@ def main():
             "so continuous predictors match Green/datashare export levels."
         ),
     )
+    parser.add_argument(
+        "--profile",
+        choices=sorted(VALID_PROFILES),
+        default=None,
+        help="When 'datashare', merge only the 95 datashare-mapped character CSVs.",
+    )
     args = parser.parse_args()
 
     panel, skipped = build_all_character_panel(
@@ -299,6 +316,7 @@ def main():
         force_june_annual=args.legacy_june_annual,
         green_universe=args.green_universe,
         green_winsor=args.green_winsor,
+        profile=args.profile,
     )
 
     output_path = Path(args.output)

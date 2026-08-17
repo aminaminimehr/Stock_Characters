@@ -38,9 +38,10 @@ The CRSP share/exchange filters and CCM link filters are read from environment v
 
 ### Industry aggregation timing
 
-Annual industry benchmarks (`cfp_ia`, `chatoia`, `chempia`, `chpmia`, `pchcapx_ia`, `bm_ia`, `me_ia`,
+Annual industry benchmarks (`cfp_ia`, `chatoia`, `chempia`, `chpmia`, `pchcapx_ia`, `me_ia`,
 `tb`, `herf`, and Mohanram `m1`–`m6` medians) are computed relative to an industry mean/median. The
-**`--industry-agg`** flag controls which firms define that benchmark:
+**`--industry-agg`** flag controls which firms define that benchmark. Datashare `bm_ia` is built
+separately (SIC2 × month demean of HXZ `book_to_market`) and is not part of this Green IA block:
 
 - `pre_ccm` (Green): benchmarks computed on the **full Compustat universe** before the CCM merge, so
   firms with no CRSP permno are included in the denominator (Green SAS L242–270, L261–285).
@@ -70,14 +71,14 @@ Not affected by this flag:
 
 All profiles set `--crsp-exchcd 1,2,3`. Green and research use `--crsp-shrcd 10,11`; datashare uses `--crsp-shrcd ALL` (no share-code restriction). HXZ builders run under the same global flags as Green.
 
-### Datashare column mapping (bm_ia out of scope)
+### Datashare column mapping
 
 | `datashare.csv` | Repository column | Builder |
 |---|---|---|
 | `bm` | `book_to_market` | `HXZ_BM_Generalized` (FF-June timing) |
 | `operprof` | `operating_profitability` | `HXZ_OPE_Generalized` |
 | `cfp` | `cfp` | Green `_shared/green_builders.py` |
-| `bm_ia` | — | **Not replicated** |
+| `bm_ia` | `bm_ia` | `Datashare_BM_IA_Generalized` (SIC2 × month demean of `book_to_market`) |
 
 ---
 
@@ -93,10 +94,12 @@ python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER" --profile 
 python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER" --profile green --green-universe
 ```
 
-### Datashare build (full library, 1957+, sparse universe)
+### Datashare build (95 predictors, 1957+, sparse universe)
 
-Builds **all** Green + HXZ characters. Differs from `green` only in sample window (1957+),
-no Green joint universe screen, and no ranked research panel.
+Builds the **95 GKX datashare-mapped predictors** only (`pipeline_config.datashare_output_columns()`).
+The shared engine still computes the full Green baseline internally; `--profile datashare` filters
+which individual CSVs are written and merged. Differs from `green` in sample window (1957+),
+`post_ccm` industry aggregation, no Green joint universe screen, and no ranked research panel.
 
 ```bash
 python Character_Panels/run_full_pipeline.py \

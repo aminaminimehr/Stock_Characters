@@ -22,119 +22,16 @@ from pathlib import Path
 import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
+from pipeline_config import (  # noqa: E402
+    DATASHARE_PREDICTORS,
+    DATASHARE_PANEL_ALIAS as PANEL_ALIAS,
+    panel_column_for_datashare,
+)
+
 DEFAULT_INPUT = PROJECT_ROOT / "outputs" / "panels" / "Full_research_panel_1957_ranked.csv"
 DEFAULT_OUTPUT = PROJECT_ROOT / "outputs" / "panels" / "research_panel_1957_datashare_matched.csv"
 CHUNK_SIZE = 500_000
-
-# datashare name -> panel column (only true name remaps; copied from compare script)
-PANEL_ALIAS: dict[str, str] = {
-    "bm": "book_to_market",
-    "operprof": "operating_profitability",
-    "bm_ia": "bm_ia_sic2m",
-    "mve_ia": "me_ia",
-    "rd_mve": "rdm",
-    "retvol": "rvar_mean",
-    "ear": "abr",
-}
-
-# All 95 GKX datashare signal predictors (excl. permno, DATE)
-DATASHARE_PREDICTORS: tuple[str, ...] = (
-    "convind",
-    "rd_sale",
-    "rd_mve",
-    "realestate",
-    "dy",
-    "dolvol",
-    "saleinv",
-    "mom1m",
-    "secured",
-    "depr",
-    "beta",
-    "betasq",
-    "sp",
-    "mvel1",
-    "ill",
-    "lev",
-    "salecash",
-    "roic",
-    "cashpr",
-    "ep",
-    "baspread",
-    "tang",
-    "quick",
-    "currat",
-    "salerec",
-    "zerotrade",
-    "std_dolvol",
-    "retvol",
-    "std_turn",
-    "securedind",
-    "gma",
-    "mom6m",
-    "pctacc",
-    "maxret",
-    "mom12m",
-    "acc",
-    "absacc",
-    "chmom",
-    "mom36m",
-    "cfp",
-    "orgcap",
-    "idiovol",
-    "cashdebt",
-    "chcsho",
-    "sgr",
-    "pchsale_pchxsga",
-    "chinv",
-    "pchsale_pchinvt",
-    "pchsaleinv",
-    "hire",
-    "grltnoa",
-    "lgr",
-    "turn",
-    "pchgm_pchsale",
-    "egr",
-    "pchquick",
-    "pchcurrat",
-    "pchdepr",
-    "pchsale_pchrect",
-    "invest",
-    "divi",
-    "stdcf",
-    "stdacc",
-    "divo",
-    "cash",
-    "grcapx",
-    "rd",
-    "sin",
-    "sic2",
-    "pricedelay",
-    "tb",
-    "chatoia",
-    "age",
-    "herf",
-    "ps",
-    "mve_ia",
-    "roaq",
-    "bm",
-    "chempia",
-    "rsup",
-    "roeq",
-    "operprof",
-    "chtx",
-    "nincr",
-    "cinvest",
-    "aeavol",
-    "bm_ia",
-    "ear",
-    "chpmia",
-    "cfp_ia",
-    "roavol",
-    "ms",
-    "pchcapx_ia",
-    "indmom",
-    "agr",
-)
 
 IDENTITY_COLUMNS: frozenset[str] = frozenset(
     {
@@ -163,10 +60,6 @@ RETURN_COLUMNS: frozenset[str] = frozenset({"excess_return"})
 
 def resolve_path(path: Path) -> Path:
     return path if path.is_absolute() else PROJECT_ROOT / path
-
-
-def panel_column_for_datashare(ds_col: str) -> str:
-    return PANEL_ALIAS.get(ds_col, ds_col)
 
 
 def compute_column_plan(input_cols: list[str]) -> dict:

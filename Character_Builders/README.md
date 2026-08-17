@@ -27,12 +27,10 @@ linkprim in ('P', 'C')
 Override it with `--ccm-linktypes` and `--ccm-linkprim` when a replication
 requires a different CRSP/Compustat linking convention.
 
-Current HXZ character folders:
+Current HXZ character folders (datashare production):
 
-- `HXZ_BM_Generalized`: book-to-market.
-- `HXZ_BMJ_Generalized`: book-to-June-end market equity.
-- `HXZ_OPE_Generalized`: operating-profitability-to-equity.
-- `HXZ_CFP_Generalized`: cash-flow-to-price.
+- `HXZ_BM_Generalized`: book-to-market (`datashare.bm`).
+- `HXZ_OPE_Generalized`: operating profitability (`datashare.operprof`).
 
-The full Green-style target set and implementation status are tracked in
-`CHARACTER_CATALOG.md`.
+Datashare profile (`--profile datashare`) writes only the 95 mapped predictors; see
+`pipeline_config.datashare_output_columns()` and `CHARACTER_CATALOG.md`.

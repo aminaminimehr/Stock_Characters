@@ -32,6 +32,125 @@ DATASHARE_CRSP_SHRCD = "ALL"
 VALID_PROFILES = frozenset({"green", "datashare", "research"})
 VALID_SIC_SOURCES = frozenset({"comp_company", "crsp_msenames"})
 
+# datashare name -> panel column (repo output names after alias resolution)
+DATASHARE_PANEL_ALIAS: dict[str, str] = {
+    "bm": "book_to_market",
+    "operprof": "operating_profitability",
+    "mve_ia": "me_ia",
+    "rd_mve": "rdm",
+    "retvol": "rvar_mean",
+    "ear": "abr",
+}
+
+# All 95 GKX datashare signal predictors (excl. permno, DATE)
+DATASHARE_PREDICTORS: tuple[str, ...] = (
+    "convind",
+    "rd_sale",
+    "rd_mve",
+    "realestate",
+    "dy",
+    "dolvol",
+    "saleinv",
+    "mom1m",
+    "secured",
+    "depr",
+    "beta",
+    "betasq",
+    "sp",
+    "mvel1",
+    "ill",
+    "lev",
+    "salecash",
+    "roic",
+    "cashpr",
+    "ep",
+    "baspread",
+    "tang",
+    "quick",
+    "currat",
+    "salerec",
+    "zerotrade",
+    "std_dolvol",
+    "retvol",
+    "std_turn",
+    "securedind",
+    "gma",
+    "mom6m",
+    "pctacc",
+    "maxret",
+    "mom12m",
+    "acc",
+    "absacc",
+    "chmom",
+    "mom36m",
+    "cfp",
+    "orgcap",
+    "idiovol",
+    "cashdebt",
+    "chcsho",
+    "sgr",
+    "pchsale_pchxsga",
+    "chinv",
+    "pchsale_pchinvt",
+    "pchsaleinv",
+    "hire",
+    "grltnoa",
+    "lgr",
+    "turn",
+    "pchgm_pchsale",
+    "egr",
+    "pchquick",
+    "pchcurrat",
+    "pchdepr",
+    "pchsale_pchrect",
+    "invest",
+    "divi",
+    "stdcf",
+    "stdacc",
+    "divo",
+    "cash",
+    "grcapx",
+    "rd",
+    "sin",
+    "sic2",
+    "pricedelay",
+    "tb",
+    "chatoia",
+    "age",
+    "herf",
+    "ps",
+    "mve_ia",
+    "roaq",
+    "bm",
+    "chempia",
+    "rsup",
+    "roeq",
+    "operprof",
+    "chtx",
+    "nincr",
+    "cinvest",
+    "aeavol",
+    "bm_ia",
+    "ear",
+    "chpmia",
+    "cfp_ia",
+    "roavol",
+    "ms",
+    "pchcapx_ia",
+    "indmom",
+    "agr",
+)
+
+
+def panel_column_for_datashare(ds_col: str) -> str:
+    """Map a datashare.csv column name to the repo panel/output column name."""
+    return DATASHARE_PANEL_ALIAS.get(ds_col, ds_col)
+
+
+def datashare_output_columns() -> frozenset[str]:
+    """Resolved repo column names for the 95 datashare predictors."""
+    return frozenset(panel_column_for_datashare(name) for name in DATASHARE_PREDICTORS)
+
 
 @dataclass(frozen=True)
 class PipelineConfig:

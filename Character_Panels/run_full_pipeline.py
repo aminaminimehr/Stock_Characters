@@ -50,24 +50,16 @@ PANEL_META = {
 HXZ_JOBS = [
     ("book_to_market", "Character_Builders/HXZ_BM_Generalized/build_book_to_market.py", []),
     (
-        "book_to_june_market_equity",
-        "Character_Builders/HXZ_BMJ_Generalized/build_book_to_june_market_equity.py",
-        [],
-    ),
-    (
         "operating_profitability",
         "Character_Builders/HXZ_OPE_Generalized/build_operating_profitability.py",
         [],
     ),
-    (
-        "cash_flow_to_price",
-        "Character_Builders/HXZ_CFP_Generalized/build_cash_flow_to_price.py",
-        ["--use-imputed-market-equity"],
-    ),
 ]
 
-# Datashare mapping: only these HXZ/Green columns are required for datashare profile.
-DATASHARE_HXZ_STEMS = {"book_to_market", "operating_profitability"}
+# Datashare mapping: HXZ/Green columns required for datashare profile.
+DATASHARE_HXZ_STEMS = {"book_to_market", "operating_profitability", "bm_ia"}
+
+BM_IA_SCRIPT = "Character_Builders/Datashare_BM_IA_Generalized/build_bm_ia.py"
 
 
 def run(cmd):
@@ -107,6 +99,8 @@ def build_all_characters(
         cmd.extend(["--sample-start", cfg.sample_start])
     if cfg.sample_end:
         cmd.extend(["--sample-end", cfg.sample_end])
+    if cfg.profile:
+        cmd.extend(["--profile", cfg.profile])
     if cfg.skip_special:
         cmd.append("--skip-special")
     if cfg.skip_daily:
@@ -139,6 +133,31 @@ def build_hxz_characters(wrds_user, output_dir, cfg, profile="green"):
         cmd.extend(extra)
         run(cmd)
 
+    # Datashare bm_ia depends on book_to_market.csv (WRDS-free demean).
+    build_datashare_bm_ia(output_dir)
+
+
+def build_datashare_bm_ia(output_dir):
+    """Build SIC2 x month demeaned bm_ia after book_to_market exists."""
+    bm_path = output_dir / "book_to_market.csv"
+    out = output_dir / "bm_ia.csv"
+    if out.exists():
+        print("bm_ia: skipped (already exists)")
+        return
+    if not bm_path.exists():
+        print("bm_ia: skipped (book_to_market.csv missing)")
+        return
+    run(
+        [
+            PYTHON,
+            BM_IA_SCRIPT,
+            "--bm-csv",
+            str(bm_path),
+            "--output",
+            str(out),
+        ]
+    )
+
 
 def build_excess_returns(wrds_user, cfg):
     if EXCESS_RETURNS_FILE.exists():
@@ -168,6 +187,8 @@ def build_panels(cfg):
         "--output",
         str(SIGNAL_PANEL_FILE),
     ]
+    if cfg.profile:
+        signal_cmd.extend(["--profile", cfg.profile])
     if cfg.green_universe:
         signal_cmd.append("--green-universe")
     if cfg.green_winsor:
@@ -218,10 +239,11 @@ def print_summary(cfg):
         print(f"research_panel_1957_ranked predictors: {len(research_cols)}")
     print(f"all_character_signal_panel predictors: {len(signal_cols)}")
     if cfg.profile == "datashare":
-        print("\nDatashare column mapping (bm_ia out of scope):")
+        print("\nDatashare column mapping:")
         print("  bm -> book_to_market")
         print("  operprof -> operating_profitability")
         print("  cfp -> cfp (Green builder)")
+        print("  bm_ia -> bm_ia (SIC2 x month demean of book_to_market)")
     print("\nPredictor columns in monthly signal panel:")
     print(", ".join(signal_cols))
 

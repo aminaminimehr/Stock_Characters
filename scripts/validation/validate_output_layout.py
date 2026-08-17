@@ -29,9 +29,7 @@ from output_paths import (  # noqa: E402
 # Writers that must not default-save to flat outputs/ via parents[2] / "outputs" / ...
 WRITER_SCRIPTS = [
     "Character_Builders/HXZ_BM_Generalized/build_book_to_market.py",
-    "Character_Builders/HXZ_BMJ_Generalized/build_book_to_june_market_equity.py",
     "Character_Builders/HXZ_OPE_Generalized/build_operating_profitability.py",
-    "Character_Builders/HXZ_CFP_Generalized/build_cash_flow_to_price.py",
     "Character_Builders/Green_MVEL1_Generalized/build_mvel1.py",
     "Character_Builders/Green_ZEROTRADE_Generalized/build_zerotrade.py",
     "Character_Panels/build_monthly_character_panel.py",
