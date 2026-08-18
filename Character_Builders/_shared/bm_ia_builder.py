@@ -37,7 +37,7 @@ MONTHLY_OUTPUT_COLUMNS = [
     "signal_yyyymm",
     "target_yyyymm",
     "sic",
-    "bm_ia_sic2m",
+    "bm_ia",
 ]
 
 
@@ -49,7 +49,7 @@ def demean_by_industry_month(
     industry_digits: int = 2,
     time_column: str = "signal_yyyymm",
     stat: str = "mean",
-    output_column: str = "bm_ia_sic2m",
+    output_column: str = "bm_ia",
 ) -> pd.DataFrame:
     """Subtract the per-(industry, month) ``stat`` of ``value_column``.
 
@@ -65,13 +65,13 @@ def demean_by_industry_month(
     return monthly.drop(columns=["_industry"])
 
 
-def build_bm_ia_sic2m_character(
+def build_bm_ia_character(
     bm_csv_path: Path,
     *,
     bm_column: str = "book_to_market",
     industry_digits: int = 2,
     stat: str = "mean",
-    output_column: str = "bm_ia_sic2m",
+    output_column: str = "bm_ia",
 ) -> pd.DataFrame:
     """Monthly SIC2-demeaned book-to-market from an annual book_to_market CSV."""
     annual = pd.read_csv(bm_csv_path)
@@ -84,5 +84,5 @@ def build_bm_ia_sic2m_character(
         stat=stat,
         output_column=output_column,
     )
-    keep = [c if c != "bm_ia_sic2m" else output_column for c in MONTHLY_OUTPUT_COLUMNS]
+    keep = [c if c != "bm_ia" else output_column for c in MONTHLY_OUTPUT_COLUMNS]
     return monthly[keep]

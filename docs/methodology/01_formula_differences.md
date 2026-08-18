@@ -9,7 +9,7 @@
 | `bm` | `book_to_market` (HXZ/FF-June) | ρ ≈ 0.96 pooled |
 | `operprof` | `operating_profitability` (HXZ) | ρ ≈ 0.95 pooled |
 | `cfp` | Green `cfp` (`oancf/mve_f`) | ρ ≈ 0.998 (1975+; extend to 1957) |
-| `bm_ia` | — | **Out of scope** (not replicated) |
+| `bm_ia` | `bm_ia` (SIC2 × month demean of `book_to_market`) | Formula solved; rebuild ρ ≈ 0.42 median (ceiling ~0.84 on published bm/sic2) |
 
 Use `--profile datashare` for universe/timing aimed at datashare; formulas come from the columns above.
 
@@ -55,10 +55,14 @@ Extend Compustat start to 1957 via `--profile datashare` or `scripts/rebuild/reb
 
 ## `bm_ia` — industry-adjusted book-to-market
 
-**Out of scope.** No stable replication found; do not use repo `bm_ia` as a datashare substitute.
+| | Formula | Industry | Timing |
+|---|---|---|---|
+| **Datashare (this file)** | `bm_ia = bm − mean(bm)` by **(SIC2 × calendar month)**, EW mean recomputed every month | 2-digit SIC | Monthly benchmark on annual-holding `bm` |
+| **Repo datashare** | Same: `bm_ia = book_to_market − mean(book_to_market)` by (SIC2, `signal_yyyymm`) after June expand | Compustat `sic` on `book_to_market.csv` | `Datashare_BM_IA_Generalized/build_bm_ia.py` |
 
-Green repo `bm_ia` uses SIC2 × fiscal-year mean demeaning (matches Green SAS intent). Datashare `bm_ia`
-does not match simple demeaning of public `bm`.
+Green SIC2×fyear `bm_ia` was removed as a deliverable. FF49×datadate variants were rejected.
+
+Validation (2026-07): formula ceiling on datashare's own `bm`/`sic2` → median monthly Spearman **0.84**; full WRDS rebuild → **~0.42** median (demeaning amplifies BM/SIC differences). Residual gap vs 1.0 is construction-SIC vintage (~3% of cells). See `docs/gkx/datashare_reverse_engineering.md`.
 
 ---
 

@@ -26,7 +26,7 @@ BM_COLUMNS = [
 ]
 
 BUILDER_MAP = {
-    "bm": "Green shared annual builder (`green_builders.py`) / `Green_BM_IA` sibling",
+    "bm": "Green shared annual builder (`green_builders.py`)",
     "bm_ia": "Green shared annual builder (`green_builders.py`)",
     "book_to_market": "Character_Builders/HXZ_BM_Generalized/build_book_to_market.py",
     "book_to_june_market_equity": "Character_Builders/HXZ_BMJ_Generalized/build_book_to_june_market_equity.py",

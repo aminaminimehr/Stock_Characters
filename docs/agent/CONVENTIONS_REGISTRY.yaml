@@ -313,30 +313,40 @@ confirmed_conventions:
       GKX_QUARTERLY_CHAR_SOURCES dict in quarterly_builders.py controls which
       chars get _gkx variants.
 
-  bm_ia_cfp_ia_industry_convention:
+  bm_ia_datashare_convention:
     description: >
-      GKX uses Fama-French 49-industry (FF49) classification for bm_ia and cfp_ia
-      industry means, rather than SIC2. GKX also computes industry means post-CRSP-merge
-      (only using firms that have a CRSP permno at the time of the data), rather than
-      from the full Compustat universe.
-    green_value: "sic2 industry, pre-CRSP-merge universe"
-    gkx_value: "ff49 industry, post-CRSP-merge universe (only firms with CRSP permno)"
+      Published datashare bm_ia is HXZ book_to_market demeaned by equal-weight mean
+      over (two-digit Compustat SIC, calendar/signal month), with the mean recomputed
+      every month. Not Green SIC2×fyear and not FF49×datadate.
+    green_value: "sic2 × fyear demean of Green bm (removed as deliverable)"
+    gkx_value: "sic2 × month demean of HXZ book_to_market (June-expanded)"
+    confirmed: true
+    date_confirmed: "2026-07-09"
+    evidence: >
+      docs/gkx/datashare_reverse_engineering.md (2026-07-09/10). Builder:
+      Character_Builders/Datashare_BM_IA_Generalized/build_bm_ia.py via
+      _shared/bm_ia_builder.py. Formula ceiling on datashare bm/sic2 ~0.84 median
+      monthly Spearman; residual is construction-SIC vintage.
+    characteristics_affected:
+      - bm_ia
+    action: >
+      Pipeline builds bm_ia after book_to_market. Comparison uses identity mapping
+      (datashare bm_ia → panel bm_ia). Green bm_ia CLI/FF49 builders removed.
+
+  cfp_ia_industry_convention:
+    description: >
+      Green cfp_ia uses SIC2 industry means; industry aggregation timing is controlled
+      by industry_agg (pre_ccm vs post_ccm). Datashare cfp_ia alignment remains open.
+    green_value: "sic2 industry, industry_agg-dependent universe"
+    gkx_value: "see reverse-engineering / ongoing"
     confirmed: true
     date_confirmed: "2026-06-29"
     evidence: >
-      Identified by inspecting GKX build_datashare_chars.py code. An additional bug
-      was found: the original build_datashare_chars.py was computing industry means
-      from the monthly-expanded bm (after expand_monthly), which is incorrect.
-      Fixed to compute bm/cfp at jdate level first, then compute industry means
-      cross-sectionally at that level, then forward-fill bm_ia/cfp_ia across months.
-      bm_ia_dc and cfp_ia_dc (new) columns built by build_datashare_chars.py.
-      Full pipeline rebuild required to validate the Spearman improvement.
+      Green SAS industry block; repo _apply_industry_adjusted_annual in green_builders.py.
     characteristics_affected:
-      - bm_ia
       - cfp_ia
     action: >
-      bm_ia_dc and cfp_ia_dc computed by build_datashare_chars.py. Comparison script
-      maps datashare bm_ia → bm_ia_dc and cfp_ia → cfp_ia_dc.
+      Keep Green cfp_ia via annual IA block; do not conflate with bm_ia.
 
   sic_source_convention:
     description: >

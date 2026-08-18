@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the bm_ia_sic2m builder's demeaning function against datashare bm_ia.
+"""Validate the bm_ia builder's demeaning function against datashare bm_ia.
 
 Feeds the builder's own demean_by_industry_month() the published datashare bm
 and sic2 (the best-case inputs) and reports the five required metrics vs the
@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "Character_Builders"))
 
-from _shared.bm_ia_sic2m_builder import demean_by_industry_month  # noqa: E402
+from _shared.bm_ia_builder import demean_by_industry_month  # noqa: E402
 
 DATASHARE = ROOT / "Supplementary_assistive_files" / "datashare.csv"
 MIN_PAIRS = 50

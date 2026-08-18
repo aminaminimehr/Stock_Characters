@@ -282,17 +282,16 @@ were screened out of the published rows.
   mismatch cells are contaminated by the ~3% construction-SIC-vintage firms (one such firm
   shifts its entire cell's mean).
 
-Builder implemented from these findings: `bm_ia_sic2m`
-(`Character_Builders/_shared/bm_ia_sic2m_builder.py` +
-`Character_Builders/Datashare_BM_IA_Generalized/build_bm_ia_sic2m.py`), WRDS-free:
+Builder implemented from these findings: `bm_ia`
+(`Character_Builders/_shared/bm_ia_builder.py` +
+`Character_Builders/Datashare_BM_IA_Generalized/build_bm_ia.py`), WRDS-free:
 June-expands `book_to_market.csv` monthly and demeans by (SIC2, signal month).
 Formula validation on datashare's own bm/sic2 inputs
-(`scripts/validation/validate_bmia_sic2m_formula.py`): median monthly Spearman **0.8357**,
+(`scripts/validation/validate_bmia_formula.py`): median monthly Spearman **0.8357**,
 pooled 0.7955, exact 17.8%, paired N 3,042,589, permnos 23,489. This is the replication
 ceiling without the original construction universe/SIC vintage; a WRDS rebuild inherits our
-`book_to_market` quality (rho 0.971) on top. `bm_ia_ff49` (FF49 x datadate, the
-accounting_60.py recipe) is retained as documented evidence but is NOT how the published
-file was built; the comparison alias now maps datashare `bm_ia` -> `bm_ia_sic2m`.
+`book_to_market` quality (rho 0.971) on top. Green SIC2×fyear and FF49×datadate variants
+were removed; the panel column is `bm_ia` (identity mapping vs datashare).
 
 ## Practical Mapping For Now
 

@@ -43,8 +43,6 @@ ANNUAL_CHARACTER_INFO = {
     "alm": "Asset liquidity",
     "ato": "Asset turnover",
     "bm": "Book-to-market equity",
-    "bm_ia": "Industry-adjusted book-to-market",
-    "bm_ia_ff49": "FF49 × datadate industry-adjusted book-to-market (GKX convention)",
     "cashdebt": "Cash to debt",
     "cashpr": "Cash productivity",
     "cfp": "Cash-flow-to-price",
@@ -475,10 +473,11 @@ def monthly_crsp_alignment_frame(db) -> pd.DataFrame:
 def _apply_industry_adjusted_annual(comp):
     """Compute the annual industry-adjusted block IN PLACE on ``comp``.
 
-    Produces cfp_ia, chatoia, chempia, chpmia, pchcapx_ia, bm_ia, me_ia, tb,
-    sales_share_sq, herf via groupby(sic2, fyear). Used in pre_ccm mode
-    (inside compute_annual_characters) and post_ccm mode (on the linked panel).
-    Requires comp to already contain chato, the base chars, and sic2.
+    Produces cfp_ia, chatoia, chempia, chpmia, pchcapx_ia, me_ia, tb,
+    sales_share_sq, herf via groupby(sic2, fyear). Datashare bm_ia is built
+    separately (SIC2 x month demean of HXZ book_to_market). Used in pre_ccm
+    mode (inside compute_annual_characters) and post_ccm mode (on the linked
+    panel). Requires comp to already contain chato, the base chars, and sic2.
     """
     grouped = comp.groupby(["sic2", "fyear"], dropna=False)
     comp["cfp_ia"] = comp["cfp"] - grouped["cfp"].transform("mean")
@@ -486,7 +485,6 @@ def _apply_industry_adjusted_annual(comp):
     comp["chempia"] = comp["hire"] - grouped["hire"].transform("mean")
     comp["chpmia"] = comp["chpm"] - grouped["chpm"].transform("mean")
     comp["pchcapx_ia"] = comp["pchcapx"] - grouped["pchcapx"].transform("mean")
-    comp["bm_ia"] = comp["bm"] - grouped["bm"].transform("mean")
     comp["me_ia"] = comp["mve_f"] - grouped["mve_f"].transform("mean")
     comp["tb"] = comp["tb_1"] - grouped["tb_1"].transform("mean")
     industry_sales = grouped["sale"].transform("sum")
