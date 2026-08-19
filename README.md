@@ -496,7 +496,7 @@ Behavior is controlled by **profiles** (not hard-coded). Override any default wi
 | Profile | Use when |
 |---|---|
 | `green` (default) | Replicating Green SAS output |
-| `datashare` | Matching `datashare.csv` universe (1957+, sparse panel, no joint screen) |
+| `datashare` | Matching `datashare.csv` universe (1957+, sparse panel, no joint screen). **Canonical Aug 2026 build recipe:** [`docs/gkx/PANEL_BUILD_RECIPE_2026-08-19.md`](docs/gkx/PANEL_BUILD_RECIPE_2026-08-19.md) |
 | `research` | Full pipeline through ranked 1957+ research panel |
 
 ### Required flags and recipes
@@ -528,8 +528,11 @@ startup for transparency.
 # Green replication
 python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER" --profile green
 
-# Datashare-like (1957+, no Green joint universe screen)
+# Datashare-like (1957+ default; Aug 2026 validated build used --sample-start 1950-01-01)
 python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER" --profile datashare
+
+# Canonical Aug 2026 server recipe (95/95 predictors, bm_ia rho 0.931) — see docs/gkx/PANEL_BUILD_RECIPE_2026-08-19.md
+python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER" --profile datashare --sample-start 1950-01-01 --workers 20
 
 # Optional: exact Green final sample (drops rows missing bm, mom1m, mve)
 python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER" --profile green --green-universe
@@ -602,6 +605,11 @@ python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER" --skip-bui
 ### 4. Validation
 
 ```bash
+# Panel vs GKX datashare.csv (all 95 predictors; canonical closeness check)
+python scripts/validation/compare_panel_vs_gkx_datashare.py \
+  --panel outputs/panels/all_character_signal_panel.csv \
+  --datashare Supplementary_assistive_files/datashare.csv
+
 # Green SAS benchmark (datashare columns)
 python scripts/validation/compare_panel_final_vs_green.py
 

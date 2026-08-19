@@ -3,7 +3,7 @@
 **Status:** Open. `bm` is ~93% solved (a residual puzzle remains); `bm_ia` is *understood but
 not independently reproducible* from the published file.
 **Audience:** Any agent or researcher who needs to understand the full history and pick up the work.
-**Last updated:** 2026-08-03.
+**Last updated:** 2026-08-19.
 **Companion doc:** `docs/gkx/datashare_reverse_engineering.md` (column-by-column detail).
 
 ---
@@ -215,6 +215,7 @@ WRDS SIC column.
 | Script | Purpose |
 |---|---|
 | `validate_bmia_formula.py` | Re-derives `bm_ia` from datashare's own `bm`+`sic2` → the **0.836 formula ceiling (B)** |
+| `validate_bmia_ceiling_compcosic.py` | WRDS-free SIC swap test: datashare `bm` demeaned by panel `sic` vs published `sic2` |
 | `compare_bm_ia_vs_datashare.py` | Panel `bm_ia.csv` vs datashare `bm_ia` |
 | `diag_bm_ia_ff48.py` | FF48 vs SIC2 rebuild comparison |
 | `diag_bm_ia_sich.py` | Historical-SIC-source test |
@@ -422,10 +423,50 @@ all industry-adjusted datashare columns. So the path to independently rebuilding
 `bm_ia` (§9) remains: recover the construction-time SIC assignment (or the exact
 industry scheme) used for `bm`/`bm_ia` only — the other IA chars do not need it.
 
+### comp.company.sic ceiling test (2026-08-19)
+
+After the datashare-profile panel reached **median ρ = 0.931** for `bm_ia` (vs the
+old independent rebuild at **0.42**), we ran a WRDS-free formula-ceiling test to
+isolate whether `comp.company.sic` (the repo's SIC source) alone explains the jump.
+
+**Method** (`scripts/validation/validate_bmia_ceiling_compcosic.py`): hold
+datashare's own published `bm` constant and swap only the industry grouping:
+
+- **baseline:** demean datashare `bm` by datashare published `sic2` (category **B**).
+- **test:** demean datashare `bm` by panel `sic` (= `comp.company.sic`, 4-digit,
+  June-expanded from `all_character_signal_panel.csv`).
+
+Both use the same `demean_by_industry_month()` as the panel builder. Month
+alignment tries `signal_yyyymm` vs `target_yyyymm` for the panel join (best =
+`signal_yyyymm`).
+
+**Result:**
+
+```
+candidate                                      median_ρ  pooled_ρ  exact%   paired_N
+datashare published sic2 (baseline)             0.8357    0.7955   17.78%  3,042,589
+panel sic / comp.company.sic (June-expanded)    0.8270    0.7811    6.14%  3,011,048
+```
+
+**Verdict: `comp.company.sic` is NOT the driver of the 0.931 jump.** Swapping SIC
+while holding datashare `bm` fixed does not raise the formula ceiling toward 0.93;
+it stays at **~0.83** (baseline reproduces B = 0.836; `comp.company.sic` is
+marginally *lower* at 0.827). The jump from ~0.42 to **0.931** in the full panel
+comparison therefore came primarily from the repo's **`book_to_market` quality**
+(ρ ≈ 0.971 vs datashare `bm`), not from the SIC grouping alone.
+
+Implication: the 0.83 formula ceiling (B) remains the hard bound for any test that
+feeds datashare's own `bm` into the demeaning step. The panel's 0.931 independent
+match exceeds B because our rebuilt `bm` aligns better with whatever `bm` was used
+at construction time than the published `bm` column does — not because
+`comp.company.sic` recovers the hidden construction-time SIC vintage.
+
 ### Artifacts
 
 - `scripts/audits/audit_ia_implied_adjustment.py` — the generalized audit.
 - `outputs/diagnostics/ia_implied_audit_summary.csv` / `.txt` — the table above.
 - `outputs/diagnostics/ia_implied_audit_{bm_ia,cfp_ia,chempia}.csv` — per-character
   constancy / reconstruction / modal detail (primary + fallback groupings).
+- `outputs/diagnostics/bmia_ceiling_compcosic.csv` — comp.company.sic vs datashare
+  sic2 formula-ceiling comparison (2026-08-19).
 

@@ -6,7 +6,7 @@
 | **`methodology/`** | **Authoritative** | Formulas, timing, linking, filters, validation |
 | **`RELEASE_NOTES.md`** | Current | What changed in the 2026-06 restructuring |
 | `RESTRUCTURING_PLAN.md` | Historical | Original plan (mostly implemented) |
-| `gkx/` | Active + archive | Datashare/Green comparison reports |
+| `gkx/` | Active + archive | Datashare/Green comparison reports; **`gkx/PANEL_BUILD_RECIPE_2026-08-19.md`** pins the Aug 2026 server build |
 | `archive/agents_review/` | Historical | Prior agent handoff notes |
 
 ## Start here
