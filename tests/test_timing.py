@@ -4,14 +4,24 @@ import pandas as pd
 from Character_Panels.timing import (
     expand_annual_file_green,
     expand_annual_file_june,
-    green_signal_month_ends,
-    timing_convention_for_stem,
+    expansion_mode,
 )
 
 
 def test_green_window_june_2017_fiscal():
-    months = green_signal_month_ends(pd.Timestamp("2017-06-30"))
-    yyyymm = [d.year * 100 + d.month for d in months]
+    annual = pd.DataFrame(
+        {
+            "permno": [1],
+            "permco": [1],
+            "gvkey": ["A"],
+            "datadate": ["2017-06-30"],
+            "sic": [1000],
+            "fyear": [2017],
+            "chatoia": [0.1],
+        }
+    )
+    panel = expand_annual_file_green(annual, ["chatoia"])
+    yyyymm = sorted(panel["signal_yyyymm"].tolist())
     assert yyyymm[0] == 201801
     assert yyyymm[-1] == 201901
     assert 201806 in yyyymm
@@ -54,6 +64,7 @@ def test_june_expansion_starts_june_after_fiscal_year():
     assert set(panel["signal_yyyymm"]) == expected
 
 
-def test_green_annual_stem_classification():
-    assert timing_convention_for_stem("chatoia").value == "green_annual_rolling"
-    assert timing_convention_for_stem("book_to_market").value == "hxz_june"
+def test_expansion_mode_classification():
+    assert expansion_mode("chatoia", ["permno", "datadate", "chatoia"]) == "annual_rolling"
+    assert expansion_mode("bm", ["permno", "datadate", "bm"]) == "hxz_june"
+    assert expansion_mode("mom1m", ["permno", "signal_yyyymm", "target_yyyymm", "mom1m"]) == "monthly_native"

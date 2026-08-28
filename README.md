@@ -491,60 +491,15 @@ See `docs/methodology/` for formulas, timing, linking, filters, and validation s
 
 ## Configuration
 
-Behavior is controlled by **profiles** (not hard-coded). Override any default with CLI flags.
-
-| Profile | Use when |
-|---|---|
-| `green` (default) | Replicating Green SAS output |
-| `datashare` | Matching `datashare.csv` universe (1957+, sparse panel, no joint screen). **Canonical Aug 2026 build recipe:** [`docs/gkx/PANEL_BUILD_RECIPE_2026-08-19.md`](docs/gkx/PANEL_BUILD_RECIPE_2026-08-19.md) |
-| `research` | Full pipeline through ranked 1957+ research panel |
-
-### Required flags and recipes
-
-`run_full_pipeline.py` has **no silent defaults** for the universe/link/window filters. Pass a
-profile (which fills all required flags) or pass them explicitly. Resolved values are printed at
-startup for transparency.
-
-| Flag | Meaning | Green recipe (`--profile green`) | Datashare recipe (`--profile datashare`) |
-|---|---|---|---|
-| `--ccm-linktypes` | CCM linktype filter. `L*` = every linktype starting with L. | `LU,LC,LD,LF,LN,LO,LS,LX` | `L*` |
-| `--ccm-linkprim` | CCM linkprim filter; `ALL` = no filter | `ALL` | `P,C` |
-| `--crsp-shrcd` | CRSP share-code filter; `ALL` = no filter | `10,11` | `ALL` |
-| `--crsp-exchcd` | CRSP exchange-code filter | `1,2,3` | `1,2,3` |
-| `--sample-start` | WRDS download window start | `1975-01-01` | `1957-01-01` |
-| `--industry-agg` | When to compute annual industry benchmarks | `pre_ccm` | `post_ccm` |
-
-`--sample-end` is optional (open-ended = latest available).
-
-**These flags are global — one set applies to every builder (Green and HXZ).** Because
-`--ccm-linkprim` is a single global choice, the recipes force a trade-off:
-
-- `--profile green` uses `linkprim=ALL` (no primary filter), so HXZ `bm`/`operprof`/`cfp` differ
-  from a strict Fama-French primary-link build.
-- `--profile datashare` uses the Dacheng convention: `linktypes=L*`, `linkprim=P,C`, and
-  `--industry-agg post_ccm`.
+All conventions are hardcoded in `pipeline_config.py` (sample start `1950-01-01`, CCM `L*` / `P,C`,
+CRSP `shrcd=ALL`, `exchcd=1,2,3`, `post_ccm` industry aggregation, `comp_company` SIC). See
+**`docs/CONFIGURATION.md`** for the full table.
 
 ```bash
-# Green replication
-python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER" --profile green
-
-# Datashare-like (1957+ default; Aug 2026 validated build used --sample-start 1950-01-01)
-python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER" --profile datashare
-
-# Canonical Aug 2026 server recipe (95/95 predictors, bm_ia rho 0.931) — see docs/gkx/PANEL_BUILD_RECIPE_2026-08-19.md
-python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER" --profile datashare --sample-start 1950-01-01 --workers 20
-
-# Optional: exact Green final sample (drops rows missing bm, mom1m, mve)
-python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER" --profile green --green-universe
-
-# Explicit flags (no profile)
-python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER" \
-  --ccm-linktypes LU,LC,LD,LF,LN,LO,LS,LX --ccm-linkprim ALL \
-  --crsp-shrcd 10,11 --crsp-exchcd 1,2,3 --sample-start 1975-01-01 --industry-agg pre_ccm
+python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER"
+python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER" --workers 8
+python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER" --skip-build
 ```
-
-Full flag reference: **`docs/CONFIGURATION.md`** (CCM link types, sample dates, `--skip-ibes`,
-`--resume`, environment variables).
 
 ---
 
@@ -573,30 +528,14 @@ to a public repository.
 ### 3. Run the full pipeline
 
 ```bash
-export STOCK_CHARACTERS_WORKERS=8   # parallel daily windows; tune to your machine
-# export RESUME=1                   # skip characters already built (rebuild only missing)
-# export GREEN_UNIVERSE=1           # restrict panel to Green's exact final sample
-bash run_full_pipeline.sh           # Windows: ./run_full_pipeline.ps1
+export STOCK_CHARACTERS_WORKERS=8   # optional: parallel daily-CRSP builders
+python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER"
 ```
 
-This builds all individual characteristics, then the signal / prediction / research panels into
-`outputs/`. Expect a multi-hour run on full history; 64 GB RAM recommended.
+This builds all 95 datashare predictors and merges them into
+`outputs/panels/all_character_signal_panel.csv`. Expect a multi-hour WRDS run on full history.
 
-Build a single characteristic (optional):
-
-```bash
-python Character_Builders/Green_ACC_Generalized/build_acc.py --wrds-user "$WRDS_USER"
-```
-
-Resume after interruption:
-
-```bash
-RESUME=1 bash run_full_pipeline.sh
-# or
-python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER" --resume
-```
-
-Rebuild panels only from existing CSVs (no WRDS queries):
+Rebuild the panel only (no WRDS queries):
 
 ```bash
 python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER" --skip-build

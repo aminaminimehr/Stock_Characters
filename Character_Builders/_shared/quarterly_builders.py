@@ -11,13 +11,8 @@ import pandas as pd
 
 
 from _shared.ccm import (
-
-    add_ccm_arguments,
-
     attach_ccm_links_green,
-
     load_ccm_links_green,
-
 )
 
 from _shared.green_builders import (
@@ -45,33 +40,16 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 QUARTERLY_CHARACTER_INFO = {
-
     "chtx": "Change in tax expense scaled by lagged assets",
-
     "cinvest": "Corporate investment",
-
-    "ni": "Net stock issues",
-
     "nincr": "Number of consecutive quarterly earnings increases",
-
-    "rna": "Return on net operating assets",
-
     "roaq": "Return on assets (quarterly)",
-
     "roeq": "Return on equity (quarterly)",
-
     "rsup": "Revenue surprise",
-
-    "sue": "Unexpected quarterly earnings",
-
     "cash": "Cash holdings (quarterly Compustat)",
-
     "stdacc": "Accrual volatility",
-
     "stdcf": "Cash-flow volatility",
-
     "roavol": "Earnings volatility",
-
 }
 
 QUARTERLY_ID_COLUMNS = ["permno", "permco", "gvkey", "datadate", "sic", "fyearq", "fqtr"]
@@ -619,53 +597,5 @@ def build_quarterly_character(
         monthly = monthly.rename(columns={"cash_q": "cash"})
 
     return monthly
-
-
-
-
-
-def run_quarterly_cli(character, description):
-
-    parser = argparse.ArgumentParser(description=f"Build {character}: {description}.")
-
-    parser.add_argument("--wrds-user", default=None)
-
-    parser.add_argument("--output", default=f"{character}.csv")
-
-    add_ccm_arguments(parser)
-
-    args = parser.parse_args()
-
-
-
-    db = connect_wrds(args.wrds_user)
-
-    try:
-
-        out = build_quarterly_character(
-
-            db, character, args.ccm_linktypes, args.ccm_linkprim
-
-        )
-
-    finally:
-
-        db.close()
-
-
-
-    output_path = Path(args.output)
-
-    if not output_path.is_absolute():
-
-        output_path = OUTPUT_DIR / output_path
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    out.to_csv(output_path, index=False)
-
-    print(f"Saved {character} to: {output_path.resolve()}")
-
-    print(f"Rows: {len(out):,}")
 
 

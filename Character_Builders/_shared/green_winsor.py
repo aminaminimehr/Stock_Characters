@@ -1,26 +1,108 @@
-"""Monthly cross-sectional winsorization (Greens_code.sas L1160-1240)."""
+"""Monthly cross-sectional winsorization (Greens_code.sas L1160-1240).
+
+Applied unconditionally to the final signal panel. Lists use datashare column names only.
+"""
 from __future__ import annotations
 
 import pandas as pd
 
+from pipeline_config import DATASHARE_PREDICTORS
+
+# One-sided p99 clip (non-negative or heavy right-tail variables).
 HITRIM_VARS = [
-    "betasq", "mve", "mvel1", "me", "dy", "lev", "baspread", "depr", "sp", "turn", "dolvol",
-    "std_dolvol", "std_turn", "disp", "idiovol", "obklg", "roavol", "ill", "age", "rd_sale",
-    "rd_mve", "rdm", "retvol", "rvar_mean", "zerotrade", "stdcf", "tang", "absacc", "stdacc",
-    "cash", "orgcap", "salecash", "salerec", "saleinv", "pchsaleinv", "cashdebt", "realestate",
+    "betasq",
+    "mvel1",
+    "dy",
+    "lev",
+    "baspread",
+    "depr",
+    "sp",
+    "turn",
+    "dolvol",
+    "std_dolvol",
+    "std_turn",
+    "idiovol",
+    "roavol",
+    "ill",
+    "age",
+    "rd_sale",
+    "rd_mve",
+    "retvol",
+    "zerotrade",
+    "stdcf",
+    "tang",
+    "absacc",
+    "stdacc",
+    "cash",
+    "orgcap",
+    "salecash",
+    "salerec",
+    "saleinv",
+    "pchsaleinv",
+    "cashdebt",
+    "realestate",
     "secured",
 ]
 
+# Two-sided p1/p99 clip.
 HILOTRIM_VARS = [
-    "beta", "ep", "fgr5yr", "mom12m", "mom1m", "mom6m", "mom36m", "indmom", "sue", "agr", "maxret",
-    "chfeps", "bm", "book_to_market", "currat", "pchcurrat", "quick", "pchquick", "pchdepr", "sgr",
-    "chempia", "acc", "pchsale_pchinvt", "pchsale_pchrect", "pchcapx_ia", "pchgm_pchsale",
-    "pchsale_pchxsga", "mve_ia", "me_ia", "cfp_ia", "bm_ia", "sfe", "chinv", "grltnoa", "cinvest",
-    "tb", "cfp", "cash_flow_to_price", "lgr", "egr", "pricedelay", "grcapx", "chmom", "roic",
-    "aeavol", "chcsho", "chpmia", "chatoia", "grGW", "ear", "abr", "rsup", "spi", "hire", "chadv",
-    "cashpr", "roaq", "roe", "roeq", "invest", "chtx", "pctacc", "gma", "operprof",
-    "operating_profitability", "op",
+    "beta",
+    "ep",
+    "mom12m",
+    "mom1m",
+    "mom6m",
+    "mom36m",
+    "indmom",
+    "agr",
+    "maxret",
+    "bm",
+    "currat",
+    "pchcurrat",
+    "quick",
+    "pchquick",
+    "pchdepr",
+    "sgr",
+    "chempia",
+    "acc",
+    "pchsale_pchinvt",
+    "pchsale_pchrect",
+    "pchcapx_ia",
+    "pchgm_pchsale",
+    "pchsale_pchxsga",
+    "mve_ia",
+    "cfp_ia",
+    "bm_ia",
+    "chinv",
+    "grltnoa",
+    "cinvest",
+    "tb",
+    "cfp",
+    "lgr",
+    "egr",
+    "pricedelay",
+    "grcapx",
+    "chmom",
+    "roic",
+    "aeavol",
+    "chcsho",
+    "chpmia",
+    "chatoia",
+    "ear",
+    "rsup",
+    "hire",
+    "cashpr",
+    "roaq",
+    "roeq",
+    "invest",
+    "chtx",
+    "pctacc",
+    "gma",
+    "operprof",
 ]
+
+# Restrict to variables that are actually in the 95-character panel.
+HITRIM_VARS = [v for v in HITRIM_VARS if v in DATASHARE_PREDICTORS]
+HILOTRIM_VARS = [v for v in HILOTRIM_VARS if v in DATASHARE_PREDICTORS]
 
 
 def _resolve_col(name: str, columns: list[str]) -> str | None:

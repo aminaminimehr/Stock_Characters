@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from _shared.ccm import add_ccm_arguments, attach_ccm_links_green, load_ccm_links_green
+from _shared.ccm import attach_ccm_links_green, load_ccm_links_green
 from _shared.green_builders import OUTPUT_DIR, connect_wrds, load_crsp_monthly, monthly_crsp_alignment_frame
 from _shared.wrds_chunk_download import fetch_dsf_by_permno_batches
 from _shared.parallel_daily_windows import run_permno_parallel
@@ -279,16 +279,8 @@ def build_aeavol_character(db, ccm_linktypes=None, ccm_linkprim=None, workers: i
     return out
 
 
-def build_abr_character(db, ccm_linktypes=None, ccm_linkprim=None, workers: int | None = None):
-    """Legacy diagnostic alias: EAR values exported under historical abr name."""
-    out = build_ear_character(db, ccm_linktypes, ccm_linkprim, workers=workers).rename(columns={"ear": "abr"})
-    return out
-
-
 def run_ear_cli():
-    parser = argparse.ArgumentParser(
-        description="Build earnings announcement return (EAR) aligned with Green SAS."
-    )
+    parser = argparse.ArgumentParser(description="Build earnings announcement return (ear).")
     parser.add_argument("--wrds-user", default=None)
     parser.add_argument("--output", default=OUTPUT_DIR / "ear.csv")
     parser.add_argument(
@@ -297,7 +289,6 @@ def run_ear_cli():
         default=None,
         help="Parallel worker count (default: STOCK_CHARACTERS_WORKERS or min(cpu, 8)).",
     )
-    add_ccm_arguments(parser)
     args = parser.parse_args()
 
     output = Path(args.output)
@@ -307,7 +298,7 @@ def run_ear_cli():
 
     db = connect_wrds(args.wrds_user)
     try:
-        result = build_ear_character(db, args.ccm_linktypes, args.ccm_linkprim, workers=args.workers)
+        result = build_ear_character(db, workers=args.workers)
     finally:
         db.close()
 

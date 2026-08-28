@@ -1,17 +1,9 @@
+"""CRSP-Compustat Merged (CCM) link table loading and attachment."""
 import re
 
 import pandas as pd
 
-
-DEFAULT_CCM_LINKTYPES = ("LU", "LC")
-DEFAULT_CCM_LINKPRIM = ("P", "C")
-# Green SAS L410-412 (broader linktype set, no linkprim filter).
-GREEN_CCM_LINKTYPES = ("LU", "LC", "LD", "LF", "LN", "LO", "LS", "LX")
-# Dacheng SAS L197 / Python accounting_100.py L190 prefix rule: every linktype
-# whose first character is 'L' (LC, LU, LD, LN, LS, LX; excludes NR, NU). 'LF'
-# and 'LO' are not real CRSP codes, so this matches Green's 8-code list on
-# current data while staying forward-compatible with any future L-code.
-DACHENG_CCM_LINKTYPE_PREFIX = "L*"
+from pipeline_config import CCM_LINKPRIM, CCM_LINKTYPES
 
 
 def parse_ccm_codes(value, default):
@@ -34,11 +26,7 @@ def sql_code_list(codes):
 
 
 def _is_prefix_rule(linktypes):
-    """True when linktypes resolves to the Dacheng 'any L-prefixed code' rule.
-
-    Accepted spellings: 'L*', 'L' (single), or a list/tuple containing 'L*'.
-    An explicit code list (e.g. LU,LC) returns False.
-    """
+    """True when linktypes is the Dacheng 'any L-prefixed code' rule (L*)."""
     if linktypes is None:
         return False
     if isinstance(linktypes, str):
@@ -46,33 +34,20 @@ def _is_prefix_rule(linktypes):
     return any(str(c).strip().upper() == "L*" for c in linktypes)
 
 
-def add_ccm_arguments(parser):
-    parser.add_argument(
-        "--ccm-linktypes",
-        default=",".join(DEFAULT_CCM_LINKTYPES),
-        help=(
-            "Comma-separated CCM linktype filter (e.g. LU,LC). Use 'L*' for "
-            "the Dacheng prefix rule: every linktype starting with L."
-        ),
-    )
-    parser.add_argument(
-        "--ccm-linkprim",
-        default=",".join(DEFAULT_CCM_LINKPRIM),
-        help=(
-            "Comma-separated linkprim filter. Default is P,C: Compustat "
-            "primary and CRSP primary links. Use 'ALL' to disable."
-        ),
-    )
-
-
 def load_ccm_links(db, linktypes=None, linkprim=None):
+    """Load CCM links using hardcoded pipeline_config defaults unless overridden."""
     from _shared.green_builders import raw_sql_with_retry
+
+    if linktypes is None:
+        linktypes = CCM_LINKTYPES
+    if linkprim is None:
+        linkprim = CCM_LINKPRIM
 
     linkprim_clause = _linkprim_clause(linkprim)
     if _is_prefix_rule(linktypes):
         linktype_clause = "linktype LIKE 'L%'"
     else:
-        codes = parse_ccm_codes(linktypes, DEFAULT_CCM_LINKTYPES)
+        codes = parse_ccm_codes(linktypes, ("LU", "LC"))
         linktype_clause = f"linktype IN ({sql_code_list(codes)})"
 
     link = raw_sql_with_retry(db, f"""
@@ -89,53 +64,27 @@ def load_ccm_links(db, linktypes=None, linkprim=None):
 
 
 def _linkprim_clause(linkprim):
-    """Return 'AND linkprim IN (...)' or '' when linkprim is ALL/empty (no filter).
-
-    ``None`` falls back to the STOCK_CHARACTERS_CCM_LINKPRIM env var (default ALL).
-    """
-    import os
-    if linkprim is None:
-        linkprim = os.environ.get("STOCK_CHARACTERS_CCM_LINKPRIM", "ALL")
+    """Return 'AND linkprim IN (...)' or '' when linkprim is ALL/empty."""
     if str(linkprim).strip().upper() in ("", "ALL", "*"):
         return ""
     codes = parse_ccm_codes(linkprim, ())
     return f" AND linkprim IN ({sql_code_list(codes)})"
 
 
-def _resolve_linktypes(linktypes):
-    """Resolve linktypes: explicit value > STOCK_CHARACTERS_CCM_LINKTYPES env > Green recipe.
-
-    Returns either the token 'L*' (Dacheng prefix rule) or a tuple of explicit
-    codes. The caller is responsible for translating 'L*' into SQL.
-    """
-    import os
-    if linktypes is None or not str(linktypes).strip():
-        linktypes = os.environ.get("STOCK_CHARACTERS_CCM_LINKTYPES") or GREEN_CCM_LINKTYPES
-    if _is_prefix_rule(linktypes):
-        return "L*"
-    if str(linktypes).strip().upper() in ("ALL", "*"):
-        raise ValueError("linktypes 'ALL' is not valid; specify explicit CCM linktype codes or 'L*'.")
-    return parse_ccm_codes(linktypes, GREEN_CCM_LINKTYPES)
-
-
 def load_ccm_links_green(db, linktypes=None, linkprim=None):
-    """Green-family CCM link table filter.
-
-    ``linktypes``/``linkprim`` fall back to the STOCK_CHARACTERS_CCM_LINKTYPES /
-    STOCK_CHARACTERS_CCM_LINKPRIM environment variables (set by run_full_pipeline),
-    then to the Green SAS recipe (broad linktypes, no linkprim filter). Pass
-    ``linkprim='ALL'`` (or '') to disable the linkprim filter. Pass
-    ``linktypes='L*'`` for the Dacheng prefix rule (every linktype starting with
-    L). The legacy Green SAS 2015/1950 link-date cap has been removed, so links
-    starting in any year are kept.
-    """
+    """Load CCM links for Green-style annual builders (same datashare recipe)."""
     from _shared.green_builders import raw_sql_with_retry
 
-    resolved = _resolve_linktypes(linktypes)
-    if resolved == "L*":
+    if linktypes is None:
+        linktypes = CCM_LINKTYPES
+    if linkprim is None:
+        linkprim = CCM_LINKPRIM
+
+    if _is_prefix_rule(linktypes):
         linktype_clause = "linktype LIKE 'L%'"
     else:
-        linktype_clause = f"linktype IN ({sql_code_list(resolved)})"
+        codes = parse_ccm_codes(linktypes, ("LU", "LC"))
+        linktype_clause = f"linktype IN ({sql_code_list(codes)})"
     linkprim_clause = _linkprim_clause(linkprim)
     link = raw_sql_with_retry(db, f"""
         SELECT gvkey, lpermno AS permno, lpermco AS permco, linkdt, linkenddt, linktype
@@ -151,7 +100,7 @@ def load_ccm_links_green(db, linktypes=None, linkprim=None):
 
 
 def attach_ccm_links_green(comp, link):
-    """Green SAS L414-417: open-ended link dates treated as missing."""
+    """Attach CCM links; open-ended link dates treated as missing (Green SAS L414-417)."""
     merged = comp.merge(link, on="gvkey", how="inner")
     linkdt_ok = merged["linkdt"].isna() | (merged["linkdt"] <= merged["datadate"])
     linkend_ok = merged["linkenddt"].isna() | (merged["datadate"] <= merged["linkenddt"])
@@ -163,6 +112,7 @@ def attach_ccm_links_green(comp, link):
 
 
 def attach_ccm_links(comp, link):
+    """Attach CCM links for HXZ builders; keep primary link per gvkey-datadate."""
     linked = comp.merge(link, on="gvkey", how="inner")
     linked = linked[
         (linked["datadate"] >= linked["linkdt"])
@@ -173,7 +123,5 @@ def attach_ccm_links(comp, link):
     linked = linked.sort_values(
         ["gvkey", "datadate", "linkprim_priority", "permno", "linkdt"]
     )
-    # Keep one permno per gvkey-datadate (primary link first), so HXZ builders stay
-    # well-defined even when --ccm-linkprim=ALL admits multiple links per firm.
     linked = linked.drop_duplicates(["gvkey", "datadate"], keep="first")
     return linked.drop(columns=["linkdt", "linkenddt", "linkprim_priority"])

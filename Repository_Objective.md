@@ -6,16 +6,9 @@
 
 ## 1. Mission
 
-Build a **completely transparent and configurable framework** for constructing empirical
-asset-pricing characteristics from WRDS data.
-
-Unlike existing repositories, this project is **not** intended to simply reproduce one specific
-dataset. Instead, it exposes **every important implementation decision ("convention")** used
-during character construction, so users understand exactly *why* different implementations
-produce different results.
-
-Ultimately, users should be able to generate **any** asset-pricing characteristic under **any**
-desired configuration, while understanding **every assumption** made during construction.
+Build the **95-character GKX datashare signal panel** from WRDS with transparent, documented
+implementation choices. Conventions are hardcoded in `pipeline_config.py`; the single entry point is
+`Character_Panels/run_full_pipeline.py --wrds-user <user>`.
 
 ## 2. Success criteria
 

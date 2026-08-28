@@ -1,48 +1,33 @@
-"""Pipeline profiles and configurable defaults for Stock Characters builds.
+"""Hardcoded datashare pipeline conventions.
 
-Profiles are presets; CLI flags and environment variables override them.
-Datashare-like behavior is never hard-coded into character formulas.
+This module is the single source of truth for WRDS filters, sample bounds,
+industry aggregation, and the 95 GKX datashare predictor column names.
+There are no profiles, flags, or environment-variable overrides for these values.
 """
 from __future__ import annotations
 
-import os
-from dataclasses import dataclass, field
-from typing import Mapping
+# WRDS sample window (formerly --profile datashare --sample-start 1950-01-01).
+SAMPLE_START = "1950-01-01"
+SAMPLE_END = None
 
-# Green SAS recipe: broad link types, no linkprim filter (ALL = no filter).
-GREEN_CCM_LINKTYPES = "LU,LC,LD,LF,LN,LO,LS,LX"
-GREEN_CCM_LINKPRIM = "ALL"
+# CRSP-Compustat link table: Dacheng/datashare recipe (L* prefix + primary links).
+CCM_LINKTYPES = "L*"
+CCM_LINKPRIM = "P,C"
 
-# HXZ / Fama-French recipe: narrow link types, primary links only.
-HXZ_CCM_LINKTYPES = "LU,LC"
-HXZ_CCM_LINKPRIM = "P,C"
+# CRSP universe: no share-code filter (ALL) is critical for bm_ia industry means.
+CRSP_SHRCD = "ALL"
+CRSP_EXCHCD = "1,2,3"
 
-# Dacheng EAPVML recipe: prefix rule (every linktype starting with L) +
-# primary links. Matches Dacheng SAS L197 and Python accounting_100.py L190.
-DATASHARE_CCM_LINKTYPES = "L*"
-DATASHARE_CCM_LINKPRIM = "P,C"
+# Industry benchmarks computed after CRSP-Compustat merge (CRSP-investable only).
+INDUSTRY_AGG = "post_ccm"
 
-# CRSP universe recipe (common stock on NYSE/AMEX/NASDAQ) — Green/research default.
-DEFAULT_CRSP_SHRCD = "10,11"
-DEFAULT_CRSP_EXCHCD = "1,2,3"
+# SIC metadata from Compustat comp.company.sic.
+SIC_SOURCE = "comp_company"
 
-# Dacheng/datashare recipe: no share-code restriction (ALL = no SQL filter).
-DATASHARE_CRSP_SHRCD = "ALL"
+# IBES tables are not used; re/sue use Compustat-only surprise where applicable.
+SKIP_IBES = True
 
-VALID_PROFILES = frozenset({"green", "datashare", "research"})
-VALID_SIC_SOURCES = frozenset({"comp_company", "crsp_msenames"})
-
-# datashare name -> panel column (repo output names after alias resolution)
-DATASHARE_PANEL_ALIAS: dict[str, str] = {
-    "bm": "book_to_market",
-    "operprof": "operating_profitability",
-    "mve_ia": "me_ia",
-    "rd_mve": "rdm",
-    "retvol": "rvar_mean",
-    "ear": "abr",
-}
-
-# All 95 GKX datashare signal predictors (excl. permno, DATE)
+# All 95 GKX datashare signal predictors (excl. permno, DATE). Column names match datashare.csv.
 DATASHARE_PREDICTORS: tuple[str, ...] = (
     "convind",
     "rd_sale",
@@ -141,207 +126,5 @@ DATASHARE_PREDICTORS: tuple[str, ...] = (
     "agr",
 )
 
-
-def panel_column_for_datashare(ds_col: str) -> str:
-    """Map a datashare.csv column name to the repo panel/output column name."""
-    return DATASHARE_PANEL_ALIAS.get(ds_col, ds_col)
-
-
-def datashare_output_columns() -> frozenset[str]:
-    """Resolved repo column names for the 95 datashare predictors."""
-    return frozenset(panel_column_for_datashare(name) for name in DATASHARE_PREDICTORS)
-
-
-@dataclass(frozen=True)
-class PipelineConfig:
-    profile: str
-    sample_start: str | None = None
-    sample_end: str | None = None
-    green_universe: bool = False
-    green_winsor: bool = False
-    skip_ibes: bool = True
-    build_hxz: bool = True
-    build_research_panel: bool = True
-    skip_special: bool = False
-    skip_daily: bool = False
-    # The five required global flags default to None so a bare run with no
-    # profile and no explicit flags fails validate_required(). Profiles fill them.
-    ccm_linktypes: str | None = None
-    ccm_linkprim: str | None = None
-    crsp_shrcd: str | None = None
-    crsp_exchcd: str | None = None
-    # 'pre_ccm' = Green SAS (industry benchmarks on full Compustat);
-    # 'post_ccm' = Dacheng/datashare (benchmarks on CRSP-investable panel only).
-    industry_agg: str = "pre_ccm"
-    # 'comp_company' = Compustat comp.company.sic (Green/Dacheng SAS default);
-    # 'crsp_msenames' = legacy CRSP msenames.siccd with Compustat sic2 fallback.
-    sic_source: str = "comp_company"
-    datashare_columns: tuple[str, ...] = field(default_factory=tuple)
-
-    def apply_env(self) -> None:
-        """Push sample bounds + CCM/CRSP filters into the environment for WRDS SQL."""
-        for key, value in (
-            ("STOCK_CHARACTERS_SAMPLE_START", self.sample_start),
-            ("STOCK_CHARACTERS_SAMPLE_END", self.sample_end),
-            ("STOCK_CHARACTERS_CCM_LINKTYPES", self.ccm_linktypes),
-            ("STOCK_CHARACTERS_CCM_LINKPRIM", self.ccm_linkprim),
-            ("STOCK_CHARACTERS_CRSP_SHRCD", self.crsp_shrcd),
-            ("STOCK_CHARACTERS_CRSP_EXCHCD", self.crsp_exchcd),
-            ("STOCK_CHARACTERS_INDUSTRY_AGG", self.industry_agg),
-            ("STOCK_CHARACTERS_SIC_SOURCE", self.sic_source),
-        ):
-            if value:
-                os.environ[key] = value
-            else:
-                os.environ.pop(key, None)
-
-    def validate_required(self) -> None:
-        """Ensure the five required global flags are set (directly or via a profile)."""
-        required = {
-            "--ccm-linktypes": self.ccm_linktypes,
-            "--ccm-linkprim": self.ccm_linkprim,
-            "--crsp-shrcd": self.crsp_shrcd,
-            "--crsp-exchcd": self.crsp_exchcd,
-            "--sample-start": self.sample_start,
-        }
-        missing = [flag for flag, value in required.items() if not value]
-        if missing:
-            raise ValueError(
-                "Missing required pipeline flag(s): "
-                + ", ".join(missing)
-                + ". Pass them explicitly or use --profile green|datashare|research. "
-                "See the 'Required flags & recipes' section in README.md / docs/CONFIGURATION.md."
-            )
-
-
-def _profile_defaults(profile: str) -> PipelineConfig:
-    if profile == "green":
-        return PipelineConfig(
-            profile="green",
-            sample_start="1975-01-01",
-            green_universe=False,
-            green_winsor=True,
-            skip_ibes=True,
-            build_hxz=True,
-            build_research_panel=True,
-            ccm_linktypes=GREEN_CCM_LINKTYPES,
-            ccm_linkprim=GREEN_CCM_LINKPRIM,
-            crsp_shrcd=DEFAULT_CRSP_SHRCD,
-            crsp_exchcd=DEFAULT_CRSP_EXCHCD,
-            industry_agg="pre_ccm",
-            sic_source="comp_company",
-        )
-    if profile == "datashare":
-        return PipelineConfig(
-            profile="datashare",
-            sample_start="1957-01-01",
-            green_universe=False,
-            skip_ibes=True,
-            build_hxz=True,
-            build_research_panel=False,
-            skip_special=False,
-            skip_daily=False,
-            ccm_linktypes=DATASHARE_CCM_LINKTYPES,
-            ccm_linkprim=DATASHARE_CCM_LINKPRIM,
-            crsp_shrcd=DATASHARE_CRSP_SHRCD,
-            crsp_exchcd=DEFAULT_CRSP_EXCHCD,
-            industry_agg="post_ccm",
-            sic_source="comp_company",
-            datashare_columns=("bm", "operprof", "cfp"),
-        )
-    if profile == "research":
-        return PipelineConfig(
-            profile="research",
-            sample_start="1975-01-01",
-            green_universe=False,
-            skip_ibes=True,
-            build_hxz=True,
-            build_research_panel=True,
-            ccm_linktypes=GREEN_CCM_LINKTYPES,
-            ccm_linkprim=GREEN_CCM_LINKPRIM,
-            crsp_shrcd=DEFAULT_CRSP_SHRCD,
-            crsp_exchcd=DEFAULT_CRSP_EXCHCD,
-            industry_agg="pre_ccm",
-            sic_source="comp_company",
-        )
-    raise ValueError(f"Unknown profile: {profile!r}. Choose from {sorted(VALID_PROFILES)}")
-
-
-def resolve_config(
-    profile: str | None = None,
-    *,
-    sample_start: str | None = None,
-    sample_end: str | None = None,
-    green_universe: bool | None = None,
-    green_winsor: bool | None = None,
-    skip_ibes: bool | None = None,
-    build_hxz: bool | None = None,
-    build_research_panel: bool | None = None,
-    skip_special: bool | None = None,
-    skip_daily: bool | None = None,
-    ccm_linktypes: str | None = None,
-    ccm_linkprim: str | None = None,
-    crsp_shrcd: str | None = None,
-    crsp_exchcd: str | None = None,
-    industry_agg: str | None = None,
-    sic_source: str | None = None,
-) -> PipelineConfig:
-    """Merge profile defaults with explicit CLI overrides."""
-    prof = (profile or os.environ.get("STOCK_CHARACTERS_PROFILE") or "").strip().lower()
-    if prof and prof not in VALID_PROFILES:
-        raise ValueError(f"Unknown profile {prof!r}. Choose from {sorted(VALID_PROFILES)}")
-
-    # No profile (and no env profile) → bare base with required flags unset; the
-    # caller must supply all five flags explicitly or validate_required() errors.
-    base = _profile_defaults(prof) if prof else PipelineConfig(profile="")
-    overrides: dict = {}
-
-    if sample_start is not None:
-        overrides["sample_start"] = sample_start or None
-    if sample_end is not None:
-        overrides["sample_end"] = sample_end or None
-    if green_universe is not None:
-        overrides["green_universe"] = green_universe
-    if green_winsor is not None:
-        overrides["green_winsor"] = green_winsor
-    if skip_ibes is not None:
-        overrides["skip_ibes"] = skip_ibes
-    if build_hxz is not None:
-        overrides["build_hxz"] = build_hxz
-    if build_research_panel is not None:
-        overrides["build_research_panel"] = build_research_panel
-    if skip_special is not None:
-        overrides["skip_special"] = skip_special
-    if skip_daily is not None:
-        overrides["skip_daily"] = skip_daily
-    if ccm_linktypes is not None:
-        overrides["ccm_linktypes"] = ccm_linktypes
-    if ccm_linkprim is not None:
-        overrides["ccm_linkprim"] = ccm_linkprim
-    if crsp_shrcd is not None:
-        overrides["crsp_shrcd"] = crsp_shrcd
-    if crsp_exchcd is not None:
-        overrides["crsp_exchcd"] = crsp_exchcd
-    if industry_agg is not None:
-        overrides["industry_agg"] = industry_agg
-    if sic_source is not None:
-        if sic_source not in VALID_SIC_SOURCES:
-            raise ValueError(
-                f"Invalid sic_source {sic_source!r}. Choose from {sorted(VALID_SIC_SOURCES)}"
-            )
-        overrides["sic_source"] = sic_source
-
-    if overrides:
-        return PipelineConfig(**{**base.__dict__, **overrides})
-    return base
-
-
-def profile_help() -> str:
-    return """
-Profiles (each is a complete recipe of the required flags; see README 'Required flags & recipes'):
-  green      Replicate Green SAS: broad CCM linktypes, no linkprim (ALL), shrcd 10,11, exchcd 1,2,3, 1975+ start.
-  datashare  Match datashare.csv (Dacheng): linktype prefix rule L* (every L-code) + linkprim P,C, shrcd ALL (no filter), exchcd 1,2,3, 1957+ start.
-  research   Full ranked 1957+ panel: Green recipe link rules, 1975+ build start.
-
-Required flags (or a profile that sets them): --ccm-linktypes, --ccm-linkprim, --crsp-shrcd, --crsp-exchcd, --sample-start.
-""".strip()
+# Frozenset of the 95 predictor names for allowlist checks during build/merge.
+DATASHARE_COLUMNS = frozenset(DATASHARE_PREDICTORS)

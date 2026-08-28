@@ -1,97 +1,66 @@
-# .cursorrules — Asset Pricing Characteristics Framework
+# .cursorrules — Datashare Signal Panel Pipeline
 
 ## Project context
 
-This repository builds a transparent, configurable framework for constructing
-empirical asset pricing characteristics from WRDS data.
+This repository builds **one output** from WRDS: the 95-character GKX datashare signal panel
+(`outputs/panels/all_character_signal_panel.csv`), keyed on `permno`, `signal_yyyymm`, `target_yyyymm`,
+plus `sic`.
 
-The primary goal is to reproduce GKX datashare.csv by identifying every
-implementation convention used in its construction. The baseline is a validated
-replication of Green's SAS implementation.
+All WRDS universe, linking, industry-aggregation, and sample-window conventions are **hardcoded** in
+`pipeline_config.py`. There are no profiles, CLI convention flags, column aliases, or alternative
+code paths (no Green replication profile, no research/prediction panels).
 
-All investigation work follows the staged reconstruction process documented in
-docs/agent/INVESTIGATION_PROTOCOL.md.
+Winsorization is always applied during panel merge (`green_winsor.py`).
 
-## What this project is NOT
+## Core constraints
 
-This is not a project to produce matching numbers by any means necessary.
-It is a project to understand exactly WHY different implementations differ.
-Every discrepancy must be explained by a named, configurable parameter.
+1. **Do not reintroduce configuration indirection.** No `@dataclass` pipeline config, no
+   `STOCK_CHARACTERS_*` env vars for conventions (performance tuning vars like `STOCK_CHARACTERS_WORKERS`
+   are OK).
 
-## Required reading before any code change
+2. **Column names match datashare.csv directly.** Use `bm`, `operprof`, `mve_ia`, `rd_mve`, `retvol`,
+   `ear` — not legacy aliases.
 
-Before making any change related to characteristic construction or data pipeline,
-read these files:
+3. **Every validation must report Spearman AND sample N AND unique permnos.** Spearman alone is never
+   sufficient to claim a match.
 
-  docs/agent/AGENT_RULES.md
-  docs/agent/CONVENTIONS_REGISTRY.yaml
-  docs/agent/DISCREPANCY_TABLE.csv
+4. **Test one hypothesis at a time** across all affected characteristics; never stack convention changes.
 
-## Core constraints for all code in this repo
+## Entry point
 
-1. The Green replication must remain reproducible at all times.
-   Never break the Green baseline configuration.
-
-2. Every implementation choice must be a configurable parameter.
-   No hard-coded conventions inside construction functions.
-
-3. Convention changes and formula changes must never be conflated.
-   They are tracked in separate files for a reason.
-
-4. Every test must report Spearman AND sample N AND unique permnos.
-   Spearman alone is never sufficient to claim a match.
-
-5. Hypotheses must be tested one at a time, across all affected
-   characteristics, never stacked.
-
-## File structure that must be respected
-
-  src/                     — characteristic construction code
-  src/config/              — ConventionConfig class and defaults
-  src/pipeline/            — data pipeline (CRSP pull, CCM merge, etc.)
-  src/characteristics/     — one file per characteristic or characteristic family
-  docs/agent/              — agent rules, registry, table, log (DO NOT RESTRUCTURE)
-  scripts/                 — validation and comparison scripts (NOT for public repo)
-  supplementary/           — reference files (datashare.csv, Green output, etc.)
-
-## ConventionConfig must be the single source of truth
-
-All configurable conventions must be accessed through the ConventionConfig object.
-No characteristic construction function may read configuration from anywhere else.
-
-```python
-# Correct
-def build_ep(data: pd.DataFrame, config: ConventionConfig) -> pd.DataFrame:
-    if config.industry_averaging_timing == 'post_crsp_merge':
-        ...
-
-# Wrong — hard-coded convention
-def build_ep(data: pd.DataFrame) -> pd.DataFrame:
-    # always uses post-merge — not reproducible for Green
-    ...
+```bash
+python Character_Panels/run_full_pipeline.py --wrds-user <user>
 ```
 
-## Validation script interface
+Optional: `--workers N`, `--skip-build` (panel-only from existing CSVs).
 
-Every characteristic must have a corresponding validation entry that can be run with:
+## Hardcoded conventions (`pipeline_config.py`)
 
-  python scripts/validate_characteristic.py --char [name] --target [green|gkx]
+| Constant | Value |
+|---|---|
+| `SAMPLE_START` | `1950-01-01` |
+| `CCM_LINKTYPES` | `L*` |
+| `CCM_LINKPRIM` | `P,C` |
+| `CRSP_SHRCD` | `ALL` |
+| `CRSP_EXCHCD` | `1,2,3` |
+| `INDUSTRY_AGG` | `post_ccm` |
+| `SIC_SOURCE` | `comp_company` |
+| `SKIP_IBES` | `True` |
 
-This script must output all five required metrics:
-  Spearman vs target, Sample N, GKX N, Unique permnos, GKX permnos
+## File structure
 
-## What belongs in git and what does not
+```
+pipeline_config.py          hardcoded conventions + DATASHARE_PREDICTORS (95)
+output_paths.py             canonical output paths + WRDS SQL helpers
+Character_Builders/         per-family builders + _shared formula modules
+Character_Panels/           timing.py, panel merge, run_full_pipeline.py
+scripts/validation/         comparison scripts (kept; may reference stale symbols)
+docs/                       methodology and validation reports
+```
 
-IN the repo:
-  src/, docs/agent/, tests/, README.md, requirements.txt, .cursorrules
+## What belongs in git
 
-NOT in the repo:
-  scripts/ (validation scripts), supplementary/ (data files), docs/validations/
+IN: builders, panels, `pipeline_config.py`, `output_paths.py`, `tests/`, `docs/`, `README.md`,
+`.cursorrules`, `requirements.txt`
 
-## README principles
-
-The README must clearly state:
-  - This repository prioritizes reproducibility and transparency
-  - Every implementation decision is a named, configurable parameter
-  - The framework can reproduce multiple published datasets by changing config
-  - Green's output is the validated baseline; GKX datashare.csv is the target
+NOT IN git: generated `outputs/`, WRDS credentials, large supplementary CSVs

@@ -8,7 +8,6 @@ import pandas as pd
 import wrds
 
 from _shared.ccm import (
-    add_ccm_arguments,
     attach_ccm_links,
     attach_ccm_links_green,
     load_ccm_links,
@@ -32,23 +31,19 @@ from output_paths import (  # noqa: E402
     read_wrds_sql,
     sql_date_filter,
 )
+from pipeline_config import DATASHARE_COLUMNS, INDUSTRY_AGG, SIC_SOURCE  # noqa: E402
 
 
-ANNUAL_CHARACTER_INFO = {
+_RAW_ANNUAL_CHARACTER_INFO = {
     "absacc": "Absolute accruals",
     "acc": "Operating accruals",
-    "adm": "Advertising expense-to-market",
     "age": "Years since first Compustat coverage",
     "agr": "Asset growth",
-    "alm": "Asset liquidity",
-    "ato": "Asset turnover",
-    "bm": "Book-to-market equity",
     "cashdebt": "Cash to debt",
     "cashpr": "Cash productivity",
     "cfp": "Cash-flow-to-price",
     "cfp_ia": "Industry-adjusted cash-flow-to-price",
     "chcsho": "Change in shares outstanding",
-    "chobklg": "Change in order backlog scaled by assets",
     "chinv": "Change in inventory",
     "chpm": "Industry-adjusted change in profit margin",
     "chpmia": "Industry-adjusted change in profit margin (GKX name)",
@@ -70,11 +65,7 @@ ANNUAL_CHARACTER_INFO = {
     "invest": "Capital expenditures and inventory",
     "lev": "Leverage",
     "lgr": "Growth in long-term debt",
-    "me_ia": "Industry-adjusted size",
-    "noa": "Net operating assets",
-    "obklg": "Order backlog scaled by assets",
-    "op": "Operating profitability",
-    "operprof": "Operating profitability (datashare name)",
+    "mve_ia": "Industry-adjusted size",
     "orgcap": "Organizational capital",
     "pctacc": "Percent operating accruals",
     "pchcurrat": "Change in current ratio",
@@ -87,14 +78,12 @@ ANNUAL_CHARACTER_INFO = {
     "pchsale_pchrect": "Change in sales minus change in receivables",
     "pchsale_pchxsga": "Change in sales minus change in SG&A",
     "pchsaleinv": "Change in sales-to-inventory",
-    "pm": "Profit margin",
     "ps": "Performance score",
     "quick": "Quick ratio",
     "rd": "R&D increase indicator",
     "rd_sale": "R&D to sales",
-    "rdm": "R&D expense-to-market",
+    "rd_mve": "R&D expense-to-market",
     "realestate": "Real-estate holdings",
-    "roe": "Return on equity",
     "roic": "Return on invested capital",
     "sgr": "Sales growth",
     "salecash": "Sales-to-cash",
@@ -109,18 +98,19 @@ ANNUAL_CHARACTER_INFO = {
     "tang": "Tangibility",
 }
 
+ANNUAL_CHARACTER_INFO = {
+    k: v for k, v in _RAW_ANNUAL_CHARACTER_INFO.items() if k in DATASHARE_COLUMNS
+}
+
 MONTHLY_CHARACTER_INFO = {
     "chmom": "Change in six-month momentum",
     "dolvol": "Dollar trading volume",
     "indmom": "Industry momentum",
-    "me": "Market equity",
     "mvel1": "Log lagged market equity",
     "mom1m": "One-month momentum",
     "mom6m": "Six-month momentum",
     "mom12m": "Twelve-month momentum",
     "mom36m": "Thirty-six-month momentum",
-    "mom60m": "Sixty-month momentum",
-    "seas1a": "Seasonality (lagged 11-month return)",
     "turn": "Share turnover",
 }
 
@@ -128,7 +118,7 @@ DAILY_MONTHLY_CHARACTER_INFO = {
     "baspread": "Bid-ask spread, rolling month",
     "ill": "Illiquidity, rolling month",
     "maxret": "Maximum daily return, rolling month",
-    "rvar_mean": "Daily return variance, rolling month",
+    "retvol": "Daily return variance, rolling month",
     "std_dolvol": "Standard deviation of dollar trading volume, rolling month",
     "std_turn": "Standard deviation of share turnover, rolling month",
     "zerotrade": "Zero-trading days, rolling month",
@@ -383,28 +373,13 @@ def _accumulate_orgcap(group):
 
 
 def _industry_agg_mode():
-    """When to compute annual industry benchmarks.
-
-    'pre_ccm'  = on full Compustat (Green SAS L242-270, L261-285). Green profile.
-    'post_ccm' = on the CCM-linked, permno-pruned universe (Dacheng SAS L556-584).
-                 Set by the datashare/research profiles so industry means exclude
-                 firms with no CRSP link. Controlled by STOCK_CHARACTERS_INDUSTRY_AGG.
-    """
-    return os.environ.get("STOCK_CHARACTERS_INDUSTRY_AGG", "pre_ccm").strip().lower()
-
-
-VALID_SIC_SOURCES = frozenset({"comp_company", "crsp_msenames"})
+    """Hardcoded post_ccm industry aggregation (see pipeline_config.INDUSTRY_AGG)."""
+    return INDUSTRY_AGG
 
 
 def _sic_source_mode() -> str:
-    """Which SIC field to attach to monthly CRSP alignment rows."""
-    mode = os.environ.get("STOCK_CHARACTERS_SIC_SOURCE", "comp_company").strip().lower()
-    if mode not in VALID_SIC_SOURCES:
-        raise ValueError(
-            f"Invalid STOCK_CHARACTERS_SIC_SOURCE={mode!r}. "
-            f"Choose from {sorted(VALID_SIC_SOURCES)}"
-        )
-    return mode
+    """Hardcoded SIC source for monthly CRSP rows (see pipeline_config.SIC_SOURCE)."""
+    return SIC_SOURCE
 
 
 def _sic2_from_sic_series(sic: pd.Series) -> pd.Series:
@@ -473,7 +448,7 @@ def monthly_crsp_alignment_frame(db) -> pd.DataFrame:
 def _apply_industry_adjusted_annual(comp):
     """Compute the annual industry-adjusted block IN PLACE on ``comp``.
 
-    Produces cfp_ia, chatoia, chempia, chpmia, pchcapx_ia, me_ia, tb,
+    Produces cfp_ia, chatoia, chempia, chpmia, pchcapx_ia, mve_ia, tb,
     sales_share_sq, herf via groupby(sic2, fyear). Datashare bm_ia is built
     separately (SIC2 x month demean of HXZ book_to_market). Used in pre_ccm
     mode (inside compute_annual_characters) and post_ccm mode (on the linked
@@ -485,7 +460,7 @@ def _apply_industry_adjusted_annual(comp):
     comp["chempia"] = comp["hire"] - grouped["hire"].transform("mean")
     comp["chpmia"] = comp["chpm"] - grouped["chpm"].transform("mean")
     comp["pchcapx_ia"] = comp["pchcapx"] - grouped["pchcapx"].transform("mean")
-    comp["me_ia"] = comp["mve_f"] - grouped["mve_f"].transform("mean")
+    comp["mve_ia"] = comp["mve_f"] - grouped["mve_f"].transform("mean")
     comp["tb"] = comp["tb_1"] - grouped["tb_1"].transform("mean")
     industry_sales = grouped["sale"].transform("sum")
     comp["sales_share_sq"] = (comp["sale"] / industry_sales.replace(0, np.nan)) ** 2
@@ -603,7 +578,7 @@ def compute_annual_characters(comp, age_lookup=None, orgcap_lookup=None):
     comp["bm"] = safe_divide(comp["ceq"], comp["mve_f"])
     comp["ep"] = safe_divide(comp["ib"], comp["mve_f"])
     comp["adm"] = safe_divide(comp["xad"], comp["mve_f"])
-    comp["rdm"] = safe_divide(comp["xrd"], comp["mve_f"])
+    comp["rd_mve"] = safe_divide(comp["xrd"], comp["mve_f"])
     comp["lev"] = safe_divide(comp["lt"], comp["mve_f"])
     comp["dy"] = safe_divide(comp["dvt"], comp["mve_f"])
     comp["sp"] = safe_divide(comp["sale"], comp["mve_f"])
@@ -1132,7 +1107,7 @@ def _daily_monthly_sql() -> str:
         SELECT permno,
                DATE_TRUNC('month', date)::date AS month_start,
                MAX(ret) AS maxret,
-               STDDEV_SAMP(ret) AS rvar_mean,
+               STDDEV_SAMP(ret) AS retvol,
                AVG((askhi - bidlo) / NULLIF(((askhi + bidlo) / 2), 0)) AS baspread,
                STDDEV_SAMP(LOG(NULLIF(ABS(prc * vol), 0))) AS std_dolvol,
                STDDEV_SAMP(vol / NULLIF(shrout, 0)) AS std_turn,
@@ -1188,39 +1163,9 @@ def build_character(db, character, ccm_linktypes=None, ccm_linkprim=None):
         from _shared.event_builders import build_ear_character
 
         return build_ear_character(db, ccm_linktypes, ccm_linkprim)
-    if character == "abr":
-        from _shared.event_builders import build_abr_character
-
-        return build_abr_character(db, ccm_linktypes, ccm_linkprim)
-    if character == "re":
-        from _shared.ibes_builders import build_re_character
-
-        return build_re_character(db)
     if character in PLANNED_CHARACTERS:
         raise NotImplementedError(
             f"{character} needs an additional specialized data source or event-time routine. "
             f"Note: {PLANNED_CHARACTERS[character]}"
         )
     raise ValueError(f"Unknown character: {character}")
-
-
-def run_character_cli(character, description):
-    parser = argparse.ArgumentParser(description=f"Build {character}: {description}.")
-    parser.add_argument("--wrds-user", default=None)
-    parser.add_argument("--output", default=f"{character}.csv")
-    add_ccm_arguments(parser)
-    args = parser.parse_args()
-
-    db = connect_wrds(args.wrds_user)
-    try:
-        out = build_character(db, character, args.ccm_linktypes, args.ccm_linkprim)
-    finally:
-        db.close()
-
-    output_path = Path(args.output)
-    if not output_path.is_absolute():
-        output_path = OUTPUT_DIR / output_path
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    out.to_csv(output_path, index=False)
-    print(f"Saved {character} to: {output_path.resolve()}")
-    print(f"Rows: {len(out):,}")

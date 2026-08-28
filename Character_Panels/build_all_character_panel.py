@@ -1,12 +1,13 @@
-import argparse
+"""Merge individual character CSVs into the 95-column datashare signal panel."""
+import sys
 from pathlib import Path
 
 import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-import sys
-
 sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "Character_Builders"))
+
 from output_paths import (  # noqa: E402
     CHARACTER_INDIVIDUAL_DIR,
     LEGACY_FLAT_OUTPUT_DIR,
@@ -14,26 +15,14 @@ from output_paths import (  # noqa: E402
     SIGNAL_PANEL_FILE,
     iter_character_csv_paths,
 )
-from pipeline_config import VALID_PROFILES, datashare_output_columns  # noqa: E402
+from pipeline_config import DATASHARE_COLUMNS  # noqa: E402
 from Character_Panels.timing import (  # noqa: E402
     MONTHLY_KEYS,
-    TimingConvention,
     build_crsp_month_index_from_panels,
-    classify_stem,
-    expand_annual_file,
-    expand_annual_file_june,
     expand_annual_file_green,
+    expand_annual_file_june,
+    expansion_mode,
 )
-
-# Re-export for legacy script imports.
-ANNUAL_ID_COLUMNS = [
-    "permno",
-    "permco",
-    "gvkey",
-    "datadate",
-    "sic",
-    "fyear",
-]
 
 KNOWN_NON_CHARACTER_COLUMNS = {
     "permno",
@@ -63,39 +52,9 @@ KNOWN_NON_CHARACTER_COLUMNS = {
 
 NON_CHARACTER_FILES = {f"{stem}.csv" for stem in NON_CHARACTER_STEMS}
 
-# Green SAS final sample screen (Greens_code.sas L1147-1152):
-#   where not missing(mve) and not missing(mom1m) and not missing(bm)
-# Because bm = ceq/mve_f, this requires a linked Compustat annual record, so it
-# reduces the pure-CRSP spine to Green's CRSP-Compustat-merged universe.
-GREEN_UNIVERSE_REQUIRED = ("bm", "mom1m", "mve")
-# Repo column aliases for the Green screen variables (mve is exported as mvel1/me).
-GREEN_UNIVERSE_ALIASES = {"mve": ("mve", "mvel1", "me")}
-
-
-def apply_green_universe_screen(panel):
-    """Drop rows missing any of bm/mom1m/mve, reproducing Green's final screen.
-
-    Returns (filtered_panel, resolved_columns). Missing screen columns are
-    reported so callers can warn instead of silently dropping the screen.
-    """
-    resolved = []
-    missing_required = []
-    for name in GREEN_UNIVERSE_REQUIRED:
-        candidates = GREEN_UNIVERSE_ALIASES.get(name, (name,))
-        found = next((c for c in candidates if c in panel.columns), None)
-        if found is None:
-            missing_required.append(name)
-        else:
-            resolved.append(found)
-    if missing_required:
-        raise KeyError(
-            "Cannot apply Green universe screen; panel is missing required "
-            f"column(s): {missing_required}. Present resolved: {resolved}."
-        )
-    return panel.dropna(subset=resolved).reset_index(drop=True), resolved
-
 
 def infer_character_columns(df):
+    """Return numeric columns that are not panel metadata."""
     return [
         column
         for column in df.columns
@@ -104,40 +63,35 @@ def infer_character_columns(df):
     ]
 
 
-def normalize_character_file(path, crsp_month_index=None, force_june_annual=False):
+def normalize_character_file(path, crsp_month_index=None):
+    """Read one character CSV and expand it to a monthly frame if needed."""
     df = pd.read_csv(path)
     character_columns = infer_character_columns(df)
     if not character_columns:
         return None
 
     stem = Path(path).stem
-    convention = classify_stem(stem, df.columns)
-    if convention is None:
+    mode = expansion_mode(stem, df.columns)
+    if mode is None:
         return None
 
-    if convention == TimingConvention.MONTHLY_NATIVE:
+    if mode == "monthly_native":
         keep = MONTHLY_KEYS + [
             column for column in ["permco", "gvkey", "sic"] if column in df.columns
         ] + character_columns
         return df[keep]
 
-    if force_june_annual:
-        return expand_annual_file_june(df, character_columns)
-
-    if convention == TimingConvention.GREEN_ANNUAL_ROLLING:
+    if mode == "annual_rolling":
         return expand_annual_file_green(df, character_columns, crsp_month_index=crsp_month_index)
 
     return expand_annual_file_june(df, character_columns)
 
 
 def coalesce_metadata(panels):
+    """Merge sic metadata across character panels."""
     metadata = None
     for panel in panels:
-        meta_cols = [
-            column
-            for column in ["sic"]
-            if column in panel.columns
-        ]
+        meta_cols = [column for column in ["sic"] if column in panel.columns]
         if not meta_cols:
             continue
 
@@ -166,6 +120,7 @@ def coalesce_metadata(panels):
 
 
 def merge_panels(panels):
+    """Outer-merge normalized character panels on MONTHLY_KEYS."""
     final = None
     for panel in panels:
         value_columns = [
@@ -177,8 +132,6 @@ def merge_panels(panels):
         if final is None:
             final = panel
         else:
-            # Drop columns already in final (except join keys) to prevent pandas 3.0
-            # MergeError from duplicate non-key columns across files.
             dup_cols = [c for c in panel.columns if c in final.columns and c not in MONTHLY_KEYS]
             if dup_cols:
                 panel = panel.drop(columns=dup_cols)
@@ -203,8 +156,8 @@ def _load_monthly_native_panels(paths):
 
 
 def _load_crsp_month_index(paths):
-    """CRSP month universe for Green annual expansion (prefer me.csv, else mvel1)."""
-    for stem in ("me", "mvel1"):
+    """CRSP month universe for annual rolling expansion."""
+    for stem in ("mvel1",):
         path = CHARACTER_INDIVIDUAL_DIR / f"{stem}.csv"
         if path.exists():
             return pd.read_csv(path, usecols=["permno", "signal_yyyymm"]).drop_duplicates()
@@ -212,14 +165,9 @@ def _load_crsp_month_index(paths):
     return build_crsp_month_index_from_panels(monthly_native)
 
 
-def build_all_character_panel(
-    input_dir=None,
-    force_june_annual=False,
-    green_universe=False,
-    green_winsor=False,
-    profile=None,
-):
-    allowlist = datashare_output_columns() if profile == "datashare" else None
+def build_all_character_panel(input_dir=None):
+    """Build the 95-column datashare signal panel from individual character CSVs."""
+    allowlist = DATASHARE_COLUMNS
     if input_dir is None:
         paths = list(iter_character_csv_paths())
     else:
@@ -238,13 +186,9 @@ def build_all_character_panel(
     for path in paths:
         if path.name in NON_CHARACTER_FILES:
             continue
-        if allowlist is not None and path.stem not in allowlist:
+        if path.stem not in allowlist:
             continue
-        panel = normalize_character_file(
-            path,
-            crsp_month_index=crsp_month_index,
-            force_june_annual=force_june_annual,
-        )
+        panel = normalize_character_file(path, crsp_month_index=crsp_month_index)
         if panel is None:
             skipped.append(path.name)
             continue
@@ -256,76 +200,20 @@ def build_all_character_panel(
         )
 
     panel = merge_panels(panels)
-    if green_universe:
-        before = len(panel)
-        panel, resolved = apply_green_universe_screen(panel)
-        print(
-            f"Green universe screen on {resolved}: {before:,} -> {len(panel):,} rows "
-            f"({len(panel) / before:.1%} retained)."
-        )
-    if green_winsor:
-        import sys
+    from _shared.green_winsor import apply_green_winsorization
 
-        builders_root = PROJECT_ROOT / "Character_Builders"
-        if str(builders_root) not in sys.path:
-            sys.path.insert(0, str(builders_root))
-        from _shared.green_winsor import apply_green_winsorization  # noqa: WPS433
-
-        panel = apply_green_winsorization(panel, month_col="signal_yyyymm")
-        print("Applied Green SAS monthly winsorization (p1/p99 or p99 by variable).")
+    panel = apply_green_winsorization(panel, month_col="signal_yyyymm")
+    print("Applied monthly winsorization (p1/p99 or p99 by variable).")
     return panel, skipped
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Combine local character CSVs into one signal-month panel."
-    )
-    parser.add_argument("--input-dir", default=None)
-    parser.add_argument("--output", default=str(SIGNAL_PANEL_FILE))
-    parser.add_argument(
-        "--legacy-june-annual",
-        action="store_true",
-        help="Force June flat expansion for all annual CSVs (legacy behavior).",
-    )
-    parser.add_argument(
-        "--green-universe",
-        action="store_true",
-        help=(
-            "Apply Green SAS final sample screen (keep rows with non-missing "
-            "bm, mom1m, and mve) to match Green's CRSP-Compustat-merged universe."
-        ),
-    )
-    parser.add_argument(
-        "--green-winsor",
-        action="store_true",
-        help=(
-            "Apply Green SAS final monthly winsorization (Greens_code.sas L1160-1240) "
-            "so continuous predictors match Green/datashare export levels."
-        ),
-    )
-    parser.add_argument(
-        "--profile",
-        choices=sorted(VALID_PROFILES),
-        default=None,
-        help="When 'datashare', merge only the 95 datashare-mapped character CSVs.",
-    )
-    args = parser.parse_args()
-
-    panel, skipped = build_all_character_panel(
-        args.input_dir,
-        force_june_annual=args.legacy_june_annual,
-        green_universe=args.green_universe,
-        green_winsor=args.green_winsor,
-        profile=args.profile,
-    )
-
-    output_path = Path(args.output)
-    if not output_path.is_absolute():
-        output_path = PROJECT_ROOT / output_path
+    panel, skipped = build_all_character_panel()
+    output_path = SIGNAL_PANEL_FILE
     output_path.parent.mkdir(parents=True, exist_ok=True)
     panel.to_csv(output_path, index=False)
 
-    print(f"Saved all-character signal panel to: {output_path.resolve()}")
+    print(f"Saved datashare signal panel to: {output_path.resolve()}")
     print(f"Rows: {len(panel):,}")
     metadata_columns = {"sic"}
     character_count = len(

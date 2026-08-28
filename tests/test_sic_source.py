@@ -1,7 +1,6 @@
-"""Tests for configurable SIC source conventions."""
+"""Tests for hardcoded SIC source conventions."""
 from __future__ import annotations
 
-import os
 import sys
 import unittest
 from pathlib import Path
@@ -15,55 +14,15 @@ sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "Character_Builders"))
 
 from _shared import green_builders as gb
+from pipeline_config import SIC_SOURCE
 
 
 class SicSourceTests(unittest.TestCase):
-    def tearDown(self):
-        if hasattr(self, "_old_sic_source"):
-            if self._old_sic_source is None:
-                os.environ.pop("STOCK_CHARACTERS_SIC_SOURCE", None)
-            else:
-                os.environ["STOCK_CHARACTERS_SIC_SOURCE"] = self._old_sic_source
-
-    def setUp(self):
-        self._old_sic_source = os.environ.get("STOCK_CHARACTERS_SIC_SOURCE")
-
-    def test_sic_source_mode_defaults_to_comp_company(self):
-        os.environ.pop("STOCK_CHARACTERS_SIC_SOURCE", None)
+    def test_sic_source_is_hardcoded_comp_company(self):
+        self.assertEqual(SIC_SOURCE, "comp_company")
         self.assertEqual(gb._sic_source_mode(), "comp_company")
 
-    def test_sic_source_mode_rejects_invalid(self):
-        os.environ["STOCK_CHARACTERS_SIC_SOURCE"] = "invalid"
-        with self.assertRaises(ValueError):
-            gb._sic_source_mode()
-
-    def test_attach_monthly_sic_crsp_legacy_hybrid(self):
-        os.environ["STOCK_CHARACTERS_SIC_SOURCE"] = "crsp_msenames"
-        frame = pd.DataFrame(
-            {
-                "permno": [10001, 10001],
-                "signal_yyyymm": [202001, 202002],
-                "siccd": [7372, 7372],
-            }
-        )
-
-        def fake_map(db, crsp):
-            return pd.DataFrame(
-                {
-                    "permno": [10001],
-                    "signal_yyyymm": [202001],
-                    "sic2_comp": ["28"],
-                }
-            )
-
-        with patch.object(gb, "_compustat_sic2_monthly_map", fake_map):
-            out = gb.attach_monthly_sic_metadata(frame, db=object())
-        self.assertEqual(out.loc[out["signal_yyyymm"] == 202001, "sic"].iloc[0], 7372)
-        self.assertEqual(out.loc[out["signal_yyyymm"] == 202001, "sic2"].iloc[0], "28")
-        self.assertEqual(out.loc[out["signal_yyyymm"] == 202002, "sic2"].iloc[0], "73")
-
     def test_attach_monthly_sic_comp_company(self):
-        os.environ["STOCK_CHARACTERS_SIC_SOURCE"] = "comp_company"
         frame = pd.DataFrame(
             {
                 "permno": [10001, 10001],

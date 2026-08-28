@@ -1,24 +1,18 @@
+"""Build all 95 datashare character CSVs from WRDS (except bm, operprof, bm_ia)."""
 import argparse
-import os
+import sys
 from pathlib import Path
 
-import numpy as np
-
-from _shared.beta_builder import (
-    build_factor_characters,
-    clear_factor_caches,
-)
-from _shared.event_builders import build_abr_character, build_aeavol_character, build_ear_character
+from _shared.beta_builder import build_factor_characters, clear_factor_caches
+from _shared.event_builders import build_aeavol_character, build_ear_character
 from _shared.ms_builder import build_ms_character
 from _shared.green_builders import (
     ANNUAL_CHARACTER_INFO,
     DAILY_MONTHLY_CHARACTER_INFO,
     MONTHLY_CHARACTER_INFO,
-    add_ccm_arguments,
     attach_permno,
     build_all_monthly_characters,
     clear_monthly_crsp_cache,
-    build_monthly_character,
     compute_annual_characters,
     compute_industry_adjusted_annual,
     connect_wrds,
@@ -26,144 +20,77 @@ from _shared.green_builders import (
     load_annual_orgcap_lookup,
     load_annual_compustat,
     load_green_ccm_links,
-    load_crsp_monthly,
     load_daily_monthly,
+    load_monthly_alignment_frame,
     write_character,
 )
-from _shared.ibes_builders import build_re_character
 from _shared.quarterly_builders import (
     QUARTERLY_CHARACTER_INFO,
     build_quarterly_character,
     prepare_quarterly_compustat_panel,
 )
-from _shared.rvar_factor_builders import RVAR_SPECS, build_factor_rvar, clear_rvar_caches
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-import sys
-
 sys.path.insert(0, str(PROJECT_ROOT))
 from output_paths import CHARACTER_INDIVIDUAL_DIR, ensure_output_tree  # noqa: E402
-from pipeline_config import VALID_PROFILES, datashare_output_columns  # noqa: E402
+from pipeline_config import DATASHARE_COLUMNS, SKIP_IBES  # noqa: E402
 
 OUTPUT_DIR = CHARACTER_INDIVIDUAL_DIR
 ANNUAL_ID_COLUMNS = ["permno", "permco", "gvkey", "datadate", "sic", "fyear"]
 
-
-def _output_allowlist(profile: str | None) -> frozenset[str] | None:
-    """When profile is datashare, only write the 95 mapped output columns."""
-    if profile == "datashare":
-        return datashare_output_columns()
-    return None
+# Built by HXZ subprocess jobs in run_full_pipeline.py, not this script.
+HXZ_EXTERNAL = frozenset({"bm", "operprof", "bm_ia"})
 
 
-def _should_write(name: str, allowlist: frozenset[str] | None) -> bool:
-    if allowlist is None:
-        return True
-    return name in allowlist
+def _should_write(name: str) -> bool:
+    return name in DATASHARE_COLUMNS and name not in HXZ_EXTERNAL
 
 
-def _maybe_write_character(df, name: str, output_dir, allowlist: frozenset[str] | None):
-    if not _should_write(name, allowlist):
-        print(f"{name}: skipped (not in datashare output allowlist)")
-        return
-    write_character(df, name, output_dir)
-
-
-def build_annual_characters(
-    db, output_dir, ccm_linktypes=None, ccm_linkprim=None, skip_existing=False, profile=None
-):
-    allowlist = _output_allowlist(profile)
+def build_annual_characters(db, output_dir):
     comp = compute_annual_characters(
         load_annual_compustat(db),
         age_lookup=load_annual_age_lookup(db),
         orgcap_lookup=load_annual_orgcap_lookup(db),
     )
-    comp = attach_permno(comp, load_green_ccm_links(db, ccm_linktypes, ccm_linkprim))
+    comp = attach_permno(comp, load_green_ccm_links(db))
     comp = compute_industry_adjusted_annual(comp)
 
     for character in ANNUAL_CHARACTER_INFO:
-        if skip_existing and (output_dir / f"{character}.csv").exists():
-            print(f"{character}: skipped (already exists)")
+        if not _should_write(character):
             continue
         if character not in comp.columns:
-            print(f"{character}: skipped (built by standalone builder, not in annual comp frame)")
+            print(f"{character}: skipped (not in annual comp frame)")
             continue
-        _maybe_write_character(
-            comp[ANNUAL_ID_COLUMNS + [character]], character, output_dir, allowlist
-        )
+        write_character(comp[ANNUAL_ID_COLUMNS + [character]], character, output_dir)
 
 
-def build_monthly_characters(db, output_dir, skip_existing=False, profile=None):
-    allowlist = _output_allowlist(profile)
-    pending = [
-        character
-        for character in MONTHLY_CHARACTER_INFO
-        if not (skip_existing and (output_dir / f"{character}.csv").exists())
-    ]
-    if allowlist is not None:
-        pending = [character for character in pending if character in allowlist]
+def build_monthly_characters(db, output_dir):
+    pending = [c for c in MONTHLY_CHARACTER_INFO if _should_write(c)]
     if not pending:
         return
     monthly_outputs = build_all_monthly_characters(db, pending)
     for character, out in monthly_outputs.items():
-        _maybe_write_character(out, character, output_dir, allowlist)
+        write_character(out, character, output_dir)
 
 
-def build_quarterly_characters(
-    db,
-    output_dir,
-    ccm_linktypes=None,
-    ccm_linkprim=None,
-    skip_ibes=False,
-    skip_existing=False,
-    profile=None,
-):
-    """Build Green-style quarterly characters."""
-    allowlist = _output_allowlist(profile)
-    quarterly_chars = [
-        character
-        for character in QUARTERLY_CHARACTER_INFO
-        if not (skip_existing and (output_dir / f"{character}.csv").exists())
-    ]
-    if allowlist is not None:
-        quarterly_chars = [character for character in quarterly_chars if character in allowlist]
-
-    if quarterly_chars:
-        print("Loading quarterly Compustat panel once for all quarterly characters...")
-        quarterly_comp = prepare_quarterly_compustat_panel(
-            db, ccm_linktypes, ccm_linkprim, use_ibes=not skip_ibes
+def build_quarterly_characters(db, output_dir):
+    quarterly_chars = [c for c in QUARTERLY_CHARACTER_INFO if _should_write(c)]
+    if not quarterly_chars:
+        return
+    print("Loading quarterly Compustat panel once for all quarterly characters...")
+    quarterly_comp = prepare_quarterly_compustat_panel(db, use_ibes=not SKIP_IBES)
+    for character in quarterly_chars:
+        out = build_quarterly_character(
+            db,
+            character,
+            use_ibes=not SKIP_IBES,
+            comp=quarterly_comp,
         )
-        for character in quarterly_chars:
-            out = build_quarterly_character(
-                db,
-                character,
-                ccm_linktypes,
-                ccm_linkprim,
-                use_ibes=not skip_ibes,
-                comp=quarterly_comp,
-            )
-            _maybe_write_character(out, character, output_dir, allowlist)
+        write_character(out, character, output_dir)
 
 
-def build_special_characters(
-    db,
-    output_dir,
-    ccm_linktypes=None,
-    ccm_linkprim=None,
-    skip_ibes=False,
-    skip_existing=False,
-    workers=None,
-    profile=None,
-):
-    allowlist = _output_allowlist(profile)
-    factor_names = [
-        name
-        for name in ("beta", "betasq", "idiovol", "pricedelay")
-        if not (skip_existing and (output_dir / f"{name}.csv").exists())
-    ]
-    if allowlist is not None:
-        factor_names = [name for name in factor_names if name in allowlist]
+def build_special_characters(db, output_dir, workers=None):
+    factor_names = [n for n in ("beta", "betasq", "idiovol", "pricedelay") if _should_write(n)]
     if factor_names:
         clear_factor_caches()
         try:
@@ -171,58 +98,28 @@ def build_special_characters(
                 db, output_dir, workers=workers, names=tuple(factor_names)
             )
             for name, out in factor_outputs.items():
-                _maybe_write_character(out, name, output_dir, allowlist)
+                write_character(out, name, output_dir)
         finally:
             clear_factor_caches()
 
-    other_jobs = [
-        ("ear", lambda: build_ear_character(db, ccm_linktypes, ccm_linkprim, workers=workers)),
-        ("abr", lambda: build_abr_character(db, ccm_linktypes, ccm_linkprim, workers=workers)),
-        ("aeavol", lambda: build_aeavol_character(db, ccm_linktypes, ccm_linkprim, workers=workers)),
-        ("ms", lambda: build_ms_character(db, ccm_linktypes, ccm_linkprim, use_ibes=not skip_ibes, workers=workers)),
-    ]
-    if not skip_ibes:
-        other_jobs.insert(0, ("re", lambda: build_re_character(db)))
-
-    for name, builder in other_jobs:
-        if skip_existing and (output_dir / f"{name}.csv").exists():
-            print(f"{name}: skipped (already exists)")
-            continue
-        _maybe_write_character(builder(), name, output_dir, allowlist)
-
-    if allowlist is not None:
-        return
-
-    rvar_pending = [
-        name
-        for name in RVAR_SPECS
-        if not (skip_existing and (output_dir / f"{name}.csv").exists())
-    ]
-    if rvar_pending:
-        clear_rvar_caches()
-        for name in rvar_pending:
-            write_character(
-                build_factor_rvar(db, name, RVAR_SPECS[name], output_dir, workers=workers),
-                name,
-                output_dir,
-            )
-        clear_rvar_caches()
+    if _should_write("ear"):
+        write_character(build_ear_character(db, workers=workers), "ear", output_dir)
+    if _should_write("aeavol"):
+        write_character(build_aeavol_character(db, workers=workers), "aeavol", output_dir)
+    if _should_write("ms"):
+        write_character(
+            build_ms_character(db, use_ibes=not SKIP_IBES, workers=workers),
+            "ms",
+            output_dir,
+        )
 
 
-def build_daily_monthly_characters(db, output_dir, skip_existing=False, workers=None, profile=None):
-    allowlist = _output_allowlist(profile)
-    from _shared.green_builders import load_monthly_alignment_frame
-
-    _ = workers  # daily-monthly uses server-side SQL aggregation (not parallelized)
+def build_daily_monthly_characters(db, output_dir):
     daily = load_daily_monthly(db)
     monthly = load_monthly_alignment_frame(output_dir, db=db)
 
     for character in DAILY_MONTHLY_CHARACTER_INFO:
-        if skip_existing and (output_dir / f"{character}.csv").exists():
-            print(f"{character}: skipped (already exists)")
-            continue
-        if not _should_write(character, allowlist):
-            print(f"{character}: skipped (not in datashare output allowlist)")
+        if not _should_write(character):
             continue
         out = monthly.merge(
             daily[["permno", "source_yyyymm", character]],
@@ -236,109 +133,16 @@ def build_daily_monthly_characters(db, output_dir, skip_existing=False, workers=
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Build every implemented Green-style character into outputs/."
-    )
+    parser = argparse.ArgumentParser(description="Build datashare character CSVs from WRDS.")
     parser.add_argument("--wrds-user", default=None)
     parser.add_argument("--output-dir", default=OUTPUT_DIR)
-    add_ccm_arguments(parser)
-    parser.add_argument(
-        "--skip-daily",
-        action="store_true",
-        help="Skip daily-CRSP based monthly characters, which are slower to query.",
-    )
-    parser.add_argument(
-        "--only-daily",
-        action="store_true",
-        help="Build only daily-CRSP based monthly characters.",
-    )
-    parser.add_argument(
-        "--skip-special",
-        action="store_true",
-        help="Skip beta, abr, re, and residual-variance characters.",
-    )
-    parser.add_argument(
-        "--skip-annual-monthly",
-        action="store_true",
-        help="Skip annual and monthly blocks (use after a partial run that already wrote those CSVs).",
-    )
-    parser.add_argument(
-        "--skip-ibes",
-        action="store_true",
-        help="Skip IBES tables (no re; sue uses Compustat-only surprise).",
-    )
-    parser.add_argument(
-        "--skip-existing",
-        action="store_true",
-        help="Skip characters whose CSV already exists in the output directory.",
-    )
-    parser.add_argument(
-        "--sample-start",
-        default=None,
-        help="Optional WRDS lower date (YYYY-MM-DD). Also reads STOCK_CHARACTERS_SAMPLE_START.",
-    )
-    parser.add_argument(
-        "--sample-end",
-        default=None,
-        help="Optional WRDS upper date (YYYY-MM-DD). Also reads STOCK_CHARACTERS_SAMPLE_END.",
-    )
-    parser.add_argument(
-        "--crsp-shrcd",
-        default=None,
-        help="Comma-separated CRSP share codes (e.g. 10,11). ALL = no filter. Sets STOCK_CHARACTERS_CRSP_SHRCD.",
-    )
-    parser.add_argument(
-        "--crsp-exchcd",
-        default=None,
-        help="Comma-separated CRSP exchange codes (e.g. 1,2,3). Sets STOCK_CHARACTERS_CRSP_EXCHCD.",
-    )
-    parser.add_argument(
-        "--industry-agg",
-        choices=("pre_ccm", "post_ccm"),
-        default=None,
-        help="When to compute annual industry benchmarks: pre_ccm (Green, full Compustat) "
-        "or post_ccm (datashare/Dacheng, CRSP-investable only). "
-        "Sets STOCK_CHARACTERS_INDUSTRY_AGG.",
-    )
-    parser.add_argument(
-        "--sic-source",
-        choices=("comp_company", "crsp_msenames"),
-        default=None,
-        help="SIC metadata source for monthly CRSP rows. Sets STOCK_CHARACTERS_SIC_SOURCE.",
-    )
-    parser.add_argument(
-        "--profile",
-        choices=sorted(VALID_PROFILES),
-        default=None,
-        help="When 'datashare', write only the 95 datashare-mapped output columns.",
-    )
     parser.add_argument(
         "--workers",
         type=int,
         default=None,
-        help=(
-            "Parallel worker count for beta, rvar_capm, rvar_ff3, and abr/ear builders. "
-            "Default: STOCK_CHARACTERS_WORKERS env or min(cpu, 8). Use 1 for debugging."
-        ),
+        help="Parallel workers for beta/ear/aeavol/ms builders.",
     )
     args = parser.parse_args()
-
-    if args.sample_start:
-        os.environ["STOCK_CHARACTERS_SAMPLE_START"] = args.sample_start
-    if args.sample_end:
-        os.environ["STOCK_CHARACTERS_SAMPLE_END"] = args.sample_end
-    if args.ccm_linktypes:
-        os.environ["STOCK_CHARACTERS_CCM_LINKTYPES"] = args.ccm_linktypes
-    if args.ccm_linkprim:
-        os.environ["STOCK_CHARACTERS_CCM_LINKPRIM"] = args.ccm_linkprim
-    if args.crsp_shrcd:
-        os.environ["STOCK_CHARACTERS_CRSP_SHRCD"] = args.crsp_shrcd
-    if args.crsp_exchcd:
-        os.environ["STOCK_CHARACTERS_CRSP_EXCHCD"] = args.crsp_exchcd
-    if args.industry_agg:
-        os.environ["STOCK_CHARACTERS_INDUSTRY_AGG"] = args.industry_agg
-    if args.sic_source:
-        os.environ["STOCK_CHARACTERS_SIC_SOURCE"] = args.sic_source
 
     ensure_output_tree()
     output_dir = Path(args.output_dir)
@@ -346,54 +150,14 @@ def main():
         output_dir = PROJECT_ROOT / output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    profile = args.profile or os.environ.get("STOCK_CHARACTERS_PROFILE")
-    if profile:
-        profile = profile.strip().lower()
-
     db = connect_wrds(args.wrds_user)
     try:
         clear_monthly_crsp_cache()
-        if not args.only_daily:
-            if not args.skip_annual_monthly:
-                build_annual_characters(
-                    db,
-                    output_dir,
-                    args.ccm_linktypes,
-                    args.ccm_linkprim,
-                    skip_existing=args.skip_existing,
-                    profile=profile,
-                )
-                build_monthly_characters(
-                    db, output_dir, skip_existing=args.skip_existing, profile=profile
-                )
-            build_quarterly_characters(
-                db,
-                output_dir,
-                args.ccm_linktypes,
-                args.ccm_linkprim,
-                skip_ibes=args.skip_ibes,
-                skip_existing=args.skip_existing,
-                profile=profile,
-            )
-            if not args.skip_special:
-                build_special_characters(
-                    db,
-                    output_dir,
-                    args.ccm_linktypes,
-                    args.ccm_linkprim,
-                    skip_ibes=args.skip_ibes,
-                    skip_existing=args.skip_existing,
-                    workers=args.workers,
-                    profile=profile,
-                )
-        if args.only_daily or not args.skip_daily:
-            build_daily_monthly_characters(
-                db,
-                output_dir,
-                skip_existing=args.skip_existing,
-                workers=args.workers,
-                profile=profile,
-            )
+        build_annual_characters(db, output_dir)
+        build_monthly_characters(db, output_dir)
+        build_quarterly_characters(db, output_dir)
+        build_special_characters(db, output_dir, workers=args.workers)
+        build_daily_monthly_characters(db, output_dir)
     finally:
         clear_monthly_crsp_cache()
         db.close()

@@ -1,10 +1,11 @@
-"""Canonical output locations for Stock Characters builds and panels."""
+"""Canonical output locations and WRDS SQL filter helpers."""
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pandas as pd
+
+from pipeline_config import CRSP_EXCHCD, CRSP_SHRCD, SAMPLE_END, SAMPLE_START
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -15,19 +16,10 @@ PANELS_DIR = OUTPUT_ROOT / "panels"
 LOGS_DIR = OUTPUT_ROOT / "logs"
 DIAGNOSTICS_DIR = OUTPUT_ROOT / "diagnostics"
 CACHE_DIR = DIAGNOSTICS_DIR / "cache"
-LEGACY_PANELS_DIR = PANELS_DIR / "legacy"
 
-# Primary panel artifacts (full pipeline).
+# Single pipeline output: the 95-character datashare signal panel.
 SIGNAL_PANEL_FILE = PANELS_DIR / "all_character_signal_panel.csv"
-COMPLETE_ALL_PANEL_FILE = PANELS_DIR / "complete_all_character_prediction_panel.csv"
-RESEARCH_PANEL_FILE = PANELS_DIR / "research_panel_1957_ranked.csv"
-EXCESS_RETURNS_FILE = PANELS_DIR / "excess_returns.csv"
 PIPELINE_LOG_FILE = LOGS_DIR / "pipeline_run.log"
-
-# Deprecated narrow workflow (HXZ-only monthly panel); not produced by run_full_pipeline.py.
-LEGACY_MONTHLY_PANEL_FILE = LEGACY_PANELS_DIR / "monthly_character_panel.csv"
-LEGACY_ANNUAL_PANEL_FILE = LEGACY_PANELS_DIR / "annual_character_panel.csv"
-LEGACY_COMPLETE_PANEL_FILE = LEGACY_PANELS_DIR / "complete_prediction_panel.csv"
 
 # Default write location for per-character CSV builders.
 OUTPUT_DIR = CHARACTER_INDIVIDUAL_DIR
@@ -35,32 +27,19 @@ LEGACY_FLAT_OUTPUT_DIR = OUTPUT_ROOT
 
 NON_CHARACTER_STEMS = {
     "all_character_signal_panel",
-    "annual_character_panel",
-    "complete_all_character_prediction_panel",
-    "complete_prediction_panel",
-    "complete_prediction_panel_imputed",
-    "excess_returns",
-    "green_comparable_temp",
-    "green_comparable_temp2_winsorized",
-    "green_comparable_validation_summary",
-    "green_comparable_winsorized_validation_summary",
-    "green_comparable_winsorized_validation_summary_fresh",
-    "green_missing_character_inventory",
-    "monthly_character_panel",
-    "research_panel_1957_ranked",
 }
 
-MONTHLY_ALIGNMENT_STEMS = ("me", "mvel1", "mom1m", "dolvol", "beta", "turn")
+MONTHLY_ALIGNMENT_STEMS = ("mvel1", "mom1m", "dolvol", "beta", "turn")
 
 
 def ensure_output_tree():
+    """Create the output directory tree if it does not exist."""
     for path in (
         CHARACTER_INDIVIDUAL_DIR,
         PANELS_DIR,
         LOGS_DIR,
         DIAGNOSTICS_DIR,
         CACHE_DIR,
-        LEGACY_PANELS_DIR,
     ):
         path.mkdir(parents=True, exist_ok=True)
     gitkeep = OUTPUT_ROOT / ".gitkeep"
@@ -69,7 +48,7 @@ def ensure_output_tree():
 
 
 def resolve_output_path(path, default_dir=CHARACTER_INDIVIDUAL_DIR):
-    """Resolve a writer path; bare filenames go to default_dir (individual chars by default)."""
+    """Resolve a writer path; bare filenames go to default_dir."""
     path = Path(path)
     if path.is_absolute():
         return path
@@ -78,18 +57,8 @@ def resolve_output_path(path, default_dir=CHARACTER_INDIVIDUAL_DIR):
     return PROJECT_ROOT / path
 
 
-def resolve_legacy_panel_path(path):
-    """Resolve deprecated narrow panel outputs under panels/legacy/."""
-    path = Path(path)
-    if path.is_absolute():
-        return path
-    if len(path.parts) == 1:
-        return LEGACY_PANELS_DIR / path
-    return PROJECT_ROOT / path
-
-
 def character_csv_path(stem: str) -> Path:
-    """Prefer new layout; fall back to legacy flat outputs/ during migration."""
+    """Return path to a character CSV, preferring the individual/ layout."""
     new_path = CHARACTER_INDIVIDUAL_DIR / f"{stem}.csv"
     if new_path.exists():
         return new_path
@@ -100,6 +69,7 @@ def character_csv_path(stem: str) -> Path:
 
 
 def iter_character_csv_paths():
+    """Yield character CSV paths, skipping non-character panel files."""
     seen = set()
     for directory in (CHARACTER_INDIVIDUAL_DIR, LEGACY_FLAT_OUTPUT_DIR):
         if not directory.exists():
@@ -116,19 +86,12 @@ def list_character_stems():
 
 
 def get_sample_bounds():
-    """Optional WRDS sample window via environment variables.
-
-    Default annual start is 1975-01-01 (Green SAS) unless STOCK_CHARACTERS_SAMPLE_START is set.
-    """
-    start = os.environ.get("STOCK_CHARACTERS_SAMPLE_START")
-    end = os.environ.get("STOCK_CHARACTERS_SAMPLE_END")
-    if not start:
-        start = os.environ.get("STOCK_CHARACTERS_DEFAULT_ANNUAL_START", "1975-01-01")
-    return start, end
+    """Return the hardcoded WRDS sample window from pipeline_config."""
+    return SAMPLE_START, SAMPLE_END
 
 
 def sql_date_filter(column: str, table_alias: str | None = None) -> str:
-    """Return an SQL predicate fragment for optional sample-date bounds."""
+    """Return an SQL predicate fragment for the sample-date bounds."""
     col = f"{table_alias}.{column}" if table_alias else column
     start, end = get_sample_bounds()
     parts = []
@@ -145,15 +108,8 @@ def _crsp_code_filter_disabled(value: str) -> bool:
 
 
 def get_crsp_universe():
-    """CRSP share/exchange code filters via environment variables.
-
-    Defaults to common stock on major exchanges (shrcd 10,11; exchcd 1,2,3)
-    unless STOCK_CHARACTERS_CRSP_SHRCD / STOCK_CHARACTERS_CRSP_EXCHCD are set.
-    Use ALL for either dimension to disable that filter.
-    """
-    shrcd = os.environ.get("STOCK_CHARACTERS_CRSP_SHRCD", "10,11")
-    exchcd = os.environ.get("STOCK_CHARACTERS_CRSP_EXCHCD", "1,2,3")
-    return shrcd, exchcd
+    """Return hardcoded CRSP share/exchange code filters."""
+    return CRSP_SHRCD, CRSP_EXCHCD
 
 
 def _sql_int_list(values: str) -> str:
@@ -162,7 +118,7 @@ def _sql_int_list(values: str) -> str:
 
 
 def crsp_universe_filter(table_alias: str = "n") -> str:
-    """Return an SQL predicate fragment for the CRSP share/exchange code filters."""
+    """Return an SQL predicate fragment for CRSP share/exchange filters."""
     shrcd, exchcd = get_crsp_universe()
     parts = []
     if not _crsp_code_filter_disabled(shrcd):
@@ -173,11 +129,7 @@ def crsp_universe_filter(table_alias: str = "n") -> str:
 
 
 def read_wrds_sql(db, sql: str) -> pd.DataFrame:
-    """Execute SQL on WRDS via a DBAPI connection.
-
-    Bypasses wrds.Connection.raw_sql / SQLAlchemy exec_driver_sql, which can pass
-    immutabledict parameters that psycopg2 rejects on newer SQLAlchemy builds.
-    """
+    """Execute SQL on WRDS via a DBAPI connection."""
     engine = getattr(db, "engine", None) or getattr(db, "connection", None)
     if engine is None:
         raise AttributeError("Expected WRDS connection with .engine or .connection")
