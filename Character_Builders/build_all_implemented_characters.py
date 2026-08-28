@@ -3,6 +3,9 @@ import argparse
 import sys
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
+
 from _shared.beta_builder import build_factor_characters, clear_factor_caches
 from _shared.event_builders import build_aeavol_character, build_ear_character
 from _shared.ms_builder import build_ms_character
@@ -29,9 +32,6 @@ from _shared.quarterly_builders import (
     build_quarterly_character,
     prepare_quarterly_compustat_panel,
 )
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT))
 from output_paths import CHARACTER_INDIVIDUAL_DIR, ensure_output_tree  # noqa: E402
 from pipeline_config import DATASHARE_COLUMNS, SKIP_IBES  # noqa: E402
 
