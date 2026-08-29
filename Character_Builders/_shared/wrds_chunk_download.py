@@ -1,48 +1,100 @@
-"""Parallel WRDS downloads for permno-chunked crsp.dsf queries.
+"""Sequential WRDS downloads for permno-chunked crsp.dsf queries.
 
-``--workers`` controls CPU compute (ProcessPoolExecutor). WRDS pulls are I/O-bound
-and use a separate thread pool (``STOCK_CHARACTERS_WRDS_DOWNLOAD_WORKERS``).
+Deliberately single-connection and single-threaded: WRDS caps concurrent
+sessions per role, and a failed connect inside a worker thread prompts on
+stdin and hangs the run. CPU parallelism happens after download, in
+parallel_daily_windows.py.
 """
 from __future__ import annotations
 
-import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import pickle
+import re
+import time
+from pathlib import Path
 
 import pandas as pd
 
-from _shared.green_builders import connect_wrds, raw_sql_with_retry
-from output_paths import sql_date_filter
+from _shared.green_builders import raw_sql_with_retry
+from output_paths import CACHE_DIR, get_sample_bounds, sql_date_filter
+
+PERMNO_CHUNK_SIZE = 400
 
 
-def resolve_wrds_download_workers() -> int:
-    raw = os.environ.get("STOCK_CHARACTERS_WRDS_DOWNLOAD_WORKERS", "4")
-    return max(1, min(16, int(raw)))
+def _format_duration(seconds: float) -> str:
+    seconds = max(0, int(seconds))
+    minutes, secs = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f"{hours}h{minutes:02d}m"
+    if minutes:
+        return f"{minutes}m{secs:02d}s"
+    return f"{secs}s"
 
 
-def resolve_wrds_user(db=None, wrds_user: str | None = None) -> str | None:
-    if wrds_user:
-        return wrds_user
-    if db is not None:
-        for attr in ("username", "_username"):
-            val = getattr(db, attr, None)
-            if val:
-                return str(val)
-    return os.environ.get("WRDS_USERNAME") or os.environ.get("WRDS_USER")
+def _cache_slug(label: str) -> str:
+    slug = re.sub(r"[^a-zA-Z0-9]+", "_", label.strip().lower()).strip("_")
+    return slug or "dsf"
 
 
-def _permno_chunk_size() -> int:
-    return max(50, int(os.environ.get("STOCK_CHARACTERS_WRDS_PERMNO_CHUNK", "400")))
+def _chunk_cache_dir(label: str, select_cols: str) -> Path:
+    start, end = get_sample_bounds()
+    end_tag = end or "open"
+    cols_tag = re.sub(r"[^a-z0-9]+", "_", select_cols.lower()).strip("_")
+    return CACHE_DIR / "dsf_chunks" / f"{_cache_slug(label)}_{start}_{end_tag}_{cols_tag}"
 
 
-def _fetch_dsf_batch_task(args: tuple) -> tuple[int, pd.DataFrame]:
-    wrds_user, batch, chunk_idx, n_chunks, date_filter, select_cols = args
-    db = connect_wrds(wrds_user)
-    try:
+def _chunk_cache_path(cache_dir: Path, chunk_idx: int) -> Path:
+    return cache_dir / f"chunk_{chunk_idx:04d}.pkl"
+
+
+def fetch_dsf_by_permno_batches(
+    permnos: list[int],
+    *,
+    db,
+    select_cols: str = "permno, date, ret",
+    label: str = "dsf",
+) -> pd.DataFrame:
+    """Fetch crsp.dsf rows for many permnos using chunked IN lists on one connection."""
+    if db is None:
+        raise ValueError("fetch_dsf_by_permno_batches requires an open WRDS db connection.")
+    if not permnos:
+        return pd.DataFrame()
+
+    batches = [permnos[i : i + PERMNO_CHUNK_SIZE] for i in range(0, len(permnos), PERMNO_CHUNK_SIZE)]
+    n_chunks = len(batches)
+    date_filter = sql_date_filter("date")
+    cache_dir = _chunk_cache_dir(label, select_cols)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    print(
+        f"{label}: {n_chunks} chunks x {PERMNO_CHUNK_SIZE} permnos max, "
+        f"sequential on one WRDS connection",
+        flush=True,
+    )
+
+    parts: list[pd.DataFrame] = []
+    rows_so_far = 0
+    t0 = time.monotonic()
+
+    for idx, batch in enumerate(batches, start=1):
+        cache_path = _chunk_cache_path(cache_dir, idx)
+        if cache_path.exists():
+            with cache_path.open("rb") as handle:
+                part = pickle.load(handle)
+            parts.append(part)
+            rows_so_far += len(part)
+            elapsed = time.monotonic() - t0
+            avg = elapsed / idx
+            remaining = avg * (n_chunks - idx)
+            print(
+                f"  chunk {idx}/{n_chunks} ({len(batch)} permnos) | "
+                f"cached {len(part):,} rows | {rows_so_far:,} rows so far | "
+                f"elapsed {_format_duration(elapsed)} | est remaining {_format_duration(remaining)}",
+                flush=True,
+            )
+            continue
+
         ids = ",".join(str(p) for p in batch)
-        print(
-            f"  {select_cols} WRDS chunk {chunk_idx}/{n_chunks} ({len(batch)} permnos)...",
-            flush=True,
-        )
         part = raw_sql_with_retry(
             db,
             f"""
@@ -52,68 +104,19 @@ def _fetch_dsf_batch_task(args: tuple) -> tuple[int, pd.DataFrame]:
               AND {date_filter}
             """,
         )
-        return chunk_idx - 1, part
-    finally:
-        db.close()
+        with cache_path.open("wb") as handle:
+            pickle.dump(part, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
+        parts.append(part)
+        rows_so_far += len(part)
+        elapsed = time.monotonic() - t0
+        avg = elapsed / idx
+        remaining = avg * (n_chunks - idx)
+        print(
+            f"  chunk {idx}/{n_chunks} ({len(batch)} permnos) | "
+            f"{len(part):,} rows | {rows_so_far:,} rows so far | "
+            f"elapsed {_format_duration(elapsed)} | est remaining {_format_duration(remaining)}",
+            flush=True,
+        )
 
-def fetch_dsf_by_permno_batches(
-    permnos: list[int],
-    *,
-    db=None,
-    wrds_user: str | None = None,
-    select_cols: str = "permno, date, ret",
-    label: str = "dsf",
-) -> pd.DataFrame:
-    """Fetch crsp.dsf rows for many permnos using chunked IN lists."""
-    if not permnos:
-        return pd.DataFrame()
-
-    chunk_size = _permno_chunk_size()
-    batches = [permnos[i : i + chunk_size] for i in range(0, len(permnos), chunk_size)]
-    n_chunks = len(batches)
-    date_filter = sql_date_filter("date")
-    user = resolve_wrds_user(db, wrds_user)
-    download_workers = resolve_wrds_download_workers()
-
-    if download_workers <= 1 or not user:
-        parts: list[pd.DataFrame] = []
-        for idx, batch in enumerate(batches, start=1):
-            if user:
-                _, part = _fetch_dsf_batch_task(
-                    (user, batch, idx, n_chunks, date_filter, select_cols)
-                )
-            else:
-                ids = ",".join(str(p) for p in batch)
-                print(
-                    f"  {select_cols} WRDS chunk {idx}/{n_chunks} ({len(batch)} permnos)...",
-                    flush=True,
-                )
-                part = raw_sql_with_retry(
-                    db,
-                    f"""
-                    SELECT {select_cols}
-                    FROM crsp.dsf
-                    WHERE permno IN ({ids})
-                      AND {date_filter}
-                    """,
-                )
-            parts.append(part)
-        return pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
-
-    print(
-        f"{label}: downloading {n_chunks} WRDS chunks with {download_workers} parallel connections "
-        f"(compute --workers is used only after this step)...",
-        flush=True,
-    )
-    tasks = [
-        (user, batch, idx, n_chunks, date_filter, select_cols)
-        for idx, batch in enumerate(batches, start=1)
-    ]
-    parts: list[pd.DataFrame | None] = [None] * n_chunks
-    with ThreadPoolExecutor(max_workers=download_workers) as pool:
-        futures = {pool.submit(_fetch_dsf_batch_task, task): task[2] - 1 for task in tasks}
-        for future in as_completed(futures):
-            slot, part = future.result()
-            parts[slot] = part
-    return pd.concat([p for p in parts if p is not None], ignore_index=True)
+    return pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()

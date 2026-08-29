@@ -55,13 +55,14 @@ Column names match GKX `datashare.csv` directly (`bm`, `operprof`, `mve_ia`, `rd
 
 ## Performance environment variables (optional)
 
-These tune throughput only; they do **not** change conventions:
+These tune CPU compute only; they do **not** change conventions or WRDS connections.
+WRDS `crsp.dsf` downloads are always **sequential on one connection** (see
+`Character_Builders/_shared/wrds_chunk_download.py`). Completed chunks are cached under
+`outputs/diagnostics/cache/dsf_chunks/` so restarts resume.
 
 | Variable | Purpose |
 |---|---|
-| `STOCK_CHARACTERS_WORKERS` | Parallel workers for beta/ear/aeavol/ms |
-| `STOCK_CHARACTERS_WRDS_DOWNLOAD_WORKERS` | Parallel WRDS chunk downloads |
-| `STOCK_CHARACTERS_WRDS_PERMNO_CHUNK` | Permno chunk size for daily queries |
+| `STOCK_CHARACTERS_WORKERS` | CPU workers for beta/ear/aeavol factor estimation (used if `--workers` omitted) |
 
 ---
 

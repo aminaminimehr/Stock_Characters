@@ -1,5 +1,10 @@
 # Panel build recipe — August 2026 server run
 
+> **Superseded (2026-08):** This recipe documents the pre-refactor profile-based pipeline
+> (`--profile datashare`, parallel WRDS download workers). The current pipeline is
+> flagless with hardcoded conventions in `pipeline_config.py` and **serial** WRDS downloads.
+> See `docs/CONFIGURATION.md` for the current entry point.
+
 **Purpose:** Pin the exact configuration that produced
 `outputs/panels/all_character_signal_panel.csv` validated in
 `docs/gkx/panel_gkx_datashare_full_comparison.md` (95/95 predictors mapped;

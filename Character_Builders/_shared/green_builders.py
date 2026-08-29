@@ -183,10 +183,17 @@ def connect_wrds(wrds_user):
     Fallback order when --wrds-user is not provided:
     1) WRDS_USERNAME
     2) WRDS_USER
+
+    Never calls bare wrds.Connection() — that prompts on stdin and hangs
+    unattended runs (e.g. inside subprocess workers).
     """
     if not wrds_user:
         wrds_user = os.environ.get("WRDS_USERNAME") or os.environ.get("WRDS_USER")
-    return wrds.Connection(wrds_username=wrds_user) if wrds_user else wrds.Connection()
+    if not wrds_user:
+        raise RuntimeError(
+            "No WRDS username. Pass --wrds-user or set WRDS_USERNAME / WRDS_USER."
+        )
+    return wrds.Connection(wrds_username=wrds_user)
 
 
 def attach_permno(comp, link, green_ccm: bool = True):
@@ -845,8 +852,9 @@ def _reset_wrds_connection(db):
         print(f"Warning: could not reset WRDS connection: {exc}", flush=True)
 
 
-def raw_sql_with_retry(db, sql, attempts=5, pause_seconds=120):
+def raw_sql_with_retry(db, sql, attempts=5, pause_seconds=None):
     """Retry WRDS queries that fail from transient connection timeouts."""
+    backoff = (30, 60, 120, 240)
     last_exc = None
     for attempt in range(1, attempts + 1):
         try:
@@ -873,13 +881,14 @@ def raw_sql_with_retry(db, sql, attempts=5, pause_seconds=120):
             )
             if attempt == attempts or not retryable:
                 raise
+            wait = pause_seconds if pause_seconds is not None else backoff[min(attempt - 1, len(backoff) - 1)]
             print(
                 f"WRDS query failed (attempt {attempt}/{attempts}): {exc}; "
-                f"retrying in {pause_seconds}s...",
+                f"retrying in {wait}s...",
                 flush=True,
             )
             _reset_wrds_connection(db)
-            time.sleep(pause_seconds)
+            time.sleep(wait)
     raise last_exc
 
 

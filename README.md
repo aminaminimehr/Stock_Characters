@@ -528,7 +528,7 @@ to a public repository.
 ### 3. Run the full pipeline
 
 ```bash
-export STOCK_CHARACTERS_WORKERS=8   # optional: parallel daily-CRSP builders
+export STOCK_CHARACTERS_WORKERS=8   # optional: CPU workers for beta/ear/aeavol (not WRDS downloads)
 python Character_Panels/run_full_pipeline.py --wrds-user "$WRDS_USER"
 ```
 

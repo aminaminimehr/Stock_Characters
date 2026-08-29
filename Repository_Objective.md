@@ -295,7 +295,7 @@ Additional items inside `Supplementary_assistive_files/` beyond the objective's 
 |---|---|
 | `Character_Builders/build_all_implemented_characters.py` | Orchestrator for all Green-style characters. |
 | `Character_Builders/CHARACTER_CATALOG.md` | Catalog of implemented characters. |
-| `Character_Builders/_shared/` | Shared engine: `green_builders`, `quarterly_builders`, `ms_builder`, `beta_builder`, `rvar_factor_builders`, `event_builders`, `ibes_builders`, `ccm`, `parallel_daily_windows`, `wrds_chunk_download`, `sas_stats`, `green_winsor`. |
+| `Character_Builders/_shared/` | Shared engine: `green_builders`, `quarterly_builders`, `ms_builder`, `beta_builder`, `event_builders`, `ccm`, `parallel_daily_windows`, `wrds_chunk_download`, `sas_stats`, `green_winsor`, `bm_ia_builder`. |
 | `Character_Builders/Green_*_Generalized/` | One builder per Green character. |
 | `Character_Builders/HXZ_*_Generalized/` | HXZ June-layer builders (`book_to_market`, `book_to_june_market_equity`, `operating_profitability`, `cash_flow_to_price`). |
 | `Character_Builders/README.md` | Builder-layer docs. |
@@ -467,11 +467,7 @@ Notable per-builder flags:
 | `WRDS_USER` / `WRDS_USERNAME` / `WRDS_PASSWORD` | WRDS credentials (never stored in the repo; use `.pgpass`). |
 | `PGPASSFILE` | Path to `.pgpass` for non-interactive auth. |
 | `STOCK_CHARACTERS_PROFILE` | Select profile (`green\|datashare\|research`). |
-| `STOCK_CHARACTERS_WORKERS` | Parallel CPU workers (used if `--workers` omitted). |
-| `STOCK_CHARACTERS_SAMPLE_START` / `STOCK_CHARACTERS_SAMPLE_END` | WRDS date bounds. |
-| `STOCK_CHARACTERS_DEFAULT_ANNUAL_START` | Annual pull floor (default `1975-01-01`). |
-| `STOCK_CHARACTERS_WRDS_DOWNLOAD_WORKERS` | Parallel WRDS download threads (default 4, capped 16). |
-| `STOCK_CHARACTERS_WRDS_PERMNO_CHUNK` | Permno batch size for `crsp.dsf` downloads (default 400). |
+| `STOCK_CHARACTERS_WORKERS` | CPU workers for beta/ear/aeavol (used if `--workers` omitted; does not affect WRDS downloads). |
 | `STOCK_CHARACTERS_PYTHON` | Python interpreter for launcher scripts. |
 | Launcher conveniences (`.sh`/`.ps1`) | `RESUME`, `SKIP_IBES`, `SAMPLE_START`, `SAMPLE_END`, `GREEN_UNIVERSE`. |
 
