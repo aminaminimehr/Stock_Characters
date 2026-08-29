@@ -81,7 +81,7 @@ def expand_annual_file_june(df: pd.DataFrame, character_columns: Iterable[str]) 
 
     repeated = df.loc[df.index.repeat(12), list(ANNUAL_ID_COLUMNS) + list(character_columns)].copy()
     month_offsets = np.tile(np.arange(12), len(df))
-    first_signal_month = availability_year.to_numpy().repeat(12) * 12 + 5
+    first_signal_month = availability_year.to_numpy().repeat(12) * 12 + 6
     month_index = first_signal_month + month_offsets
     repeated["signal_yyyymm"] = (month_index // 12) * 100 + (month_index % 12 + 1)
     repeated["target_yyyymm"] = repeated["signal_yyyymm"].map(add_one_month)
