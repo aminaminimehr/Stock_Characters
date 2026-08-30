@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Build the cross-sectionally ranked research panel (1957+) from the signal panel.
+"""Build the cross-sectionally ranked research panel (1957+) with excess returns.
 
 STANDALONE SCRIPT -- not wired into run_full_pipeline.py.
-Feed it the winsorized signal panel and it produces the prediction-ready
-research panel: missing values imputed, then every characteristic mapped to
-cross-sectional ranks in [-1, 1].
+Feed it the winsorized signal panel; it downloads CRSP monthly returns and
+the risk-free rate from WRDS, merges next-month excess returns onto the panel,
+imputes missing characteristics, ranks every characteristic to [-1, 1], and
+writes a prediction-ready panel (features + excess_return target).
 
 Input  (default): outputs/panels/all_character_signal_panel_after_major_change_1.csv
 Output (default): outputs/panels/research_panel_1957_ranked.csv
@@ -25,10 +26,14 @@ Step 2 (winsorization) is intentionally NOT repeated here: the input signal
 panel is already p1/p99 winsorized by build_all_character_panel.py, so
 re-winsorizing would double-clip the tails.
 
-No excess_return column is produced (returns are attached separately downstream).
+Excess returns are downloaded fresh from WRDS (CRSP msf + msedelist + FF
+monthly factors) and merged onto the ranked panel on (permno, target_yyyymm).
+excess_return is a target, never a predictor, so it is added AFTER ranking.
+Rows with no matching return (delisted before the target month) are dropped.
 
-Usage:
-  python Character_Panels/build_research_panel_1957_ranked.py \
+Usage (server, WRDS required):
+  python -u Character_Panels/build_research_panel_1957_ranked.py \
+      --wrds-user <user> \
       --panel outputs/panels/all_character_signal_panel_after_major_change_1.csv \
       --output outputs/panels/research_panel_1957_ranked.csv
 """
@@ -44,13 +49,23 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 # Path setup: make the repo root importable so we can use the existing
 # Imputation/ helpers (FF49 industry-code assignment) without duplicating the
-# 236 KB SIC->industry mapping table.
+# 236 KB SIC->industry mapping table, and reuse the output_paths WRDS helpers
+# plus the _shared connection/retry utilities (fail-fast credentials,
+# escalating backoff, single connection, no parallelism).
 # ---------------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+_BUILDERS_DIR = PROJECT_ROOT / "Character_Builders"
+if str(_BUILDERS_DIR) not in sys.path:
+    sys.path.insert(0, str(_BUILDERS_DIR))
 
+from output_paths import (  # noqa: E402
+    crsp_universe_filter,
+    sql_date_filter,
+)
 from Imputation.industry_codes import add_fama_french_industry_codes  # noqa: E402
+from _shared.green_builders import connect_wrds, raw_sql_with_retry  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Defaults
@@ -168,11 +183,187 @@ def rank_characteristics(
     return out
 
 
+# ===========================================================================
+# Excess returns: download from WRDS and compute (target column)
+# ===========================================================================
+def load_crsp_monthly_returns(db) -> pd.DataFrame:
+    """Pull CRSP monthly returns (msf) joined to msenames for the universe filter.
+
+    Uses the hardcoded CRSP universe (shrcd ALL, exchcd 1/2/3) and sample-date
+    bounds from pipeline_config via the output_paths helpers -- no env vars.
+    Single SQL query, no chunking, no parallelism.
+    """
+    crsp = raw_sql_with_retry(
+        db,
+        f"""
+        SELECT m.permno, m.permco, m.date, m.ret, m.retx,
+               n.exchcd, n.shrcd
+        FROM crsp.msf AS m
+        JOIN crsp.msenames AS n
+          ON m.permno = n.permno
+         AND n.namedt <= m.date
+         AND m.date <= COALESCE(n.nameendt, DATE '9999-12-31')
+        WHERE {crsp_universe_filter("n")}
+          AND {sql_date_filter("date", "m")}
+        """,
+    )
+    crsp["date"] = pd.to_datetime(crsp["date"]) + pd.offsets.MonthEnd(0)
+    crsp["ret"] = pd.to_numeric(crsp["ret"], errors="coerce")
+    crsp["retx"] = pd.to_numeric(crsp["retx"], errors="coerce")
+    return crsp
+
+
+def load_delisting_returns(db) -> pd.DataFrame:
+    """Pull CRSP delisting returns (msedelist). Small table; fetched in full."""
+    dlret = raw_sql_with_retry(
+        db,
+        """
+        SELECT permno, dlstdt, dlret, dlstcd
+        FROM crsp.msedelist
+        WHERE dlstdt IS NOT NULL
+        """,
+    )
+    dlret["date"] = pd.to_datetime(dlret["dlstdt"]) + pd.offsets.MonthEnd(0)
+    dlret["dlret"] = pd.to_numeric(dlret["dlret"], errors="coerce")
+    return dlret[["permno", "date", "dlret", "dlstcd"]]
+
+
+def load_risk_free_rate(db) -> pd.DataFrame:
+    """Pull the monthly risk-free rate from the Fama-French factors table.
+
+    WRDS factor tables are commonly stored in percent units; auto-convert to
+    decimal when the median magnitude indicates percentages (> 0.02).
+    """
+    factors = raw_sql_with_retry(
+        db,
+        """
+        SELECT date, rf
+        FROM ff.factors_monthly
+        """,
+    )
+    factors["date"] = pd.to_datetime(factors["date"]) + pd.offsets.MonthEnd(0)
+    factors["rf"] = pd.to_numeric(factors["rf"], errors="coerce")
+    median_abs_rf = factors["rf"].abs().median()
+    if pd.notna(median_abs_rf) and median_abs_rf > 0.02:
+        factors["rf"] = factors["rf"] / 100
+    return factors
+
+
+def apply_green_delisting_fill(returns: pd.DataFrame) -> pd.DataFrame:
+    """Always apply the Green-style distress-delisting return fill.
+
+    This runs unconditionally whenever excess returns are computed -- it is not
+    a user option. The full logic, commented step by step:
+
+    1. Identify "distress" delistings. CRSP delisting codes (dlstcd) in the
+       range 500-584 mark performance-related / involuntary delistings (e.g.
+       liquidations, bankruptcies, dropped listings). Codes 501-504 are
+       *non*-distress exits (mergers, exchanges, sold/acquired) that typically
+       carry a known, fair-value delisting return, so they are EXCLUDED from
+       the fill. We keep only the distress subset:
+           distress = dlstcd in [500,584] and dlstcd not in {501,502,503,504}
+
+    2. Among those distress rows, find the ones whose delisting return (dlret)
+       is MISSING. CRSP frequently leaves dlret blank for distress delistings
+       even though the stock typically realized a large negative return, so a
+       raw NaN here would silently drop a big loss and bias the panel upward.
+           missing_distress = dlret is NaN AND distress
+
+    3. Fill the missing distress delisting returns by exchange, because the
+       expected distress return differs by listing venue (per the Green SAS
+       code, which uses historical delisting-return assumptions):
+           - NYSE / AMEX  (exchcd in {1, 2}) -> fill -0.35  (-35%)
+           - NASDAQ        (exchcd == 3)    -> fill -0.55  (-55%)
+       These are conservative large-magnitude fills so a delisting is never
+       silently treated as a 0% month. Rows that already have a dlret, and all
+       non-distress rows, are left untouched.
+
+    The result feeds into retadj = (1 + ret) * (1 + dlret) - 1 downstream, so a
+    filled -35% / -55% becomes part of the compounded monthly return used for
+    the excess-return target.
+    """
+    # Step 1: distress delistings = codes 500-584 excluding the non-distress 501-504.
+    distress_codes = (
+        returns["dlstcd"].between(500, 584)
+        & ~returns["dlstcd"].isin([501, 502, 503, 504])
+    )
+    # Step 2: distress rows whose delisting return is missing.
+    missing_distress_dlret = returns["dlret"].isna() & distress_codes
+    # Step 3: fill by exchange venue -- NYSE/AMEX -35%, NASDAQ -55%.
+    nyse_amex = missing_distress_dlret & returns["exchcd"].isin([1, 2])
+    nasdaq = missing_distress_dlret & returns["exchcd"].eq(3)
+    returns.loc[nyse_amex, "dlret"] = -0.35
+    returns.loc[nasdaq, "dlret"] = -0.55
+    return returns
+
+
+def build_excess_returns(
+    crsp: pd.DataFrame,
+    dlret: pd.DataFrame,
+    rf: pd.DataFrame,
+) -> pd.DataFrame:
+    """Merge returns + delisting returns + rf, then compute monthly excess return.
+
+    The Green-style distress-delisting fill is ALWAYS applied here (not an
+    option): missing delisting returns for distress delistings are filled
+    before compounding, so a delisting loss is never silently dropped.
+
+    retadj compounds the regular monthly return with the delisting return:
+        retadj = (1 + ret) * (1 + dlret) - 1
+    where missing ret/dlret are treated as 0 for the compound (a month with no
+    regular return but a delisting return still gets the delisting performance).
+    excess_return = retadj - rf, keyed by target_yyyymm (the return month).
+    """
+    returns = crsp.merge(dlret, on=["permno", "date"], how="left")
+    # Always run the distress-delisting fill before compounding.
+    returns = apply_green_delisting_fill(returns)
+
+    returns["ret_for_adjustment"] = returns["ret"].fillna(0)
+    returns["dlret_for_adjustment"] = returns["dlret"].fillna(0)
+    returns["retadj"] = (
+        (1 + returns["ret_for_adjustment"]) * (1 + returns["dlret_for_adjustment"]) - 1
+    )
+    returns.loc[returns["ret"].isna() & returns["dlret"].isna(), "retadj"] = np.nan
+
+    returns = returns.merge(rf, on="date", how="left")
+    returns["excess_return"] = returns["retadj"] - returns["rf"]
+    returns["target_yyyymm"] = returns["date"].dt.year * 100 + returns["date"].dt.month
+
+    returns = returns[
+        returns["excess_return"].replace([np.inf, -np.inf], np.nan).notna()
+    ].copy()
+
+    return returns[["permno", "date", "target_yyyymm", "excess_return"]].sort_values(
+        ["permno", "target_yyyymm"]
+    )
+
+
+def download_excess_returns(wrds_user: str) -> pd.DataFrame:
+    """Open a single WRDS connection, pull the three return tables, compute excess return.
+
+    The distress-delisting fill always runs inside build_excess_returns.
+    """
+    db = connect_wrds(wrds_user)
+    try:
+        print("Downloading CRSP monthly returns (msf)...", flush=True)
+        crsp = load_crsp_monthly_returns(db)
+        print(f"  msf rows: {len(crsp):,}", flush=True)
+        print("Downloading CRSP delisting returns (msedelist)...", flush=True)
+        dlret = load_delisting_returns(db)
+        print(f"  msedelist rows: {len(dlret):,}", flush=True)
+        print("Downloading Fama-French monthly risk-free rate...", flush=True)
+        rf = load_risk_free_rate(db)
+        print(f"  factors rows: {len(rf):,}", flush=True)
+    finally:
+        db.close()
+    return build_excess_returns(crsp, dlret, rf)
+
+
 # ---------------------------------------------------------------------------
 # Orchestration
 # ---------------------------------------------------------------------------
-def build_research_panel(panel_path: Path, output_path: Path) -> None:
-    """Run the full load -> impute -> rank -> write sequence."""
+def build_research_panel(panel_path: Path, output_path: Path, wrds_user: str) -> None:
+    """Run the full load -> impute -> rank -> merge returns -> write sequence."""
     # Step 1: load and restrict to 1957+.
     df = load_and_filter(panel_path)
     print(f"Loaded {len(df):,} rows (target_yyyymm >= {TARGET_MONTH_START}) from")
@@ -197,15 +388,28 @@ def build_research_panel(panel_path: Path, output_path: Path) -> None:
     df = rank_characteristics(df, predictors)
     print("Ranked characteristics into [-1, 1] within each signal month.")
 
-    # Final column order: identifiers + ffi49 + ranked predictors.
-    ordered = ID_COLUMNS + ["ffi49"] + predictors
+    # Excess returns: download from WRDS and merge onto the ranked panel.
+    # excess_return is a target (never ranked), so it is attached AFTER ranking
+    # on (permno, target_yyyymm). The merge also brings the month-end `date`.
+    # The distress-delisting fill always runs as part of the return computation.
+    returns = download_excess_returns(wrds_user)
+    print(f"Excess returns: {len(returns):,} rows; merging on (permno, target_yyyymm).")
+    before = len(df)
+    df = df.merge(returns, on=["permno", "target_yyyymm"], how="left")
+    # Drop rows with no matching return (delisted before the target month).
+    df = df.dropna(subset=["excess_return"]).copy()
+    print(f"Rows after return merge: {len(df):,} (dropped {before - len(df):,} with no return).")
+
+    # Final column order: identifiers + date + ffi49 + target + ranked predictors.
+    ordered = ["permno", "signal_yyyymm", "target_yyyymm", "date", "sic", "ffi49", "excess_return"] + predictors
     df = df[ordered]
 
     # Write output. Ranked values are floats in [-1, 1]; writing them at full
-    # float64 precision balloons the file to multiple GB, so format to 4
-    # decimals (20,001 distinct levels -- plenty for cross-sectional ranking).
+    # float64 precision balloons the file to multiple GB, so format to 6
+    # decimals (preserves rank distinctions for cross-sections up to ~200k stocks
+    # -- far beyond any real monthly count, so no computation is sacrificed).
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(output_path, index=False, float_format="%.4f")
+    df.to_csv(output_path, index=False, float_format="%.6f")
     print(f"\nSaved research panel to: {output_path.resolve()}")
     print(f"Rows: {len(df):,}  Predictors: {len(predictors)}")
     print(f"Target months: {int(df['target_yyyymm'].min())}-{int(df['target_yyyymm'].max())}")
@@ -214,8 +418,9 @@ def build_research_panel(panel_path: Path, output_path: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Build the cross-sectionally ranked research panel (1957+) from the signal panel."
+        description="Build the cross-sectionally ranked research panel (1957+) with excess returns."
     )
+    parser.add_argument("--wrds-user", required=True, help="WRDS PostgreSQL username (needed to download returns).")
     parser.add_argument("--panel", type=Path, default=DEFAULT_PANEL, help="Input winsorized signal panel CSV.")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT, help="Output ranked research panel CSV.")
     args = parser.parse_args()
@@ -228,7 +433,7 @@ def main() -> None:
     except Exception:
         pass
 
-    build_research_panel(args.panel, args.output)
+    build_research_panel(args.panel, args.output, args.wrds_user)
 
 
 if __name__ == "__main__":
