@@ -37,7 +37,7 @@ import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_PANEL = ROOT / "outputs" / "panels" / "all_character_signal_panel_after_major_change.csv"
+DEFAULT_PANEL = ROOT / "outputs" / "panels" / "all_character_signal_panel_after_major_change_1.csv"
 DEFAULT_DATASHARE = ROOT / "Supplementary_assistive_files" / "datashare.csv"
 OUT_CSV = ROOT / "docs" / "gkx" / "panel_gkx_datashare_after_major_change.csv"
 OUT_MD = ROOT / "docs" / "gkx" / "panel_gkx_datashare_after_major_change.md"
