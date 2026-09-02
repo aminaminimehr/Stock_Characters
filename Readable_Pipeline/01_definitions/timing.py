@@ -33,10 +33,11 @@ def expansion_mode(stem: str, columns: Iterable[str]) -> str | None:
 
 
 def expand_annual_file_june(df: pd.DataFrame, character_columns: Iterable[str]) -> pd.DataFrame:
+    character_columns = [c for c in character_columns if c not in ANNUAL_ID_COLUMNS]
     df = df.copy()
     df["datadate"] = pd.to_datetime(df["datadate"])
     availability_year = df["datadate"].dt.year + 1
-    repeated = df.loc[df.index.repeat(12), list(ANNUAL_ID_COLUMNS) + list(character_columns)].copy()
+    repeated = df.loc[df.index.repeat(12), list(ANNUAL_ID_COLUMNS) + character_columns].copy()
     month_offsets = np.tile(np.arange(12), len(df))
     first_signal_month = availability_year.to_numpy().repeat(12) * 12 + 6
     month_index = first_signal_month + month_offsets
@@ -46,7 +47,7 @@ def expand_annual_file_june(df: pd.DataFrame, character_columns: Iterable[str]) 
         repeated.sort_values(["permno", "signal_yyyymm", "datadate"])
         .drop_duplicates(["permno", "signal_yyyymm"], keep="last")
     )
-    keep = MONTHLY_KEYS + ["permco", "gvkey", "sic"] + list(character_columns)
+    keep = MONTHLY_KEYS + ["permco", "gvkey", "sic"] + character_columns
     return repeated[keep]
 
 
@@ -55,7 +56,7 @@ def expand_annual_file_green(
     character_columns: Iterable[str],
     crsp_month_index: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
-    character_columns = list(character_columns)
+    character_columns = [c for c in character_columns if c not in ANNUAL_ID_COLUMNS]
     df = df.copy()
     df["datadate"] = pd.to_datetime(df["datadate"])
     chunks = []
