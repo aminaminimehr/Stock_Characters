@@ -44,10 +44,10 @@ def compute_quarterly_stem(comp: pd.DataFrame, stem: str) -> pd.DataFrame:
     df = comp.copy().reset_index(drop=True)
     g = df.groupby("gvkey", sort=False)
     df["count"] = g.cumcount() + 1
-    lag_atq = g["atq"].shift(1)
-    lag4_atq = g["atq"].shift(4)
-    lag4_txtq = g["txtq"].shift(4)
-    lag4_saleq = g["saleq"].shift(4)
+    lag_atq = g["atq"].shift(1) if "atq" in df.columns else None
+    lag4_atq = g["atq"].shift(4) if "atq" in df.columns else None
+    lag4_txtq = g["txtq"].shift(4) if "txtq" in df.columns else None
+    lag4_saleq = g["saleq"].shift(4) if "saleq" in df.columns else None
 
     if stem == "chtx":
         df[stem] = (df["txtq"] - lag4_txtq) / lag_atq
