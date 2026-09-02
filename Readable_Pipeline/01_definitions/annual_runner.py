@@ -57,7 +57,7 @@ def finalize_green_annual(
         # Compute bases needed for IA on full linked universe
         if "cfp" in comp.columns and character == "cfp_ia":
             pass  # cfp already on comp
-        comp = apply_industry_adjusted_annual(comp)
+        comp = apply_industry_adjusted_annual(comp, character)
         comp = apply_ia_lag_nulling(comp, character)
     comp = comp[comp[character].replace([np.inf, -np.inf], np.nan).notna()]
     return comp
