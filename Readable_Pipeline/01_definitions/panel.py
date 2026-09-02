@@ -1,9 +1,10 @@
-"""Merge individual character CSVs into the 95-column datashare signal panel."""
+"""Merge individual character Parquet files into the 95-column datashare signal panel."""
 from __future__ import annotations
 
 from pathlib import Path
 
 import pandas as pd
+import pyarrow.parquet as pq
 
 from config import DATASHARE_COLUMNS
 from paths import NON_CHARACTER_STEMS, SIGNAL_PANEL_FILE, SINGLE_CHARACTERS_DIR
@@ -22,7 +23,11 @@ KNOWN_NON_CHARACTER_COLUMNS = {
     "fyear", "availability_date", "calendar_year", "lagged_market_equity", "june_date",
     "book_equity_per_share", "split_adjustment", "june_price",
 }
-NON_CHARACTER_FILES = {f"{stem}.csv" for stem in NON_CHARACTER_STEMS}
+NON_CHARACTER_FILES = {f"{stem}.parquet" for stem in NON_CHARACTER_STEMS}
+
+
+def _parquet_columns(path: Path) -> list[str]:
+    return list(pq.read_schema(path).names)
 
 
 def infer_character_columns(df: pd.DataFrame) -> list[str]:
@@ -33,7 +38,7 @@ def infer_character_columns(df: pd.DataFrame) -> list[str]:
 
 
 def normalize_character_file(path: Path, crsp_month_index=None):
-    df = pd.read_csv(path)
+    df = pd.read_parquet(path)
     character_columns = infer_character_columns(df)
     if not character_columns:
         return None
@@ -88,22 +93,22 @@ def merge_panels(panels: list[pd.DataFrame]) -> pd.DataFrame:
 
 def _load_crsp_month_index(paths: list[Path]) -> pd.DataFrame:
     for stem in ("mvel1",):
-        path = SINGLE_CHARACTERS_DIR / f"{stem}.csv"
+        path = SINGLE_CHARACTERS_DIR / f"{stem}.parquet"
         if path.exists():
-            return pd.read_csv(path, usecols=["permno", "signal_yyyymm"]).drop_duplicates()
+            return pd.read_parquet(path, columns=["permno", "signal_yyyymm"]).drop_duplicates()
     parts = []
     for path in paths:
         if path.name in NON_CHARACTER_FILES:
             continue
-        header = pd.read_csv(path, nrows=0)
-        if set(MONTHLY_KEYS).issubset(header.columns):
-            parts.append(pd.read_csv(path, usecols=["permno", "signal_yyyymm"]))
+        columns = _parquet_columns(path)
+        if set(MONTHLY_KEYS).issubset(columns):
+            parts.append(pd.read_parquet(path, columns=["permno", "signal_yyyymm"]))
     return build_crsp_month_index_from_panels(parts)
 
 
 def build_all_character_panel(input_dir: Path | None = None):
     input_dir = input_dir or SINGLE_CHARACTERS_DIR
-    paths = sorted(input_dir.glob("*.csv"))
+    paths = sorted(input_dir.glob("*.parquet"))
     crsp_month_index = _load_crsp_month_index(paths)
     panels, skipped = [], []
     for path in paths:
@@ -115,7 +120,7 @@ def build_all_character_panel(input_dir: Path | None = None):
             continue
         panels.append(panel)
     if not panels:
-        raise FileNotFoundError(f"No compatible character CSV files in {input_dir.resolve()}.")
+        raise FileNotFoundError(f"No compatible character Parquet files in {input_dir.resolve()}.")
     panel = merge_panels(panels)
     panel = apply_green_winsorization(panel, month_col="signal_yyyymm")
     return panel, skipped

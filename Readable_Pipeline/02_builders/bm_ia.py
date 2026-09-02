@@ -12,13 +12,13 @@ if str(_DEFS) not in sys.path:
 
 CHARACTER = "bm_ia"
 
-from bm_ia_runner import build_bm_ia_from_csv, write_bm_ia
+from bm_ia_runner import build_bm_ia_from_parquet, write_bm_ia
 from paths import SINGLE_CHARACTERS_DIR
 
 
 def build_bm_ia(db, use_cache=True):
     _ = db, use_cache
-    out = build_bm_ia_from_csv(SINGLE_CHARACTERS_DIR / "bm.csv")
+    out = build_bm_ia_from_parquet(SINGLE_CHARACTERS_DIR / "bm.parquet")
     write_bm_ia(out)
 
 if __name__ == "__main__":

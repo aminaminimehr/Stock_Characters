@@ -10,13 +10,13 @@ SQL **templates** only — each builder executes its own query with its own colu
 | `sql_templates.py` | `green_funda_sql`, `crsp_msf_sql`, `fundq_sql`, CCM SQL |
 | `wrds_io.py` | Connect, retry, per-stem parquet cache |
 | `ccm.py` | Green vs HXZ link attach |
-| `annual_runner.py` | Fetch funda/CCM, finalize, write annual CSV |
+| `annual_runner.py` | Fetch funda/CCM, finalize, write annual Parquet |
 | `annual_formulas.py` | Green annual formulas (called from each annual builder) |
 | `monthly_runner.py` | Per-stem msf + SIC + monthly feature |
 | `daily_monthly_runner.py` | Per-stem dsf GROUP BY |
 | `quarterly_runner.py` | Per-stem fundq + expand |
 | `hxz_runner.py` | `bm`, `operprof` |
-| `bm_ia_runner.py` | SIC2 demean from `bm.csv` |
+| `bm_ia_runner.py` | SIC2 demean from `bm.parquet` |
 | `beta_runner.py` | Weekly factor panel |
 | `event_runner.py` | `ear`, `aeavol` |
 | `ms_runner.py` | Mohanram score |

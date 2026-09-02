@@ -68,7 +68,7 @@ from hxz_runner import build_operprof_panel, write_hxz_annual
 """
 
 IMPORTS_BM_IA = """
-from bm_ia_runner import build_bm_ia_from_csv, write_bm_ia
+from bm_ia_runner import build_bm_ia_from_parquet, write_bm_ia
 from paths import SINGLE_CHARACTERS_DIR
 """
 

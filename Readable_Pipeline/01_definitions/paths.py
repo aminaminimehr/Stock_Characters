@@ -23,8 +23,13 @@ def ensure_output_tree() -> None:
         gitkeep.touch()
 
 
+def character_parquet_path(stem: str) -> Path:
+    return SINGLE_CHARACTERS_DIR / f"{stem}.parquet"
+
+
 def character_csv_path(stem: str) -> Path:
-    return SINGLE_CHARACTERS_DIR / f"{stem}.csv"
+    """Alias for character_parquet_path (legacy name)."""
+    return character_parquet_path(stem)
 
 
 def stem_cache_path(stem: str, suffix: str) -> Path:

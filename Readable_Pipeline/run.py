@@ -55,7 +55,7 @@ def main():
     parser.add_argument("--wrds-user", default=None)
     parser.add_argument("--character", default=None, help="Build one stem (e.g. ep)")
     parser.add_argument("--all", action="store_true", help="Build all 95 characters in dependency order")
-    parser.add_argument("--panel", action="store_true", help="Merge single_characters/ into panel CSV")
+    parser.add_argument("--panel", action="store_true", help="Merge single_characters/ Parquet files into panel CSV")
     parser.add_argument("--skip-cache", action="store_true", help="Ignore per-stem parquet caches")
     parser.add_argument("--list", action="store_true", help="List available stems")
     args = parser.parse_args()
@@ -77,7 +77,7 @@ def main():
         db = connect_wrds(args.wrds_user)
         try:
             if args.character:
-                if args.character == "bm_ia" and not (READABLE_ROOT / "03_outputs/single_characters/bm.csv").exists():
+                if args.character == "bm_ia" and not (READABLE_ROOT / "03_outputs/single_characters/bm.parquet").exists():
                     run_character(db, "bm", use_cache=use_cache)
                 run_character(db, args.character, use_cache=use_cache)
             elif args.all:

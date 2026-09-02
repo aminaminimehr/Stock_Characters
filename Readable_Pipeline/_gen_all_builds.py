@@ -23,7 +23,7 @@ if str(_DEFS) not in sys.path:
 from annual_formulas import apply_annual_formula, needs_industry_adjustment
 from annual_runner import fetch_green_funda, finalize_green_annual, write_annual
 from beta_runner import build_factor_stem, write_factor
-from bm_ia_runner import build_bm_ia_from_csv, write_bm_ia
+from bm_ia_runner import build_bm_ia_from_parquet, write_bm_ia
 from catalog import (
     ANNUAL_FUNDA_ITEMS,
     DAILY_MONTHLY_STEMS,
@@ -93,7 +93,7 @@ def build_operprof(db, use_cache=True):
 BM_IA = '''
 def build_bm_ia(db, use_cache=True):
     _ = db, use_cache
-    out = build_bm_ia_from_csv(SINGLE_CHARACTERS_DIR / "bm.csv")
+    out = build_bm_ia_from_parquet(SINGLE_CHARACTERS_DIR / "bm.parquet")
     write_bm_ia(out)
 '''
 

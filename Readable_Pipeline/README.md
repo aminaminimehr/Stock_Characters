@@ -9,7 +9,7 @@ Production code under `Character_Builders/` and `Character_Panels/` is **unchang
 |--------|---------|
 | `01_definitions/` | Shared SQL templates, CCM, timing, winsor, catalog (not shared WRDS downloads) |
 | `02_builders/` | One module per datashare stem (`ep.py`, `bm.py`, …); each runs **its own** WRDS queries on the **full** eligible universe |
-| `03_outputs/` | Generated CSVs: `single_characters/`, `panels/`, `cache/`, `logs/`, `diagnostics/` |
+| `03_outputs/` | Generated outputs: `single_characters/*.parquet`, `panels/*.csv`, `cache/`, `logs/`, `diagnostics/` |
 
 ## Reading order
 
@@ -31,7 +31,7 @@ python run.py --wrds-user YOUR_USER --character ep
 # All 95 (sequential; each stem queries WRDS independently)
 python run.py --wrds-user YOUR_USER --all
 
-# Merge existing CSVs → 95-column panel
+# Merge existing Parquet files → 95-column panel CSV
 python run.py --panel
 
 # Build all then panel
@@ -39,6 +39,8 @@ python run.py --wrds-user YOUR_USER --all --panel
 ```
 
 Per-stem disk cache: `03_outputs/cache/{stem}_funda.parquet` (use `--skip-cache` to force refresh).
+
+Per-stem character outputs: `03_outputs/single_characters/{stem}.parquet`. Final panel: `03_outputs/panels/all_character_signal_panel.csv`.
 
 ## Independence
 

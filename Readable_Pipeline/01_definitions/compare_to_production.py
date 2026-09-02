@@ -11,11 +11,11 @@ READABLE_INDIVIDUAL = Path(__file__).resolve().parents[1] / "03_outputs" / "sing
 
 
 def compare_character_csv(stem: str) -> dict | None:
-    new_path = READABLE_INDIVIDUAL / f"{stem}.csv"
+    new_path = READABLE_INDIVIDUAL / f"{stem}.parquet"
     prod_path = PROD_INDIVIDUAL / f"{stem}.csv"
     if not new_path.exists() or not prod_path.exists():
         return None
-    new = pd.read_csv(new_path)
+    new = pd.read_parquet(new_path)
     prod = pd.read_csv(prod_path)
     if "datadate" in new.columns and "datadate" in prod.columns:
         keys = ["permno", "datadate"]
@@ -40,4 +40,4 @@ if __name__ == "__main__":
             rows.append(result)
             print(result)
     if not rows:
-        print("No overlapping production/readable CSV pairs found.")
+        print("No overlapping production/readable character file pairs found.")
