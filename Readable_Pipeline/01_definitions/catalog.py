@@ -102,7 +102,7 @@ QUARTERLY_FUNDA_ITEMS: dict[str, tuple[str, ...]] = {
     "cash": ("cheq", "atq", "ibq", "rdq"),
     "stdacc": ("actq", "cheq", "lctq", "dlcq", "saleq", "ibq", "rdq"),
     "stdcf": ("ibq", "saleq", "actq", "cheq", "lctq", "dlcq", "rdq"),
-    "roavol": ("ibq", "atq", "saleq", "mveq", "oiadpq", "ceqq", "seqq", "pstkq", "pstkrq", "ltq", "dlcq", "dlttq", "cheq", "rdq"),
+    "roavol": ("ibq", "atq", "saleq", "mveq", "oiadpq", "ceqq", "seqq", "pstkq", "pstkrq", "ltq", "dlcq", "dlttq", "cheq", "rdq", "actq", "lctq"),
 }
 
 BUILD_ORDER = [
