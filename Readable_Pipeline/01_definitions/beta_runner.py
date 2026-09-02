@@ -1,8 +1,11 @@
 """Beta, betasq, idiovol, pricedelay from weekly CRSP regressions."""
 from __future__ import annotations
 
+import os
 import pickle
 from pathlib import Path
+
+import multiprocessing as mp
 
 import numpy as np
 import pandas as pd
@@ -15,6 +18,10 @@ from writers import write_character
 
 _WEEKLY_CACHE: pd.DataFrame | None = None
 FACTOR_COLUMNS = ("beta", "betasq", "idiovol", "pricedelay")
+
+# Number of worker processes for the per-permno regression loop.
+# Set to 1 for sequential (default). Increase to parallelize.
+N_WORKERS = int(os.environ.get("BETA_WORKERS", "1"))
 
 
 def intnx_month(ts: pd.Series, n: int, alignment: str = "end") -> pd.Series:
@@ -105,53 +112,78 @@ def get_weekly_returns(db, permnos: list[int], use_cache: bool = True) -> pd.Dat
     return wk
 
 
+def _process_permno(args):
+    """Compute beta/betasq/idiovol/pricedelay for one permno across all its months.
+
+    Top-level so multiprocessing can pickle it.
+    """
+    permno, dates, wk_subset = args
+    w_grp = wk_subset.sort_values("wkdt")
+    if w_grp.empty:
+        return []
+    wk_dates = w_grp["wkdt"].to_numpy(dtype="datetime64[ns]")
+    wkret = w_grp["wkret"].to_numpy(dtype=float)
+    ewret = w_grp["ewret"].to_numpy(dtype=float)
+    rows = []
+    for date in dates:
+        end = intnx_month(pd.Series([date]), -1, "end").iloc[0]
+        start = intnx_month(pd.Series([date]), -36, "end").iloc[0]
+        i0 = wk_dates.searchsorted(np.datetime64(start), side="left")
+        i1 = wk_dates.searchsorted(np.datetime64(end), side="right")
+        if i1 - i0 < 52:
+            continue
+        y = wkret[i0:i1]
+        x = ewret[i0:i1]
+        beta, rsq1 = _ols_beta(y, x)
+        if not np.isfinite(beta):
+            continue
+        sub_ew = ewret[i0:i1]
+        ew_l1 = np.roll(sub_ew, 1)
+        ew_l2 = np.roll(sub_ew, 2)
+        ew_l3 = np.roll(sub_ew, 3)
+        ew_l4 = np.roll(sub_ew, 4)
+        ew_l1[:1] = ew_l2[:2] = ew_l3[:3] = ew_l4[:4] = np.nan
+        adj_multi = _ols_multi_adj_r2(y, [x, ew_l1, ew_l2, ew_l3, ew_l4])
+        mask = np.isfinite(y) & np.isfinite(x)
+        resid = y - (y[mask].mean() - beta * x[mask].mean() + beta * x) if mask.any() else np.full_like(y, np.nan)
+        idiovol = float(np.std(resid[np.isfinite(resid)], ddof=1)) if np.isfinite(resid).sum() > 1 else np.nan
+        pricedelay = 1 - (rsq1 / adj_multi) if np.isfinite(rsq1) and np.isfinite(adj_multi) and adj_multi != 0 else np.nan
+        rows.append(
+            {
+                "permno": int(permno),
+                "date": date,
+                "beta": beta,
+                "betasq": beta ** 2,
+                "idiovol": idiovol,
+                "pricedelay": pricedelay,
+            }
+        )
+    return rows
+
+
 def estimate_factor_panel(db, use_cache: bool = True) -> pd.DataFrame:
     monthly = monthly_alignment_frame(fetch_crsp_msf(db, "beta", use_cache=use_cache))
     monthly["date"] = pd.to_datetime(monthly["date"])
     monthly["permno"] = pd.to_numeric(monthly["permno"], errors="coerce").astype("int64")
     permnos = monthly["permno"].dropna().astype(int).unique().tolist()
     wk = get_weekly_returns(db, permnos, use_cache=use_cache)
-    rows = []
+
+    # Build task list: (permno, list_of_dates, weekly_subset_for_this_permno)
+    tasks = []
     for permno, m_grp in monthly.groupby("permno", sort=False):
-        w_grp = wk[wk["permno"] == permno].sort_values("wkdt")
-        if w_grp.empty:
-            continue
-        wk_dates = w_grp["wkdt"].to_numpy(dtype="datetime64[ns]")
-        wkret = w_grp["wkret"].to_numpy(dtype=float)
-        ewret = w_grp["ewret"].to_numpy(dtype=float)
-        for date in m_grp["date"]:
-            end = intnx_month(pd.Series([date]), -1, "end").iloc[0]
-            start = intnx_month(pd.Series([date]), -36, "end").iloc[0]
-            i0 = wk_dates.searchsorted(np.datetime64(start), side="left")
-            i1 = wk_dates.searchsorted(np.datetime64(end), side="right")
-            if i1 - i0 < 52:
-                continue
-            y = wkret[i0:i1]
-            x = ewret[i0:i1]
-            beta, rsq1 = _ols_beta(y, x)
-            if not np.isfinite(beta):
-                continue
-            sub_ew = ewret[i0:i1]
-            ew_l1 = np.roll(sub_ew, 1)
-            ew_l2 = np.roll(sub_ew, 2)
-            ew_l3 = np.roll(sub_ew, 3)
-            ew_l4 = np.roll(sub_ew, 4)
-            ew_l1[:1] = ew_l2[:2] = ew_l3[:3] = ew_l4[:4] = np.nan
-            adj_multi = _ols_multi_adj_r2(y, [x, ew_l1, ew_l2, ew_l3, ew_l4])
-            mask = np.isfinite(y) & np.isfinite(x)
-            resid = y - (y[mask].mean() - beta * x[mask].mean() + beta * x) if mask.any() else np.full_like(y, np.nan)
-            idiovol = float(np.std(resid[np.isfinite(resid)], ddof=1)) if np.isfinite(resid).sum() > 1 else np.nan
-            pricedelay = 1 - (rsq1 / adj_multi) if np.isfinite(rsq1) and np.isfinite(adj_multi) and adj_multi != 0 else np.nan
-            rows.append(
-                {
-                    "permno": int(permno),
-                    "date": date,
-                    "beta": beta,
-                    "betasq": beta ** 2,
-                    "idiovol": idiovol,
-                    "pricedelay": pricedelay,
-                }
-            )
+        wk_subset = wk[wk["permno"] == permno]
+        tasks.append((permno, list(m_grp["date"]), wk_subset))
+
+    if N_WORKERS <= 1:
+        results = [_process_permno(t) for t in tasks]
+    else:
+        with mp.Pool(N_WORKERS) as pool:
+            results = pool.map(_process_permno, tasks)
+
+    rows = []
+    for r in results:
+        rows.extend(r)
+
     factors = pd.DataFrame(rows)
     out = monthly.merge(factors, on=["permno", "date"], how="left")
     return out[out["date"].dt.year >= 1980]
