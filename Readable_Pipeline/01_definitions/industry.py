@@ -9,19 +9,35 @@ from constants import GREEN_TAX_RATE_BY_FYEAR
 from math_ops import indicator, safe_divide
 
 
-def apply_industry_adjusted_annual(comp: pd.DataFrame) -> pd.DataFrame:
+def apply_industry_adjusted_annual(comp: pd.DataFrame, character: str | None = None) -> pd.DataFrame:
     comp = comp.copy()
     grouped = comp.groupby(["sic2", "fyear"], dropna=False)
-    comp["cfp_ia"] = comp["cfp"] - grouped["cfp"].transform("mean")
-    comp["chatoia"] = comp["chato"] - grouped["chato"].transform("mean")
-    comp["chempia"] = comp["hire"] - grouped["hire"].transform("mean")
-    comp["chpmia"] = comp["chpm"] - grouped["chpm"].transform("mean")
-    comp["pchcapx_ia"] = comp["pchcapx"] - grouped["pchcapx"].transform("mean")
-    comp["mve_ia"] = comp["mve_f"] - grouped["mve_f"].transform("mean")
-    comp["tb"] = comp["tb_1"] - grouped["tb_1"].transform("mean")
-    industry_sales = grouped["sale"].transform("sum")
-    comp["sales_share_sq"] = (comp["sale"] / industry_sales.replace(0, np.nan)) ** 2
-    comp["herf"] = grouped["sales_share_sq"].transform("sum")
+    ia_map = {
+        "cfp_ia":      ("cfp",     "cfp_ia"),
+        "chatoia":     ("chato",   "chatoia"),
+        "chempia":     ("hire",    "chempia"),
+        "chpmia":      ("chpm",    "chpmia"),
+        "pchcapx_ia":  ("pchcapx", "pchcapx_ia"),
+        "mve_ia":      ("mve_f",   "mve_ia"),
+        "tb":          ("tb_1",    "tb"),
+    }
+    if character == "herf":
+        industry_sales = grouped["sale"].transform("sum")
+        comp["sales_share_sq"] = (comp["sale"] / industry_sales.replace(0, np.nan)) ** 2
+        comp["herf"] = grouped["sales_share_sq"].transform("sum")
+        return comp
+    if character is not None and character in ia_map:
+        base, out = ia_map[character]
+        comp[out] = comp[base] - grouped[base].transform("mean")
+        return comp
+    # Fallback (production-style): compute all whose base columns exist
+    for base, out in ia_map.values():
+        if base in comp.columns:
+            comp[out] = comp[base] - grouped[base].transform("mean")
+    if "sale" in comp.columns:
+        industry_sales = grouped["sale"].transform("sum")
+        comp["sales_share_sq"] = (comp["sale"] / industry_sales.replace(0, np.nan)) ** 2
+        comp["herf"] = grouped["sales_share_sq"].transform("sum")
     return comp
 
 
