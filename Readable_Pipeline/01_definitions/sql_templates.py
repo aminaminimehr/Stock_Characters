@@ -110,6 +110,8 @@ def fundq_sql(items: tuple[str, ...]) -> str:
         "SUBSTR(c.sic, 1, 2) AS sic2", "c.sic",
     ]
     for item in items:
+        if item == "rdq":
+            continue  # already in base columns
         if item in ("prccq",):
             base.append(f"ABS(f.{item}) AS {item}")
         elif item == "mveq":
