@@ -82,12 +82,13 @@ def apply_annual_formula(comp: pd.DataFrame, stem: str, db=None) -> pd.DataFrame
         comp.loc[comp["oancf"].isna(), "acc"] = safe_divide(wca, avg)
         comp["pctacc"] = safe_divide(comp["ib"] - comp["oancf"], comp["ib"].abs().replace(0, 0.01))
         comp.loc[comp["oancf"].isna(), "pctacc"] = safe_divide(wca, comp["ib"].abs().replace(0, 0.01))
-        comp["absacc"] = comp["acc"].abs()
-        comp["mve_f"] = comp["prcc_f"] * comp["csho"]
-        comp["cfp"] = safe_divide(comp["ib"] - wca, comp["mve_f"])
-        comp.loc[comp["oancf"].notna(), "cfp"] = safe_divide(comp["oancf"], comp["mve_f"])
-        if stem == "cfp_ia":
-            comp[stem] = comp["cfp"]  # demeaned in finalize
+        if stem in ("cfp", "cfp_ia"):
+            comp["absacc"] = comp["acc"].abs()
+            comp["mve_f"] = comp["prcc_f"] * comp["csho"]
+            comp["cfp"] = safe_divide(comp["ib"] - wca, comp["mve_f"])
+            comp.loc[comp["oancf"].notna(), "cfp"] = safe_divide(comp["oancf"], comp["mve_f"])
+            if stem == "cfp_ia":
+                comp[stem] = comp["cfp"]  # demeaned in finalize
     elif stem == "hire":
         comp = add_lags(comp, ("emp",))
         comp[stem] = safe_divide(comp["emp"] - comp["lag_emp"], comp["lag_emp"]).fillna(0)
