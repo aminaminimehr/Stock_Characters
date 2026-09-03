@@ -13,19 +13,23 @@ from paths import stem_cache_path
 
 
 def get_sample_bounds():
+    """Return configured sample start/end dates from pipeline config."""
     return SAMPLE_START, SAMPLE_END
 
 
 def _crsp_code_filter_disabled(value: str) -> bool:
+    """True when CRSP shrcd/exchcd filter is disabled (ALL or empty)."""
     return str(value).strip().upper() in ("", "ALL", "*")
 
 
 def _sql_int_list(values: str) -> str:
+    """Format comma-separated integers for SQL IN (...) clauses."""
     codes = [v.strip() for v in str(values).split(",") if v.strip()]
     return ", ".join(codes)
 
 
 def crsp_universe_filter(table_alias: str = "n") -> str:
+    """SQL fragment filtering CRSP msenames by shrcd and exchcd."""
     parts = []
     if not _crsp_code_filter_disabled(CRSP_SHRCD):
         parts.append(f"{table_alias}.shrcd IN ({_sql_int_list(CRSP_SHRCD)})")
@@ -35,6 +39,7 @@ def crsp_universe_filter(table_alias: str = "n") -> str:
 
 
 def sql_date_filter(column: str, table_alias: str | None = None) -> str:
+    """SQL fragment constraining a date column to SAMPLE_START/SAMPLE_END."""
     col = f"{table_alias}.{column}" if table_alias else column
     parts = []
     if SAMPLE_START:
@@ -45,6 +50,7 @@ def sql_date_filter(column: str, table_alias: str | None = None) -> str:
 
 
 def read_wrds_sql(db, sql: str) -> pd.DataFrame:
+    """Execute SQL on WRDS via raw DBAPI connection."""
     engine = getattr(db, "engine", None) or getattr(db, "connection", None)
     if engine is None:
         raise AttributeError("Expected WRDS connection with .engine or .connection")
@@ -56,6 +62,7 @@ def read_wrds_sql(db, sql: str) -> pd.DataFrame:
 
 
 def connect_wrds(wrds_user: str | None = None):
+    """Open WRDS connection using CLI arg or WRDS_USERNAME/WRDS_USER env var."""
     if not wrds_user:
         wrds_user = os.environ.get("WRDS_USERNAME") or os.environ.get("WRDS_USER")
     if not wrds_user:
@@ -64,6 +71,7 @@ def connect_wrds(wrds_user: str | None = None):
 
 
 def _reset_wrds_connection(db):
+    """Rollback and reconnect after a failed WRDS query."""
     try:
         conn = getattr(db, "connection", None)
         if conn is not None and hasattr(conn, "rollback"):
@@ -78,6 +86,7 @@ def _reset_wrds_connection(db):
 
 
 def raw_sql_with_retry(db, sql: str, attempts: int = 5, pause_seconds=None) -> pd.DataFrame:
+    """Execute WRDS SQL with exponential backoff on transient connection errors."""
     backoff = (30, 60, 120, 240)
     last_exc = None
     for attempt in range(1, attempts + 1):
@@ -104,6 +113,7 @@ def raw_sql_with_retry(db, sql: str, attempts: int = 5, pause_seconds=None) -> p
 
 
 def maybe_load_cache(stem: str, tag: str) -> pd.DataFrame | None:
+    """Load per-stem parquet cache ``cache/{stem}_{tag}.parquet`` if it exists."""
     path = stem_cache_path(stem, tag)
     if path.with_suffix(".parquet").exists():
         return pd.read_parquet(path.with_suffix(".parquet"))
@@ -111,6 +121,7 @@ def maybe_load_cache(stem: str, tag: str) -> pd.DataFrame | None:
 
 
 def maybe_save_cache(stem: str, tag: str, df: pd.DataFrame) -> None:
+    """Write per-stem parquet cache ``cache/{stem}_{tag}.parquet``."""
     path = stem_cache_path(stem, tag)
     path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(path.with_suffix(".parquet"), index=False)

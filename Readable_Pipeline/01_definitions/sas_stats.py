@@ -6,6 +6,7 @@ import pandas as pd
 
 
 def sas_std_row(values: np.ndarray) -> float:
+    """Sample std (ddof=1) of finite values; NaN if fewer than 2 observations."""
     row = values[np.isfinite(values)]
     if len(row) < 2:
         return np.nan
@@ -13,6 +14,7 @@ def sas_std_row(values: np.ndarray) -> float:
 
 
 def rolling_sas_std(frame: pd.DataFrame, col: str, lags: list[int]) -> pd.Series:
+    """Rolling SAS-compatible std of ``col`` and its per-gvkey lags."""
     parts = [frame[col].to_numpy(dtype=float)]
     grouped = frame.groupby("gvkey", sort=False)
     for lag_n in lags:

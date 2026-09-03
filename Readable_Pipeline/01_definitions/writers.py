@@ -8,6 +8,7 @@ import pandas as pd
 
 
 def write_character(df: pd.DataFrame, character: str, output_dir: Path) -> Path:
+    """Write one character parquet, dropping rows with missing/inf values."""
     out = df.copy()
     out = out[out[character].replace([np.inf, -np.inf], np.nan).notna()].copy()
     output_path = Path(output_dir) / f"{character}.parquet"

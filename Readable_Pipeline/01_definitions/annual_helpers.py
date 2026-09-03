@@ -9,6 +9,7 @@ from math_ops import lag, safe_divide
 
 
 def add_lags(comp: pd.DataFrame, columns: tuple[str, ...], periods: tuple[int, ...] = (1, 2)) -> pd.DataFrame:
+    """Add per-gvkey lag columns (``lag_{col}``, ``lag2_{col}``) for listed fields."""
     comp = comp.copy()
     for col in columns:
         if col not in comp.columns:
@@ -21,6 +22,7 @@ def add_lags(comp: pd.DataFrame, columns: tuple[str, ...], periods: tuple[int, .
 
 
 def working_capital_accrual(comp: pd.DataFrame) -> pd.Series:
+    """Green working-capital accrual: delta(WC) minus non-cash current-liability changes."""
     return (
         (comp["act"] - comp["lag_act"] - (comp["che"] - comp["lag_che"]))
         - (
@@ -33,6 +35,7 @@ def working_capital_accrual(comp: pd.DataFrame) -> pd.Series:
 
 
 def impute_capx(comp: pd.DataFrame) -> pd.DataFrame:
+    """Impute missing capx as change in net PP&E when firm has prior history."""
     comp = comp.copy()
     firm_count = comp.groupby("gvkey").cumcount()
     impute_mask = comp["capx"].isna() & (firm_count >= 1)
@@ -41,6 +44,7 @@ def impute_capx(comp: pd.DataFrame) -> pd.DataFrame:
 
 
 def act_lct_imputed(comp: pd.DataFrame):
+    """Return imputed current assets/liabilities and their lags for ratio characters."""
     act_i = comp["act"].where(comp["act"].notna(), comp["che"] + comp["rect"] + comp["invt"])
     lct_i = comp["lct"].where(comp["lct"].notna(), comp["ap"])
     lag_act_i = comp["lag_act"].where(
@@ -52,6 +56,7 @@ def act_lct_imputed(comp: pd.DataFrame):
 
 
 def accumulate_orgcap(group: pd.DataFrame) -> pd.DataFrame:
+    """Recursively accumulate inflation-adjusted SG&A into orgcap (0.85 decay)."""
     orgcap_1 = np.nan
     values = []
     for xsga_cpi in group["xsga_cpi"]:
@@ -59,9 +64,9 @@ def accumulate_orgcap(group: pd.DataFrame) -> pd.DataFrame:
             values.append(np.nan)
             continue
         if pd.isna(orgcap_1):
-            orgcap_1 = xsga_cpi / 0.25
+            orgcap_1 = xsga_cpi / 0.25  # Initialize from first observed SG&A.
         else:
-            orgcap_1 = orgcap_1 * 0.85 + xsga_cpi
+            orgcap_1 = orgcap_1 * 0.85 + xsga_cpi  # Perpetual-inventory decay.
         values.append(orgcap_1)
     group = group.copy()
     group["_orgcap_1"] = values

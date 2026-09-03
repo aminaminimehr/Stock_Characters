@@ -20,6 +20,7 @@ MSF_ITEMS = ("permno", "permco", "date", "ret", "prc", "shrout", "vol")
 
 
 def fetch_crsp_msf(db, stem: str, use_cache: bool = True) -> pd.DataFrame:
+    """Pull monthly CRSP msf for one stem and prepare base return/market-equity columns."""
     if use_cache:
         cached = maybe_load_cache(stem, "msf")
         if cached is not None:
@@ -32,6 +33,7 @@ def fetch_crsp_msf(db, stem: str, use_cache: bool = True) -> pd.DataFrame:
 
 
 def _fetch_sic_timing(db, stem: str, use_cache: bool) -> pd.DataFrame:
+    """Fetch annual Compustat SIC linked to permno for Green monthly SIC expansion."""
     if use_cache:
         cached = maybe_load_cache(stem, "sic_timing")
         if cached is not None:
@@ -46,8 +48,10 @@ def _fetch_sic_timing(db, stem: str, use_cache: bool) -> pd.DataFrame:
 
 
 def attach_monthly_sic(crsp: pd.DataFrame, db, stem: str, use_cache: bool = True) -> pd.DataFrame:
+    """Attach ``sic`` and ``sic2`` to monthly CRSP rows (Compustat or CRSP source)."""
     out = crsp.copy()
     if SIC_SOURCE == "comp_company":
+        # Expand annual Compustat SIC onto monthly signal grid via Green timing.
         annual = _fetch_sic_timing(db, stem, use_cache)
         crsp_idx = out[["permno", "signal_yyyymm"]].drop_duplicates()
         expanded = expand_annual_file_green(annual, ["sic"], crsp_month_index=crsp_idx)
@@ -64,6 +68,7 @@ def attach_monthly_sic(crsp: pd.DataFrame, db, stem: str, use_cache: bool = True
 
 
 def compute_monthly_feature(crsp: pd.DataFrame, stem: str) -> pd.DataFrame:
+    """Compute one monthly CRSP characteristic (mom*, dolvol, turn, indmom, mvel1)."""
     crsp = crsp.copy()
     crsp["return_count"] = crsp.groupby("permno").cumcount() + 1
     if stem == "mvel1":
@@ -102,10 +107,12 @@ def compute_monthly_feature(crsp: pd.DataFrame, stem: str) -> pd.DataFrame:
 
 
 def write_monthly(crsp: pd.DataFrame, stem: str) -> None:
+    """Finalize and write one monthly character parquet."""
     out = finalize_monthly(crsp, stem)
     write_character(out, stem, SINGLE_CHARACTERS_DIR)
 
 
 def monthly_alignment_frame(crsp: pd.DataFrame) -> pd.DataFrame:
+    """Return deduplicated monthly rows with standard output ID columns only."""
     cols = [c for c in MONTHLY_OUTPUT_COLUMNS if c in crsp.columns]
     return crsp[cols].drop_duplicates(["permno", "date"])

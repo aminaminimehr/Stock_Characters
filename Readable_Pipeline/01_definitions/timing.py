@@ -17,10 +17,12 @@ HXZ_JUNE_STEMS = frozenset({"bm", "operprof"})
 
 
 def annual_rolling_signal_yyyymm_offsets() -> range:
+    """Month lags 7–19 after fiscal year end for Green annual expansion."""
     return range(ANNUAL_ROLLING_START_LAG_MONTHS, ANNUAL_ROLLING_END_LAG_MONTHS)
 
 
 def expansion_mode(stem: str, columns: Iterable[str]) -> str | None:
+    """Decide how to expand a character file: monthly_native, annual_rolling, or hxz_june."""
     column_set = set(columns)
     if set(MONTHLY_KEYS).issubset(column_set):
         return "monthly_native"
@@ -33,13 +35,14 @@ def expansion_mode(stem: str, columns: Iterable[str]) -> str | None:
 
 
 def expand_annual_file_june(df: pd.DataFrame, character_columns: Iterable[str]) -> pd.DataFrame:
+    """Expand annual data to 12 monthly signals starting June of availability year."""
     character_columns = [c for c in character_columns if c not in ANNUAL_ID_COLUMNS]
     df = df.copy()
     df["datadate"] = pd.to_datetime(df["datadate"])
     availability_year = df["datadate"].dt.year + 1
     repeated = df.loc[df.index.repeat(12), list(ANNUAL_ID_COLUMNS) + character_columns].copy()
     month_offsets = np.tile(np.arange(12), len(df))
-    first_signal_month = availability_year.to_numpy().repeat(12) * 12 + 6
+    first_signal_month = availability_year.to_numpy().repeat(12) * 12 + 6  # June of year after datadate.
     month_index = first_signal_month + month_offsets
     repeated["signal_yyyymm"] = (month_index // 12) * 100 + (month_index % 12 + 1)
     repeated["target_yyyymm"] = repeated["signal_yyyymm"].map(add_one_month)
@@ -56,6 +59,7 @@ def expand_annual_file_green(
     character_columns: Iterable[str],
     crsp_month_index: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
+    """Expand annual data to monthly signals using Green rolling lags 7–19 months."""
     character_columns = [c for c in character_columns if c not in ANNUAL_ID_COLUMNS]
     df = df.copy()
     df["datadate"] = pd.to_datetime(df["datadate"])
@@ -85,6 +89,7 @@ def expand_annual_file_green(
 
 
 def build_crsp_month_index_from_panels(panels: list[pd.DataFrame]) -> pd.DataFrame:
+    """Union permno×signal_yyyymm keys from a list of monthly panels."""
     parts = []
     for panel in panels:
         if set(MONTHLY_KEYS).issubset(panel.columns):

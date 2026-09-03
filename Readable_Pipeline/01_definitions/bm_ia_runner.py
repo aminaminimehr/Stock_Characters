@@ -16,6 +16,7 @@ def demean_by_industry_month(
     time_column: str = "signal_yyyymm",
     output_column: str = "bm_ia",
 ) -> pd.DataFrame:
+    """Industry-adjust bm by subtracting SIC2×month mean (HXZ bm_ia definition)."""
     monthly = monthly.copy()
     sic = pd.to_numeric(monthly[industry_column], errors="coerce")
     monthly["_industry"] = (sic // 100).astype("Int64")
@@ -25,6 +26,7 @@ def demean_by_industry_month(
 
 
 def build_bm_ia_from_parquet(bm_parquet_path) -> pd.DataFrame:
+    """Build bm_ia from existing bm parquet: June expand, then industry demean."""
     annual = pd.read_parquet(bm_parquet_path)
     monthly = expand_annual_file_june(annual, ["bm"])
     monthly = monthly[monthly["bm"].notna()].copy()
@@ -38,4 +40,5 @@ def build_bm_ia_from_csv(bm_csv_path) -> pd.DataFrame:
 
 
 def write_bm_ia(out: pd.DataFrame) -> None:
+    """Write bm_ia character parquet."""
     write_character(out, "bm_ia", SINGLE_CHARACTERS_DIR)

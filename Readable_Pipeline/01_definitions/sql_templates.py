@@ -6,6 +6,7 @@ from wrds_io import crsp_universe_filter, sql_date_filter
 
 
 def _funda_select_list(items: tuple[str, ...]) -> str:
+    """Build SELECT column list for Green annual Compustat funda queries."""
     parts = ["c.gvkey", "f.datadate", "f.fyear", "c.sic"]
     for item in items:
         if item == "prcc_f":
@@ -18,6 +19,7 @@ def _funda_select_list(items: tuple[str, ...]) -> str:
 
 
 def green_funda_sql(items: tuple[str, ...], *, include_naics: bool = False) -> str:
+    """SQL for Green annual Compustat with minimal per-stem item list."""
     naics_col = ", c.naics" if include_naics else ""
     return f"""
         SELECT {_funda_select_list(items)}{naics_col}
@@ -29,6 +31,7 @@ def green_funda_sql(items: tuple[str, ...], *, include_naics: bool = False) -> s
 
 
 def green_funda_full_history_sql(items: tuple[str, ...]) -> str:
+    """Green funda SQL without sample date filter (for orgcap full history)."""
     return f"""
         SELECT {_funda_select_list(items)}
         FROM comp.company AS c
@@ -38,6 +41,7 @@ def green_funda_full_history_sql(items: tuple[str, ...]) -> str:
 
 
 def green_age_lookup_sql() -> str:
+    """Minimal funda SQL for firm-age observation counting."""
     return f"""
         SELECT c.gvkey, f.datadate
         FROM comp.company AS c
@@ -47,6 +51,7 @@ def green_age_lookup_sql() -> str:
 
 
 def green_ccm_sql() -> str:
+    """SQL for Green CCM link table (L* linktypes, P/C linkprim)."""
     return """
         SELECT gvkey, lpermno AS permno, lpermco AS permco, linkdt, linkenddt, linktype
         FROM crsp.ccmxpf_linktable
@@ -57,6 +62,7 @@ def green_ccm_sql() -> str:
 
 
 def hxz_ccm_sql() -> str:
+    """SQL for HXZ CCM link table (includes linkprim for dedup priority)."""
     return """
         SELECT gvkey, lpermno AS permno, lpermco AS permco,
                linktype, linkprim, linkdt, linkenddt
@@ -68,6 +74,7 @@ def hxz_ccm_sql() -> str:
 
 
 def crsp_msf_sql(items: tuple[str, ...]) -> str:
+    """SQL for monthly CRSP msf joined to msenames with universe filters."""
     msf_cols = ", ".join(f"m.{c}" for c in items)
     return f"""
         SELECT {msf_cols}, n.exchcd, n.shrcd
@@ -82,6 +89,7 @@ def crsp_msf_sql(items: tuple[str, ...]) -> str:
 
 
 def hxz_funda_bm_sql() -> str:
+    """HXZ book-to-market annual Compustat columns."""
     return """
         SELECT gvkey, datadate, fyear, seq, ceq, at, lt, pstk, pstkl, pstkrv, txditc
         FROM comp.funda
@@ -90,6 +98,7 @@ def hxz_funda_bm_sql() -> str:
 
 
 def hxz_funda_operprof_sql() -> str:
+    """HXZ operating profitability annual Compustat columns."""
     return """
         SELECT gvkey, datadate, fyear, revt, cogs, xsga, xint,
                seq, ceq, at, lt, pstk, pstkl, pstkrv, txditc
@@ -99,10 +108,12 @@ def hxz_funda_operprof_sql() -> str:
 
 
 def company_sic_sql() -> str:
+    """Minimal Compustat company SIC lookup."""
     return "SELECT gvkey, sic FROM comp.company"
 
 
 def fundq_sql(items: tuple[str, ...]) -> str:
+    """SQL for quarterly Compustat fundq with minimal per-stem item list."""
     base = [
         "c.gvkey",
         "SUBSTR(REPLACE(f.cusip, ' ', ''), 1, 6) AS cusip6",

@@ -15,6 +15,7 @@ from writers import write_character
 
 
 def _load_dsf(db, permnos: list[int]) -> pd.DataFrame:
+    """Pull daily CRSP returns and volume for event-window characters."""
     if not permnos:
         return pd.DataFrame(columns=["permno", "date", "ret", "vol"])
     permno_list = ",".join(str(int(p)) for p in permnos)
@@ -35,11 +36,13 @@ def _load_dsf(db, permnos: list[int]) -> pd.DataFrame:
 
 
 def _intnx_weekday_scalar(ts) -> tuple[pd.Timestamp, pd.Timestamp]:
+    """Return business-day window [-1, +1] around an earnings announcement date."""
     rdq = pd.Timestamp(ts)
     return rdq + pd.tseries.offsets.BDay(-1), rdq + pd.tseries.offsets.BDay(1)
 
 
 def _earnings_events(events: pd.DataFrame, dsf: pd.DataFrame) -> pd.DataFrame:
+    """Compute ear (cumulative return) and aeavol (abnormal volume) around each rdq."""
     records = []
     for permno, events_p in events.groupby("permno", sort=False):
         dsf_p = dsf[dsf["permno"] == permno]
@@ -58,6 +61,7 @@ def _earnings_events(events: pd.DataFrame, dsf: pd.DataFrame) -> pd.DataFrame:
             if not np.isfinite(ear):
                 continue
             rdq = pd.Timestamp(row.rdq)
+            # Pre-event volume baseline: business days [-30, -10] before rdq.
             pre_start = rdq + pd.tseries.offsets.BDay(-30)
             pre_end = rdq + pd.tseries.offsets.BDay(-10)
             j0 = int(np.searchsorted(dates, np.datetime64(pre_start), side="left"))
@@ -70,6 +74,7 @@ def _earnings_events(events: pd.DataFrame, dsf: pd.DataFrame) -> pd.DataFrame:
 
 
 def _merge_events_to_monthly(monthly: pd.DataFrame, events: pd.DataFrame, value_col: str) -> pd.DataFrame:
+    """Map quarterly event values onto monthly CRSP rows via Green quarterly timing window."""
     parts = []
     for permno, m_grp in monthly.groupby("permno", sort=False):
         events_p = events[events["permno"] == permno]
@@ -97,6 +102,7 @@ def _merge_events_to_monthly(monthly: pd.DataFrame, events: pd.DataFrame, value_
 
 
 def build_event_stem(db, stem: str, use_cache: bool = True) -> pd.DataFrame:
+    """Build ear or aeavol: quarterly rdq events merged onto monthly CRSP panel."""
     items = QUARTERLY_FUNDA_ITEMS["nincr"]
     comp = fetch_quarterly_fundq(db, stem, items, use_cache=use_cache)
     comp = attach_ccm_links_green(comp, load_ccm_links_green(db))
@@ -115,4 +121,5 @@ def build_event_stem(db, stem: str, use_cache: bool = True) -> pd.DataFrame:
 
 
 def write_event(out: pd.DataFrame, stem: str) -> None:
+    """Write ear or aeavol character parquet."""
     write_character(out, stem, SINGLE_CHARACTERS_DIR)

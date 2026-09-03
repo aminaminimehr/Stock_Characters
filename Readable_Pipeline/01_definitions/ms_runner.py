@@ -22,6 +22,7 @@ MS_ANNUAL_ITEMS = ("ni", "oancf", "ib", "dp", "xrd", "capx", "xad", "at")
 
 
 def _attach_m7_m8(comp: pd.DataFrame, quarterly: pd.DataFrame) -> pd.DataFrame:
+    """Merge last-quarter m7/m8 from quarterly panel onto annual rows by fiscal year."""
     q = quarterly[quarterly["permno"].notna()].copy()
     q["permno"] = pd.to_numeric(q["permno"], errors="coerce")
     q_last = (
@@ -96,6 +97,7 @@ def _compute_m7_m8(quarterly: pd.DataFrame) -> pd.DataFrame:
 
 
 def build_ms_panel(db, use_cache: bool = True) -> pd.DataFrame:
+    """Build Mohanram G-score ms = m1 + ... + m8 on monthly CRSP grid."""
     comp = fetch_green_funda(db, "ms", MS_ANNUAL_ITEMS, use_cache=use_cache)
     comp = add_lags(comp, ("at",))
     comp = attach_ccm_links_green(comp, fetch_green_ccm(db, "ms"))
@@ -118,10 +120,12 @@ def build_ms_panel(db, use_cache: bool = True) -> pd.DataFrame:
     crsp["date"] = pd.to_datetime(crsp["date"])
     merged = crsp.merge(annual_expanded[["permno", "signal_yyyymm"] + M_COLUMNS], on=["permno", "signal_yyyymm"], how="inner")
     merged["ms"] = merged[M_COLUMNS].sum(axis=1, min_count=len(M_COLUMNS))
+    # SAS '+' yields missing if any component is missing (min_count enforces that).
     out = merged[merged["ms"].notna()].copy()
     cols = ["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "sic", "exchcd", "shrcd", "ms"]
     return out[[c for c in cols if c in out.columns]]
 
 
 def write_ms(out: pd.DataFrame) -> None:
+    """Write ms character parquet."""
     write_character(out, "ms", SINGLE_CHARACTERS_DIR)

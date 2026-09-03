@@ -14,6 +14,7 @@ IA_STEMS = frozenset({"cfp_ia", "chatoia", "chempia", "chpmia", "pchcapx_ia", "m
 
 
 def _normalize_naics(naics):
+    """Normalize NAICS codes to comparable string form for sin-industry matching."""
     if pd.isna(naics):
         return ""
     value = pd.to_numeric(naics, errors="coerce")
@@ -25,6 +26,7 @@ def _normalize_naics(naics):
 
 
 def _compute_sin(comp: pd.DataFrame) -> pd.Series:
+    """Sin-stock indicator from SIC ranges or Green NAICS list."""
     sic = pd.to_numeric(comp["sic"], errors="coerce")
     sic_sin = ((sic >= 2100) & (sic <= 2199)) | ((sic >= 2080) & (sic <= 2085))
     naics_str = comp["naics"].map(_normalize_naics)
@@ -33,10 +35,12 @@ def _compute_sin(comp: pd.DataFrame) -> pd.Series:
 
 
 def _avg_at(comp: pd.DataFrame) -> pd.Series:
+    """Average total assets (current and lagged)."""
     return (comp["at"] + comp["lag_at"]) / 2
 
 
 def _wca(comp: pd.DataFrame) -> pd.Series:
+    """Working-capital accrual component used by acc/cfp family."""
     return working_capital_accrual(comp)
 
 
@@ -300,4 +304,5 @@ def apply_annual_formula(comp: pd.DataFrame, stem: str, db=None) -> pd.DataFrame
 
 
 def needs_industry_adjustment(stem: str) -> bool:
+    """True if stem requires post-CCM industry demeaning or herf computation."""
     return stem in IA_STEMS

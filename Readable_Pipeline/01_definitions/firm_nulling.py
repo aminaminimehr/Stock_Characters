@@ -18,6 +18,7 @@ IA_FIRST_YEAR_NULL = ["chpmia", "chempia", "pchcapx_ia"]
 
 
 def apply_firm_lag_nulling(comp: pd.DataFrame, character: str) -> pd.DataFrame:
+    """Null first-year (or first-two-year) observations per Green SAS rules."""
     comp = comp.copy()
     if character in ("chato", "chatoia"):
         comp.loc[comp.groupby("gvkey").cumcount() < 2, character] = np.nan
@@ -35,6 +36,7 @@ def apply_firm_lag_nulling(comp: pd.DataFrame, character: str) -> pd.DataFrame:
 
 
 def dedupe_annual_compustat(comp: pd.DataFrame) -> pd.DataFrame:
+    """Dedupe Compustat on gvkey×datadate and derive sic2 from sic."""
     comp = comp.copy()
     comp["datadate"] = pd.to_datetime(comp["datadate"])
     if "sic" in comp.columns:

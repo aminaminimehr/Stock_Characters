@@ -17,6 +17,7 @@ from writers import write_character
 
 
 def intnx_month(ts: pd.Series, n: int, alignment: str = "end") -> pd.Series:
+    """Shift dates by n months; align to month start (``beg``) or end (``end``)."""
     shifted = pd.to_datetime(ts) + pd.DateOffset(months=n)
     if alignment == "beg":
         return shifted.dt.to_period("M").dt.to_timestamp("s")
@@ -24,10 +25,12 @@ def intnx_month(ts: pd.Series, n: int, alignment: str = "end") -> pd.Series:
 
 
 def _bool_to_int(left: pd.Series, right: pd.Series) -> pd.Series:
+    """SAS-style comparison: True if left > right, False if missing."""
     return left.gt(right).fillna(False).astype(int)
 
 
 def fetch_quarterly_fundq(db, stem: str, items: tuple[str, ...], use_cache: bool = True) -> pd.DataFrame:
+    """Pull quarterly Compustat fundq for one stem with per-stem SQL and cache."""
     if use_cache:
         cached = maybe_load_cache(stem, "fundq")
         if cached is not None:
@@ -41,9 +44,11 @@ def fetch_quarterly_fundq(db, stem: str, items: tuple[str, ...], use_cache: bool
 
 
 def compute_quarterly_stem(comp: pd.DataFrame, stem: str) -> pd.DataFrame:
+    """Apply Green quarterly formula for one stem (dispatcher by stem name)."""
     df = comp.copy().reset_index(drop=True)
     g = df.groupby("gvkey", sort=False)
     df["count"] = g.cumcount() + 1
+    # Guard lags: only compute if column exists in this stem's minimal SQL pull.
     lag_atq = g["atq"].shift(1) if "atq" in df.columns else None
     lag4_atq = g["atq"].shift(4) if "atq" in df.columns else None
     lag4_txtq = g["txtq"].shift(4) if "txtq" in df.columns else None
@@ -108,6 +113,7 @@ def compute_quarterly_stem(comp: pd.DataFrame, stem: str) -> pd.DataFrame:
         )
         df.loc[df["count"] < 5, stem] = np.nan
     elif stem == "nincr":
+        # Consecutive quarterly earnings increases (up to 8 quarters).
         ibq = df["ibq"]
         l1, l2, l3, l4 = g["ibq"].shift(1), g["ibq"].shift(2), g["ibq"].shift(3), g["ibq"].shift(4)
         l5, l6, l7, l8 = g["ibq"].shift(5), g["ibq"].shift(6), g["ibq"].shift(7), g["ibq"].shift(8)
@@ -130,6 +136,7 @@ def compute_quarterly_stem(comp: pd.DataFrame, stem: str) -> pd.DataFrame:
 
 
 def expand_quarterly_to_monthly(db, quarterly: pd.DataFrame, character: str, use_cache: bool = True) -> pd.DataFrame:
+    """Map quarterly values onto monthly CRSP via Green rdq/datadate timing window."""
     value_col = "cash_q" if character == "cash" else character
     monthly = monthly_alignment_frame(fetch_crsp_msf(db, character, use_cache=use_cache))
     monthly["date"] = pd.to_datetime(monthly["date"])
@@ -168,6 +175,7 @@ def expand_quarterly_to_monthly(db, quarterly: pd.DataFrame, character: str, use
 
 
 def build_quarterly_stem(db, stem: str, items: tuple[str, ...], use_cache: bool = True) -> pd.DataFrame:
+    """Full quarterly build: fundq pull, formula, CCM link, expand to monthly."""
     comp = fetch_quarterly_fundq(db, stem, items, use_cache=use_cache)
     comp = compute_quarterly_stem(comp, stem)
     link = load_ccm_links_green(db)
@@ -177,6 +185,7 @@ def build_quarterly_stem(db, stem: str, items: tuple[str, ...], use_cache: bool 
 
 
 def write_quarterly(out: pd.DataFrame, stem: str) -> None:
+    """Write quarterly character parquet (renames cash_q to cash if needed)."""
     if stem == "cash" and "cash_q" in out.columns:
         out = out.rename(columns={"cash_q": "cash"})
     write_character(out, stem, SINGLE_CHARACTERS_DIR)

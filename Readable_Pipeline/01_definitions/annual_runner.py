@@ -22,6 +22,7 @@ from writers import write_character
 def fetch_green_funda(
     db, stem: str, items: tuple[str, ...], *, include_naics: bool = False, use_cache: bool = True
 ) -> pd.DataFrame:
+    """Pull annual Compustat funda for one stem with per-stem SQL and parquet cache."""
     if use_cache:
         cached = maybe_load_cache(stem, "funda")
         if cached is not None:
@@ -34,6 +35,7 @@ def fetch_green_funda(
 
 
 def fetch_green_ccm(db, stem: str) -> pd.DataFrame:
+    """Load Green CCM link table, cached per stem as ``{stem}_ccm.parquet``."""
     cached = maybe_load_cache(stem, "ccm")
     if cached is not None:
         return cached
@@ -50,6 +52,7 @@ def finalize_green_annual(
     db=None,
     stem: str | None = None,
 ) -> pd.DataFrame:
+    """Apply firm-lag nulling, CCM links, optional industry adjustment, and drop missing values."""
     comp = apply_firm_lag_nulling(comp, character)
     link = fetch_green_ccm(db, stem or character)
     comp = attach_ccm_links_green(comp, link)
@@ -64,6 +67,7 @@ def finalize_green_annual(
 
 
 def fetch_age_lookup(db, stem: str) -> pd.DataFrame:
+    """Build firm age (observation count per gvkey) lookup for the ``age`` character."""
     cached = maybe_load_cache(stem, "age_lookup")
     if cached is not None:
         return cached
@@ -75,6 +79,7 @@ def fetch_age_lookup(db, stem: str) -> pd.DataFrame:
 
 
 def fetch_orgcap_lookup(db, stem: str) -> pd.DataFrame:
+    """Build inflation-adjusted organizational capital lookup for the ``orgcap`` character."""
     from annual_helpers import accumulate_orgcap
 
     cached = maybe_load_cache(stem, "orgcap_lookup")
@@ -97,5 +102,6 @@ def fetch_orgcap_lookup(db, stem: str) -> pd.DataFrame:
 
 
 def write_annual(comp: pd.DataFrame, character: str) -> None:
+    """Write annual character parquet with standard ID columns."""
     cols = [c for c in ANNUAL_ID_COLUMNS + [character] if c in comp.columns]
     write_character(comp[cols], character, SINGLE_CHARACTERS_DIR)

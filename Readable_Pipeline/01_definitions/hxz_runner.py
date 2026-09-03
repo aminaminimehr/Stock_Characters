@@ -13,6 +13,7 @@ from writers import write_character
 
 
 def fetch_hxz_funda(db, stem: str, sql: str, use_cache: bool = True) -> pd.DataFrame:
+    """Pull HXZ annual Compustat panel with company SIC, cached per stem."""
     if use_cache:
         cached = maybe_load_cache(stem, "hxz_funda")
         if cached is not None:
@@ -26,6 +27,7 @@ def fetch_hxz_funda(db, stem: str, sql: str, use_cache: bool = True) -> pd.DataF
 
 
 def fetch_crsp_december_me(db, stem: str, use_cache: bool = True) -> pd.DataFrame:
+    """Aggregate December CRSP market equity by permco×calendar_year for HXZ bm."""
     if use_cache:
         cached = maybe_load_cache(stem, "crsp_dec_me")
         if cached is not None:
@@ -56,6 +58,7 @@ def fetch_crsp_december_me(db, stem: str, use_cache: bool = True) -> pd.DataFram
 
 
 def _book_equity(comp: pd.DataFrame) -> pd.Series:
+    """HXZ book equity with preferred-stock and txditc adjustments (in thousands)."""
     preferred = comp["pstkrv"].fillna(comp["pstkl"]).fillna(comp["pstk"]).fillna(0)
     seq = comp["seq"].copy()
     seq = seq.fillna(comp["ceq"] + preferred)
@@ -64,6 +67,7 @@ def _book_equity(comp: pd.DataFrame) -> pd.Series:
 
 
 def build_bm_panel(db, use_cache: bool = True) -> pd.DataFrame:
+    """Build annual HXZ book-to-market linked to December market equity."""
     comp = fetch_hxz_funda(db, "bm", hxz_funda_bm_sql(), use_cache=use_cache)
     comp["preferred_stock"] = comp["pstkrv"].fillna(comp["pstkl"]).fillna(comp["pstk"]).fillna(0)
     comp["book_equity"] = _book_equity(comp)
@@ -83,6 +87,7 @@ def build_bm_panel(db, use_cache: bool = True) -> pd.DataFrame:
 
 
 def build_operprof_panel(db, use_cache: bool = True) -> pd.DataFrame:
+    """Build annual HXZ operating profitability (revt - expenses) / book equity."""
     comp = fetch_hxz_funda(db, "operprof", hxz_funda_operprof_sql(), use_cache=use_cache)
     comp["preferred_stock"] = comp["pstkrv"].fillna(comp["pstkl"]).fillna(comp["pstk"]).fillna(0)
     comp["book_equity"] = comp["seq"].fillna(comp["ceq"] + comp["pstk"].fillna(0)).fillna(comp["at"] - comp["lt"])
@@ -102,5 +107,6 @@ def build_operprof_panel(db, use_cache: bool = True) -> pd.DataFrame:
 
 
 def write_hxz_annual(df: pd.DataFrame, stem: str) -> None:
+    """Write HXZ annual character parquet with standard annual ID columns."""
     cols = [c for c in ANNUAL_ID_COLUMNS + [stem] if c in df.columns]
     write_character(df[cols], stem, SINGLE_CHARACTERS_DIR)

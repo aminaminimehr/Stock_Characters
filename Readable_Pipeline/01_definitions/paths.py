@@ -16,6 +16,7 @@ NON_CHARACTER_STEMS = frozenset({"all_character_signal_panel"})
 
 
 def ensure_output_tree() -> None:
+    """Create output subdirectories (cache, single_characters, panels, logs, diagnostics)."""
     for path in (CACHE_DIR, SINGLE_CHARACTERS_DIR, PANELS_DIR, LOGS_DIR, DIAGNOSTICS_DIR):
         path.mkdir(parents=True, exist_ok=True)
     gitkeep = OUTPUT_ROOT / ".gitkeep"
@@ -24,6 +25,7 @@ def ensure_output_tree() -> None:
 
 
 def character_parquet_path(stem: str) -> Path:
+    """Path to ``single_characters/{stem}.parquet``."""
     return SINGLE_CHARACTERS_DIR / f"{stem}.parquet"
 
 
@@ -33,4 +35,5 @@ def character_csv_path(stem: str) -> Path:
 
 
 def stem_cache_path(stem: str, suffix: str) -> Path:
+    """Path stem for per-stem cache file ``cache/{stem}_{suffix}.parquet``."""
     return CACHE_DIR / f"{stem}_{suffix}"

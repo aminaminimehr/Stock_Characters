@@ -27,10 +27,12 @@ NON_CHARACTER_FILES = {f"{stem}.parquet" for stem in NON_CHARACTER_STEMS}
 
 
 def _parquet_columns(path: Path) -> list[str]:
+    """Read parquet schema column names without loading data."""
     return list(pq.read_schema(path).names)
 
 
 def infer_character_columns(df: pd.DataFrame) -> list[str]:
+    """Identify numeric value columns excluding known ID/metadata fields."""
     return [
         c for c in df.columns
         if c not in KNOWN_NON_CHARACTER_COLUMNS and pd.api.types.is_numeric_dtype(df[c])
@@ -38,6 +40,7 @@ def infer_character_columns(df: pd.DataFrame) -> list[str]:
 
 
 def normalize_character_file(path: Path, crsp_month_index=None):
+    """Load one character parquet and expand to monthly signal_yyyymm grid if needed."""
     df = pd.read_parquet(path)
     character_columns = infer_character_columns(df)
     if not character_columns:
@@ -55,6 +58,7 @@ def normalize_character_file(path: Path, crsp_month_index=None):
 
 
 def coalesce_metadata(panels: list[pd.DataFrame]):
+    """Merge sic (and other metadata) across panels onto MONTHLY_KEYS."""
     metadata = None
     for panel in panels:
         meta_cols = [c for c in ["sic"] if c in panel.columns]
@@ -74,6 +78,7 @@ def coalesce_metadata(panels: list[pd.DataFrame]):
 
 
 def merge_panels(panels: list[pd.DataFrame]) -> pd.DataFrame:
+    """Outer-merge all character panels on (permno, signal_yyyymm, target_yyyymm)."""
     final = None
     for panel in panels:
         value_columns = [c for c in panel.columns if c not in set(MONTHLY_KEYS + ["permco", "gvkey", "sic"])]
@@ -92,6 +97,7 @@ def merge_panels(panels: list[pd.DataFrame]) -> pd.DataFrame:
 
 
 def _load_crsp_month_index(paths: list[Path]) -> pd.DataFrame:
+    """Build master permno×signal_yyyymm index from mvel1 or all monthly files."""
     for stem in ("mvel1",):
         path = SINGLE_CHARACTERS_DIR / f"{stem}.parquet"
         if path.exists():
@@ -107,6 +113,7 @@ def _load_crsp_month_index(paths: list[Path]) -> pd.DataFrame:
 
 
 def build_all_character_panel(input_dir: Path | None = None):
+    """Merge all single-character parquets into one winsorized panel DataFrame."""
     input_dir = input_dir or SINGLE_CHARACTERS_DIR
     paths = sorted(input_dir.glob("*.parquet"))
     crsp_month_index = _load_crsp_month_index(paths)
@@ -127,6 +134,7 @@ def build_all_character_panel(input_dir: Path | None = None):
 
 
 def write_signal_panel(input_dir: Path | None = None) -> Path:
+    """Build and write the 95-column datashare panel CSV."""
     panel, skipped = build_all_character_panel(input_dir)
     SIGNAL_PANEL_FILE.parent.mkdir(parents=True, exist_ok=True)
     panel.to_csv(SIGNAL_PANEL_FILE, index=False)

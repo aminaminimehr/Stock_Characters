@@ -11,6 +11,7 @@ READABLE_INDIVIDUAL = Path(__file__).resolve().parents[1] / "03_outputs" / "sing
 
 
 def compare_character_csv(stem: str) -> dict | None:
+    """Compare readable parquet vs production CSV for one stem; return max abs diff."""
     new_path = READABLE_INDIVIDUAL / f"{stem}.parquet"
     prod_path = PROD_INDIVIDUAL / f"{stem}.csv"
     if not new_path.exists() or not prod_path.exists():

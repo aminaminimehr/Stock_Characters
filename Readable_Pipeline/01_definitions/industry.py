@@ -10,6 +10,7 @@ from math_ops import indicator, safe_divide
 
 
 def apply_industry_adjusted_annual(comp: pd.DataFrame, character: str | None = None) -> pd.DataFrame:
+    """Demean base characteristics within sic2×fyear, or compute herf concentration index."""
     comp = comp.copy()
     grouped = comp.groupby(["sic2", "fyear"], dropna=False)
     ia_map = {
@@ -42,6 +43,7 @@ def apply_industry_adjusted_annual(comp: pd.DataFrame, character: str | None = N
 
 
 def apply_ia_lag_nulling(comp: pd.DataFrame, character: str) -> pd.DataFrame:
+    """Null first-year IA observations per Green SAS firm-lag rules."""
     comp = comp.copy()
     if character in ("chato", "chatoia"):
         comp.loc[comp.groupby("gvkey").cumcount() < 2, character] = np.nan
@@ -51,6 +53,7 @@ def apply_ia_lag_nulling(comp: pd.DataFrame, character: str) -> pd.DataFrame:
 
 
 def apply_mohanram_m1_m6(comp: pd.DataFrame, avg_at: pd.Series) -> pd.DataFrame:
+    """Compute Mohanram annual binary signals m1–m6 vs industry medians."""
     comp = comp.copy()
     roa_ms = safe_divide(comp["ni"], avg_at)
     cfroa_ms = safe_divide(comp["oancf"], avg_at)
@@ -75,6 +78,7 @@ def apply_mohanram_m1_m6(comp: pd.DataFrame, avg_at: pd.Series) -> pd.DataFrame:
 
 
 def compute_tb_1(comp: pd.DataFrame) -> pd.Series:
+    """Tax benefit to income ratio (base for industry-adjusted ``tb``)."""
     tax_rate = comp["fyear"].map(GREEN_TAX_RATE_BY_FYEAR)
     tb_primary = safe_divide(comp["txfo"] + comp["txfed"], tax_rate)
     tb_fallback = safe_divide(comp["txt"] - comp["txdi"], tax_rate)
@@ -89,4 +93,5 @@ def compute_tb_1(comp: pd.DataFrame) -> pd.Series:
 
 
 def should_apply_post_ccm_ia() -> bool:
+    """True when industry adjustment runs after CCM linking (Green default)."""
     return INDUSTRY_AGG == "post_ccm"

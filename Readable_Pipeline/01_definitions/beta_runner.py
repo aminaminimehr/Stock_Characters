@@ -25,6 +25,7 @@ N_WORKERS = int(os.environ.get("BETA_WORKERS", "1"))
 
 
 def intnx_month(ts: pd.Series, n: int, alignment: str = "end") -> pd.Series:
+    """Shift dates by n months; align to month start (``beg``) or end (``end``)."""
     shifted = pd.to_datetime(ts) + pd.DateOffset(months=n)
     if alignment == "beg":
         return shifted.dt.to_period("M").dt.to_timestamp("s")
@@ -32,6 +33,7 @@ def intnx_month(ts: pd.Series, n: int, alignment: str = "end") -> pd.Series:
 
 
 def _ols_beta(y: np.ndarray, x: np.ndarray) -> tuple[float, float]:
+    """OLS slope of y on x and adjusted R-squared (single-factor)."""
     mask = np.isfinite(y) & np.isfinite(x)
     y, x = y[mask], x[mask]
     if len(y) < 2:
@@ -52,6 +54,7 @@ def _ols_beta(y: np.ndarray, x: np.ndarray) -> tuple[float, float]:
 
 
 def _ols_multi_adj_r2(y: np.ndarray, xcols: list[np.ndarray]) -> float:
+    """Adjusted R-squared from multivariate OLS (used for pricedelay denominator)."""
     mask = np.isfinite(y)
     for x in xcols:
         mask &= np.isfinite(x)
@@ -70,12 +73,14 @@ def _ols_multi_adj_r2(y: np.ndarray, xcols: list[np.ndarray]) -> float:
 
 
 def _weekly_cache_path() -> Path:
+    """Disk path for pickled weekly returns cache keyed by sample bounds."""
     start, end = get_sample_bounds()
     end_tag = end or "open"
     return CACHE_DIR / f"weekly_returns_{start}_{end_tag}.pkl"
 
 
 def get_weekly_returns(db, permnos: list[int], use_cache: bool = True) -> pd.DataFrame:
+    """Aggregate daily CRSP to weekly returns plus equal-weighted market return."""
     global _WEEKLY_CACHE
     if use_cache and _WEEKLY_CACHE is not None:
         return _WEEKLY_CACHE
@@ -99,6 +104,7 @@ def get_weekly_returns(db, permnos: list[int], use_cache: bool = True) -> pd.Dat
     dsf["date"] = pd.to_datetime(dsf["date"])
     dsf["ret"] = pd.to_numeric(dsf["ret"], errors="coerce")
     dsf["wkdt"] = dsf["date"] + pd.to_timedelta(4 - dsf["date"].dt.dayofweek, unit="D")
+    # Compound daily log returns within each (permno, week-ending-Friday) bucket.
     log_ret = np.log1p(dsf["ret"])
     wk = log_ret.groupby([dsf["permno"], dsf["wkdt"]], sort=False).sum(min_count=1).reset_index(name="log_wkret")
     wk["wkret"] = np.expm1(wk["log_wkret"])
@@ -162,6 +168,7 @@ def _process_permno(args):
 
 
 def estimate_factor_panel(db, use_cache: bool = True) -> pd.DataFrame:
+    """Run weekly regressions for all permno-months; returns beta family columns."""
     monthly = monthly_alignment_frame(fetch_crsp_msf(db, "beta", use_cache=use_cache))
     monthly["date"] = pd.to_datetime(monthly["date"])
     monthly["permno"] = pd.to_numeric(monthly["permno"], errors="coerce").astype("int64")
@@ -190,6 +197,7 @@ def estimate_factor_panel(db, use_cache: bool = True) -> pd.DataFrame:
 
 
 def build_factor_stem(db, stem: str, use_cache: bool = True) -> pd.DataFrame:
+    """Extract one beta-family stem (beta, betasq, idiovol, pricedelay) from factor panel."""
     panel = estimate_factor_panel(db, use_cache=use_cache)
     if stem == "betasq":
         panel["betasq"] = panel["beta"] ** 2
@@ -199,4 +207,5 @@ def build_factor_stem(db, stem: str, use_cache: bool = True) -> pd.DataFrame:
 
 
 def write_factor(out: pd.DataFrame, stem: str) -> None:
+    """Write beta-family character parquet."""
     write_character(out, stem, SINGLE_CHARACTERS_DIR)

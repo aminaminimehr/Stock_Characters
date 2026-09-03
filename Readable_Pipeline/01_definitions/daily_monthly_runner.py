@@ -20,6 +20,7 @@ _DAILY_AGG_SQL = {
 
 
 def _daily_sql(stem: str) -> str:
+    """Build SQL that aggregates crsp.dsf daily rows to monthly for one stem."""
     if stem == "zerotrade":
         return f"""
             SELECT permno,
@@ -43,6 +44,7 @@ def _daily_sql(stem: str) -> str:
 
 
 def fetch_daily_monthly(db, stem: str, use_cache: bool = True) -> pd.DataFrame:
+    """Pull monthly-aggregated daily CRSP feature for one stem."""
     if use_cache:
         cached = maybe_load_cache(stem, "dsf_monthly")
         if cached is not None:
@@ -58,6 +60,7 @@ def fetch_daily_monthly(db, stem: str, use_cache: bool = True) -> pd.DataFrame:
 
 
 def merge_daily_to_monthly(db, stem: str, use_cache: bool = True) -> pd.DataFrame:
+    """Merge lagged daily-monthly aggregate onto monthly CRSP alignment frame."""
     daily = fetch_daily_monthly(db, stem, use_cache=use_cache)
     monthly = fetch_crsp_msf(db, stem, use_cache=use_cache)
     from monthly_runner import attach_monthly_sic
@@ -65,11 +68,13 @@ def merge_daily_to_monthly(db, stem: str, use_cache: bool = True) -> pd.DataFram
     monthly = attach_monthly_sic(monthly, db, stem, use_cache=use_cache)
     monthly = monthly_alignment_frame(monthly)
     monthly["source_yyyymm"] = monthly.groupby("permno")["signal_yyyymm"].shift(1)
+    # Daily aggregate for month t is merged using prior month's signal_yyyymm.
     out = monthly.merge(daily[["permno", "source_yyyymm", stem]], on=["permno", "source_yyyymm"], how="left")
     return out[out[stem].replace([np.inf, -np.inf], np.nan).notna()].copy()
 
 
 def write_daily_monthly(out: pd.DataFrame, stem: str) -> None:
+    """Write daily-aggregated monthly character parquet."""
     cols = ["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "sic", "exchcd", "shrcd", stem]
     cols = [c for c in cols if c in out.columns]
     write_character(out[cols], stem, SINGLE_CHARACTERS_DIR)

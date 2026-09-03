@@ -10,6 +10,7 @@ from wrds_io import raw_sql_with_retry
 
 
 def parse_ccm_codes(value, default):
+    """Parse CCM linktype/linkprim codes from config string or sequence."""
     if value is None:
         return tuple(default)
     if isinstance(value, str):
@@ -22,10 +23,12 @@ def parse_ccm_codes(value, default):
 
 
 def sql_code_list(codes):
+    """Format CCM codes as quoted SQL list."""
     return ", ".join(f"'{code}'" for code in codes)
 
 
 def _is_prefix_rule(linktypes):
+    """True when linktype filter uses LIKE 'L%' prefix rule."""
     if linktypes is None:
         return False
     if isinstance(linktypes, str):
@@ -34,6 +37,7 @@ def _is_prefix_rule(linktypes):
 
 
 def _linkprim_clause(linkprim):
+    """SQL AND clause for linkprim filter, or empty if disabled."""
     if str(linkprim).strip().upper() in ("", "ALL", "*"):
         return ""
     codes = parse_ccm_codes(linkprim, ())
@@ -41,6 +45,7 @@ def _linkprim_clause(linkprim):
 
 
 def load_ccm_links_green(db, linktypes=None, linkprim=None):
+    """Load Green CCM links from WRDS with configurable linktype/linkprim."""
     if linktypes is None:
         linktypes = CCM_LINKTYPES
     if linkprim is None:
@@ -65,6 +70,7 @@ def load_ccm_links_green(db, linktypes=None, linkprim=None):
 
 
 def load_ccm_links_hxz(db, linktypes=None, linkprim=None):
+    """Load HXZ CCM links (includes linkprim for primary-link dedup)."""
     if linktypes is None:
         linktypes = CCM_LINKTYPES
     if linkprim is None:
@@ -89,6 +95,7 @@ def load_ccm_links_hxz(db, linktypes=None, linkprim=None):
 
 
 def attach_ccm_links_green(comp, link):
+    """Merge Green CCM links and keep rows where datadate falls in link window."""
     merged = comp.merge(link, on="gvkey", how="inner")
     linkdt_ok = merged["linkdt"].isna() | (merged["linkdt"] <= merged["datadate"])
     linkend_ok = merged["linkenddt"].isna() | (merged["datadate"] <= merged["linkenddt"])
@@ -100,6 +107,7 @@ def attach_ccm_links_green(comp, link):
 
 
 def attach_ccm_links_hxz(comp, link):
+    """Merge HXZ CCM links; dedupe to one link per gvkey×datadate by linkprim priority."""
     linked = comp.merge(link, on="gvkey", how="inner")
     linked = linked[
         (linked["datadate"] >= linked["linkdt"])
