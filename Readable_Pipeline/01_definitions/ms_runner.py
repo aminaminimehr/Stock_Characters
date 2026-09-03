@@ -13,6 +13,7 @@ from math_ops import lag
 from monthly_runner import attach_monthly_sic, fetch_crsp_msf
 from paths import SINGLE_CHARACTERS_DIR
 from quarterly_runner import compute_quarterly_stem, fetch_quarterly_fundq
+from sas_stats import rolling_sas_std
 from timing import expand_annual_file_green
 from writers import write_character
 
@@ -39,6 +40,61 @@ def _attach_m7_m8(comp: pd.DataFrame, quarterly: pd.DataFrame) -> pd.DataFrame:
     return comp.drop(columns=["permno_q", "_permno_num"], errors="ignore")
 
 
+def _compute_m7_m8(quarterly: pd.DataFrame) -> pd.DataFrame:
+    """Compute Mohanram quarterly components m7/m8 on the quarterly panel.
+
+    m7 = 1 if roavol (earnings volatility) is below its industry median, else 0.
+    m8 = 1 if sgrvol (sales-growth volatility) is below its industry median, else 0.
+
+    Industry medians are computed by (fyearq, fqtr, sic2). SAS treats missing
+    values as -inf, so a NaN roavol with an available industry median yields m7=1
+    (replicated below).
+    """
+    df = quarterly.copy().reset_index(drop=True)
+    g = df.groupby("gvkey", sort=False)
+    df["count"] = g.cumcount() + 1
+
+    # rsup = (saleq - lag4_saleq) / mveq  (sales-growth surprise)
+    lag4_saleq = g["saleq"].shift(4) if "saleq" in df.columns else None
+    if "mveq" in df.columns and lag4_saleq is not None:
+        df["rsup"] = (df["saleq"] - lag4_saleq) / df["mveq"]
+
+    # sgrvol = rolling std of rsup over 8 quarters (current + 7 lags)
+    if "rsup" in df.columns:
+        df["sgrvol"] = rolling_sas_std(df, "rsup", list(range(1, 8)))
+
+    # roavol is normally already produced by compute_quarterly_stem("roavol");
+    # recompute defensively if absent.
+    if "roavol" not in df.columns and "roaq" in df.columns:
+        df["roavol"] = rolling_sas_std(df, "roaq", list(range(1, 8)))
+
+    # Green SAS L268: null roavol/sgrvol when n < 8 (BEFORE medians so early
+    # firms are excluded from the industry median).
+    df.loc[df["count"] < 8, ["roavol", "sgrvol"]] = np.nan
+
+    # Industry medians by (fyearq, fqtr, sic2)
+    if "sic2" in df.columns and "roavol" in df.columns and "sgrvol" in df.columns:
+        med = df.groupby(["fyearq", "fqtr", "sic2"], dropna=False)[["roavol", "sgrvol"]].transform("median")
+        med.columns = ["md_roavol", "md_sgrvol"]
+        df = pd.concat([df, med], axis=1)
+        # SAS missing semantics: NaN roavol with available median -> m7 = 1
+        df["m7"] = np.where(
+            df["roavol"].isna() & df["md_roavol"].notna(),
+            1,
+            np.where(df["roavol"].lt(df["md_roavol"]).fillna(False), 1, 0),
+        )
+        df["m8"] = np.where(
+            df["sgrvol"].isna() & df["md_sgrvol"].notna(),
+            1,
+            np.where(df["sgrvol"].lt(df["md_sgrvol"]).fillna(False), 1, 0),
+        )
+    else:
+        df["m7"] = np.nan
+        df["m8"] = np.nan
+
+    return df
+
+
 def build_ms_panel(db, use_cache: bool = True) -> pd.DataFrame:
     comp = fetch_green_funda(db, "ms", MS_ANNUAL_ITEMS, use_cache=use_cache)
     comp = add_lags(comp, ("at",))
@@ -50,6 +106,7 @@ def build_ms_panel(db, use_cache: bool = True) -> pd.DataFrame:
 
     quarterly = fetch_quarterly_fundq(db, "ms", QUARTERLY_FUNDA_ITEMS["roavol"], use_cache=use_cache)
     quarterly = compute_quarterly_stem(quarterly, "roavol")
+    quarterly = _compute_m7_m8(quarterly)
     quarterly = attach_ccm_links_green(quarterly, fetch_green_ccm(db, "ms"))
     comp = _attach_m7_m8(comp, quarterly)
 
