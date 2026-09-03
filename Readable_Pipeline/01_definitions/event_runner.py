@@ -7,7 +7,7 @@ import pandas as pd
 from catalog import QUARTERLY_FUNDA_ITEMS
 from ccm import attach_ccm_links_green, load_ccm_links_green
 from constants import QUARTERLY_MONTH_END_LAG, QUARTERLY_MONTH_START_LAG
-from monthly_runner import fetch_crsp_msf, monthly_alignment_frame
+from monthly_runner import attach_monthly_sic, fetch_crsp_msf, monthly_alignment_frame
 from paths import SINGLE_CHARACTERS_DIR
 from quarterly_runner import fetch_quarterly_fundq, intnx_month
 from wrds_io import raw_sql_with_retry, sql_date_filter
@@ -106,6 +106,7 @@ def build_event_stem(db, stem: str, use_cache: bool = True) -> pd.DataFrame:
     dsf = _load_dsf(db, events["permno"].astype(int).unique().tolist())
     evt = _earnings_events(events, dsf)
     monthly = monthly_alignment_frame(fetch_crsp_msf(db, stem, use_cache=use_cache))
+    monthly = attach_monthly_sic(monthly, db, stem, use_cache=use_cache)
     monthly["date"] = pd.to_datetime(monthly["date"])
     monthly["permno"] = pd.to_numeric(monthly["permno"], errors="coerce").astype("int64")
     evt["permno"] = pd.to_numeric(evt["permno"], errors="coerce").astype("int64")
