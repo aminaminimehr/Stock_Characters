@@ -147,7 +147,7 @@ def expand_quarterly_to_monthly_gkx(
     monthly = monthly_alignment_frame(fetch_crsp_msf(db, character, use_cache=use_cache))
     monthly["date"] = pd.to_datetime(monthly["date"])
     monthly["permno"] = pd.to_numeric(monthly["permno"], errors="coerce").astype("int64")
-    monthly = monthly.sort_values(["permno", "date"]).drop_duplicates(["permno", "date"], keep="last")
+    monthly = monthly.drop_duplicates(["permno", "date"], keep="last").sort_values("date")
 
     q = quarterly[["permno", "datadate", "rdq", value_col]].copy()
     q["permno"] = pd.to_numeric(q["permno"], errors="coerce").astype("int64")
@@ -159,10 +159,10 @@ def expand_quarterly_to_monthly_gkx(
 
     # GKX jdate = datadate + 3 months (month-end)
     q["jdate"] = q["datadate"] + pd.offsets.MonthEnd(3)
-    q = q.sort_values(["permno", "jdate"]).drop_duplicates(["permno", "jdate"], keep="last")
+    q = q.drop_duplicates(["permno", "jdate"], keep="last").sort_values("jdate")
 
     merged = pd.merge_asof(
-        monthly.sort_values(["permno", "date"]),
+        monthly,
         q[["permno", "jdate", value_col]].rename(columns={"jdate": "date"}),
         on="date",
         by="permno",

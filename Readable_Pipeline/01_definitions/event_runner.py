@@ -86,12 +86,12 @@ def expand_event_to_monthly_gkx(
     events["jdate"] = events["datadate"] + pd.offsets.MonthEnd(3)
     events = events[
         events[value_col].replace([np.inf, -np.inf], np.nan).notna()
-    ].sort_values(["permno", "jdate"]).drop_duplicates(["permno", "jdate"], keep="last")
+    ].drop_duplicates(["permno", "jdate"], keep="last").sort_values("jdate")
 
     monthly = monthly.copy()
     monthly["date"] = pd.to_datetime(monthly["date"])
     monthly["permno"] = pd.to_numeric(monthly["permno"], errors="coerce").astype("int64")
-    monthly = monthly.sort_values(["permno", "date"]).drop_duplicates(["permno", "date"], keep="last")
+    monthly = monthly.drop_duplicates(["permno", "date"], keep="last").sort_values("date")
 
     merged = pd.merge_asof(
         monthly,
