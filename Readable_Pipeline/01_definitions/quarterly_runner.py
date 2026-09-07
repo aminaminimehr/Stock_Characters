@@ -135,6 +135,52 @@ def compute_quarterly_stem(comp: pd.DataFrame, stem: str) -> pd.DataFrame:
     return df
 
 
+def expand_quarterly_to_monthly_gkx(
+    db, quarterly: pd.DataFrame, character: str, use_cache: bool = True
+) -> pd.DataFrame:
+    """Map quarterly values to monthly CRSP using GKX datadate+3-month forward-fill.
+
+    GKX convention: jdate = MonthEnd(datadate + 3). For each CRSP month-end,
+    take the latest quarterly row whose jdate <= that month (merge_asof backward).
+    """
+    value_col = "cash_q" if character == "cash" else character
+    monthly = monthly_alignment_frame(fetch_crsp_msf(db, character, use_cache=use_cache))
+    monthly["date"] = pd.to_datetime(monthly["date"])
+    monthly["permno"] = pd.to_numeric(monthly["permno"], errors="coerce").astype("int64")
+    monthly = monthly.sort_values(["permno", "date"]).drop_duplicates(["permno", "date"], keep="last")
+
+    q = quarterly[["permno", "datadate", "rdq", value_col]].copy()
+    q["permno"] = pd.to_numeric(q["permno"], errors="coerce").astype("int64")
+    q["datadate"] = pd.to_datetime(q["datadate"])
+    q["rdq"] = pd.to_datetime(q["rdq"], errors="coerce")
+    q = q[q["rdq"].notna() & q[value_col].replace([np.inf, -np.inf], np.nan).notna()].copy()
+    if q.empty or monthly.empty:
+        return pd.DataFrame()
+
+    # GKX jdate = datadate + 3 months (month-end)
+    q["jdate"] = q["datadate"] + pd.offsets.MonthEnd(3)
+    q = q.sort_values(["permno", "jdate"]).drop_duplicates(["permno", "jdate"], keep="last")
+
+    merged = pd.merge_asof(
+        monthly.sort_values(["permno", "date"]),
+        q[["permno", "jdate", value_col]].rename(columns={"jdate": "date"}),
+        on="date",
+        by="permno",
+        direction="backward",
+    )
+    merged = merged[merged[value_col].replace([np.inf, -np.inf], np.nan).notna()].copy()
+    if merged.empty:
+        return pd.DataFrame()
+    merged = merged.rename(columns={value_col: character})
+    cols = ["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "sic", "exchcd", "shrcd", character]
+    return merged[[c for c in cols if c in merged.columns]]
+
+
+# =====================================================================
+# DEPRECATED: Green -10/-5 window logic. Not used. Replaced by
+# expand_quarterly_to_monthly_gkx (GKX datadate+3 forward-fill).
+# Kept for reference only — do not call.
+# =====================================================================
 def expand_quarterly_to_monthly(db, quarterly: pd.DataFrame, character: str, use_cache: bool = True) -> pd.DataFrame:
     """Map quarterly values onto monthly CRSP via Green rdq/datadate timing window."""
     value_col = "cash_q" if character == "cash" else character
@@ -174,6 +220,11 @@ def expand_quarterly_to_monthly(db, quarterly: pd.DataFrame, character: str, use
     return out[[c for c in cols if c in out.columns]]
 
 
+# =====================================================================
+# END DEPRECATED BLOCK
+# =====================================================================
+
+
 def build_quarterly_stem(db, stem: str, items: tuple[str, ...], use_cache: bool = True) -> pd.DataFrame:
     """Full quarterly build: fundq pull, formula, CCM link, expand to monthly."""
     comp = fetch_quarterly_fundq(db, stem, items, use_cache=use_cache)
@@ -181,7 +232,7 @@ def build_quarterly_stem(db, stem: str, items: tuple[str, ...], use_cache: bool 
     link = load_ccm_links_green(db)
     comp = attach_ccm_links_green(comp, link)
     comp = comp[comp["permno"].notna()].copy()
-    return expand_quarterly_to_monthly(db, comp, stem if stem != "cash" else "cash", use_cache=use_cache)
+    return expand_quarterly_to_monthly_gkx(db, comp, stem if stem != "cash" else "cash", use_cache=use_cache)
 
 
 def write_quarterly(out: pd.DataFrame, stem: str) -> None:

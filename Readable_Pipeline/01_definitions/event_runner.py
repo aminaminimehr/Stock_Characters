@@ -73,6 +73,45 @@ def _earnings_events(events: pd.DataFrame, dsf: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(records)
 
 
+def expand_event_to_monthly_gkx(
+    monthly: pd.DataFrame, events: pd.DataFrame, value_col: str
+) -> pd.DataFrame:
+    """Map event values to monthly CRSP using GKX datadate+3-month forward-fill."""
+    if events.empty or monthly.empty:
+        return pd.DataFrame()
+
+    events = events.copy()
+    events["permno"] = pd.to_numeric(events["permno"], errors="coerce").astype("int64")
+    events["datadate"] = pd.to_datetime(events["datadate"])
+    events["jdate"] = events["datadate"] + pd.offsets.MonthEnd(3)
+    events = events[
+        events[value_col].replace([np.inf, -np.inf], np.nan).notna()
+    ].sort_values(["permno", "jdate"]).drop_duplicates(["permno", "jdate"], keep="last")
+
+    monthly = monthly.copy()
+    monthly["date"] = pd.to_datetime(monthly["date"])
+    monthly["permno"] = pd.to_numeric(monthly["permno"], errors="coerce").astype("int64")
+    monthly = monthly.sort_values(["permno", "date"]).drop_duplicates(["permno", "date"], keep="last")
+
+    merged = pd.merge_asof(
+        monthly,
+        events[["permno", "jdate", value_col]].rename(columns={"jdate": "date"}),
+        on="date",
+        by="permno",
+        direction="backward",
+    )
+    merged = merged[merged[value_col].replace([np.inf, -np.inf], np.nan).notna()].copy()
+    if merged.empty:
+        return pd.DataFrame()
+    cols = ["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "sic", "exchcd", "shrcd", value_col]
+    return merged[[c for c in cols if c in merged.columns]]
+
+
+# =====================================================================
+# DEPRECATED: Green -10/-5 window logic. Not used. Replaced by
+# expand_event_to_monthly_gkx (GKX datadate+3 forward-fill).
+# Kept for reference only — do not call.
+# =====================================================================
 def _merge_events_to_monthly(monthly: pd.DataFrame, events: pd.DataFrame, value_col: str) -> pd.DataFrame:
     """Map quarterly event values onto monthly CRSP rows via Green quarterly timing window."""
     parts = []
@@ -101,6 +140,11 @@ def _merge_events_to_monthly(monthly: pd.DataFrame, events: pd.DataFrame, value_
     return out[out[value_col].replace([np.inf, -np.inf], np.nan).notna()]
 
 
+# =====================================================================
+# END DEPRECATED BLOCK
+# =====================================================================
+
+
 def build_event_stem(db, stem: str, use_cache: bool = True) -> pd.DataFrame:
     """Build ear or aeavol: quarterly rdq events merged onto monthly CRSP panel."""
     items = QUARTERLY_FUNDA_ITEMS["nincr"]
@@ -117,7 +161,7 @@ def build_event_stem(db, stem: str, use_cache: bool = True) -> pd.DataFrame:
     monthly["permno"] = pd.to_numeric(monthly["permno"], errors="coerce").astype("int64")
     evt["permno"] = pd.to_numeric(evt["permno"], errors="coerce").astype("int64")
     evt["datadate"] = pd.to_datetime(evt["datadate"])
-    return _merge_events_to_monthly(monthly, evt, stem)
+    return expand_event_to_monthly_gkx(monthly, evt, stem)
 
 
 def write_event(out: pd.DataFrame, stem: str) -> None:
