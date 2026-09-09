@@ -1,7 +1,7 @@
 """Timing conventions for expanding annual characteristics to monthly signal months.
 
 Annual Green-style timing (datadate + 7 .. + 19 months) replicates Greens_code.sas L484-L508.
-HXZ June timing (Jun y+1 .. May y+2) applies to bm and operprof only.
+HXZ June timing (July y+1 .. June y+2) applies to bm and operprof only.
 """
 from __future__ import annotations
 

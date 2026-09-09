@@ -73,6 +73,7 @@ def _earnings_events(events: pd.DataFrame, dsf: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(records)
 
 
+<<<<<<< HEAD
 def expand_event_to_monthly_gkx(
     monthly: pd.DataFrame, events: pd.DataFrame, value_col: str
 ) -> pd.DataFrame:
@@ -112,6 +113,8 @@ def expand_event_to_monthly_gkx(
 # expand_event_to_monthly_gkx (GKX datadate+3 forward-fill).
 # Kept for reference only — do not call.
 # =====================================================================
+=======
+>>>>>>> parent of 843b2f8 (Replace Green quarterly timing with GKX datadate+3 forward-fill for 12 quarterly chars)
 def _merge_events_to_monthly(monthly: pd.DataFrame, events: pd.DataFrame, value_col: str) -> pd.DataFrame:
     """Map quarterly event values onto monthly CRSP rows via Green quarterly timing window."""
     parts = []
@@ -140,11 +143,6 @@ def _merge_events_to_monthly(monthly: pd.DataFrame, events: pd.DataFrame, value_
     return out[out[value_col].replace([np.inf, -np.inf], np.nan).notna()]
 
 
-# =====================================================================
-# END DEPRECATED BLOCK
-# =====================================================================
-
-
 def build_event_stem(db, stem: str, use_cache: bool = True) -> pd.DataFrame:
     """Build ear or aeavol: quarterly rdq events merged onto monthly CRSP panel."""
     items = QUARTERLY_FUNDA_ITEMS["nincr"]
@@ -161,7 +159,7 @@ def build_event_stem(db, stem: str, use_cache: bool = True) -> pd.DataFrame:
     monthly["permno"] = pd.to_numeric(monthly["permno"], errors="coerce").astype("int64")
     evt["permno"] = pd.to_numeric(evt["permno"], errors="coerce").astype("int64")
     evt["datadate"] = pd.to_datetime(evt["datadate"])
-    return expand_event_to_monthly_gkx(monthly, evt, stem)
+    return _merge_events_to_monthly(monthly, evt, stem)
 
 
 def write_event(out: pd.DataFrame, stem: str) -> None:

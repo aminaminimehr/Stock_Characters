@@ -135,6 +135,7 @@ def compute_quarterly_stem(comp: pd.DataFrame, stem: str) -> pd.DataFrame:
     return df
 
 
+<<<<<<< HEAD
 def expand_quarterly_to_monthly_gkx(
     db, quarterly: pd.DataFrame, character: str, use_cache: bool = True
 ) -> pd.DataFrame:
@@ -181,6 +182,8 @@ def expand_quarterly_to_monthly_gkx(
 # expand_quarterly_to_monthly_gkx (GKX datadate+3 forward-fill).
 # Kept for reference only — do not call.
 # =====================================================================
+=======
+>>>>>>> parent of 843b2f8 (Replace Green quarterly timing with GKX datadate+3 forward-fill for 12 quarterly chars)
 def expand_quarterly_to_monthly(db, quarterly: pd.DataFrame, character: str, use_cache: bool = True) -> pd.DataFrame:
     """Map quarterly values onto monthly CRSP via Green rdq/datadate timing window."""
     value_col = "cash_q" if character == "cash" else character
@@ -220,11 +223,6 @@ def expand_quarterly_to_monthly(db, quarterly: pd.DataFrame, character: str, use
     return out[[c for c in cols if c in out.columns]]
 
 
-# =====================================================================
-# END DEPRECATED BLOCK
-# =====================================================================
-
-
 def build_quarterly_stem(db, stem: str, items: tuple[str, ...], use_cache: bool = True) -> pd.DataFrame:
     """Full quarterly build: fundq pull, formula, CCM link, expand to monthly."""
     comp = fetch_quarterly_fundq(db, stem, items, use_cache=use_cache)
@@ -232,7 +230,7 @@ def build_quarterly_stem(db, stem: str, items: tuple[str, ...], use_cache: bool 
     link = load_ccm_links_green(db)
     comp = attach_ccm_links_green(comp, link)
     comp = comp[comp["permno"].notna()].copy()
-    return expand_quarterly_to_monthly_gkx(db, comp, stem if stem != "cash" else "cash", use_cache=use_cache)
+    return expand_quarterly_to_monthly(db, comp, stem if stem != "cash" else "cash", use_cache=use_cache)
 
 
 def write_quarterly(out: pd.DataFrame, stem: str) -> None:
