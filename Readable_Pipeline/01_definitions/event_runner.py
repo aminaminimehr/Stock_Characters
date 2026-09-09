@@ -73,48 +73,6 @@ def _earnings_events(events: pd.DataFrame, dsf: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(records)
 
 
-<<<<<<< HEAD
-def expand_event_to_monthly_gkx(
-    monthly: pd.DataFrame, events: pd.DataFrame, value_col: str
-) -> pd.DataFrame:
-    """Map event values to monthly CRSP using GKX datadate+3-month forward-fill."""
-    if events.empty or monthly.empty:
-        return pd.DataFrame()
-
-    events = events.copy()
-    events["permno"] = pd.to_numeric(events["permno"], errors="coerce").astype("int64")
-    events["datadate"] = pd.to_datetime(events["datadate"])
-    events["jdate"] = events["datadate"] + pd.offsets.MonthEnd(3)
-    events = events[
-        events[value_col].replace([np.inf, -np.inf], np.nan).notna()
-    ].drop_duplicates(["permno", "jdate"], keep="last").sort_values("jdate")
-
-    monthly = monthly.copy()
-    monthly["date"] = pd.to_datetime(monthly["date"])
-    monthly["permno"] = pd.to_numeric(monthly["permno"], errors="coerce").astype("int64")
-    monthly = monthly.drop_duplicates(["permno", "date"], keep="last").sort_values("date")
-
-    merged = pd.merge_asof(
-        monthly,
-        events[["permno", "jdate", value_col]].rename(columns={"jdate": "date"}),
-        on="date",
-        by="permno",
-        direction="backward",
-    )
-    merged = merged[merged[value_col].replace([np.inf, -np.inf], np.nan).notna()].copy()
-    if merged.empty:
-        return pd.DataFrame()
-    cols = ["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "sic", "exchcd", "shrcd", value_col]
-    return merged[[c for c in cols if c in merged.columns]]
-
-
-# =====================================================================
-# DEPRECATED: Green -10/-5 window logic. Not used. Replaced by
-# expand_event_to_monthly_gkx (GKX datadate+3 forward-fill).
-# Kept for reference only — do not call.
-# =====================================================================
-=======
->>>>>>> parent of 843b2f8 (Replace Green quarterly timing with GKX datadate+3 forward-fill for 12 quarterly chars)
 def _merge_events_to_monthly(monthly: pd.DataFrame, events: pd.DataFrame, value_col: str) -> pd.DataFrame:
     """Map quarterly event values onto monthly CRSP rows via Green quarterly timing window."""
     parts = []
