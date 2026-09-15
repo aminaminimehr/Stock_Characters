@@ -491,7 +491,7 @@ else:
         """
         SELECT gvkey, lpermno AS permno, lpermco AS permco, linkdt, linkenddt, linktype
         FROM crsp.ccmxpf_linktable
-        WHERE linktype LIKE 'L%'
+        WHERE linktype LIKE 'L%%'
           AND linkprim IN ('P', 'C')
           AND lpermno IS NOT NULL
         """,
@@ -559,7 +559,7 @@ hxz_ccm = wrds_query(
     SELECT gvkey, lpermno AS permno, lpermco AS permco,
            linktype, linkprim, linkdt, linkenddt
     FROM crsp.ccmxpf_linktable
-    WHERE linktype LIKE 'L%'
+    WHERE linktype LIKE 'L%%'
       AND linkprim IN ('P', 'C')
       AND lpermno IS NOT NULL
     """,

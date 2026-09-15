@@ -135,7 +135,7 @@ def load_ccm_links(conn) -> pd.DataFrame:
         codes = ", ".join(f"'{c.strip()}'" for c in str(CCM_LINKPRIM).split(",") if c.strip())
         linkprim_clause = f" AND linkprim IN ({codes})"
     if str(CCM_LINKTYPES).strip().upper() in ("L*", "L"):
-        linktype_clause = "linktype LIKE 'L%'"
+        linktype_clause = "linktype LIKE 'L%%'"
     else:
         codes = ", ".join(f"'{c.strip()}'" for c in str(CCM_LINKTYPES).split(",") if c.strip())
         linktype_clause = f"linktype IN ({codes})"
