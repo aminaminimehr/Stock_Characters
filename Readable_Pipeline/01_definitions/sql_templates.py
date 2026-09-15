@@ -121,14 +121,14 @@ def fundq_sql(items: tuple[str, ...]) -> str:
         "SUBSTR(c.sic, 1, 2) AS sic2", "c.sic",
     ]
     for item in items:
-        if item == "rdq":
+        if item == "rdq": #release data quarterly
             continue  # already in base columns
-        if item in ("prccq",):
+        if item in ("prccq",): #ask the agent later if this is extra
             base.append(f"ABS(f.{item}) AS {item}")
         elif item == "mveq":
             base.append("ABS(f.prccq) * f.cshoq AS mveq")
         else:
-            base.append(f"f.{item}")
+            base.append(f"f.{item}") 
     cols = ", ".join(base)
     return f"""
         SELECT {cols}
