@@ -1,4 +1,5 @@
 """Flat procedural builder: EAR and aeavol from daily CRSP around quarterly rdq."""
+# The two features do not have available data before 1975
 from __future__ import annotations
 
 import os
@@ -50,7 +51,7 @@ ANNUAL_COMPUSTAT_WHERE = """
 
 
 def wrds_query(conn, sql: str) -> pd.DataFrame:
-    """Execute SQL on WRDS; one retry after 120 seconds on failure."""
+    """Execute SQL on WRDS; one retry after 120 seconds on failure (with connection reset)."""
     last_exc = None
     for attempt in range(2):
         try:
@@ -58,7 +59,15 @@ def wrds_query(conn, sql: str) -> pd.DataFrame:
         except Exception as exc:
             last_exc = exc
             if attempt == 0:
-                print(f"WRDS query failed: {exc}; retrying in 120s...", flush=True)
+                print(f"WRDS query failed: {exc}; resetting connection and retrying in 120s...", flush=True)
+                try:
+                    conn.connection.rollback()
+                except Exception:
+                    pass
+                try:
+                    conn.close(); conn.connect()
+                except Exception as e2:
+                    print(f"  reconnect failed: {e2}", flush=True)
                 time.sleep(120)
             else:
                 raise

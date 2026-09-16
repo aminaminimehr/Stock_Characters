@@ -35,12 +35,20 @@ from config.reference_tables import (  # noqa: E402
 
 
 def wrds_query(conn, sql):
-    """Execute WRDS SQL once; on failure wait 120s and retry once."""
+    """Execute WRDS SQL once; on failure reset connection, wait 120s, and retry once."""
     date_cols = ["datadate", "linkdt", "linkenddt", "date"]
     try:
         return conn.raw_sql(sql, date_cols=date_cols)
     except Exception as exc:
-        print(f"WRDS query failed: {exc}; waiting 120s and retrying once...", flush=True)
+        print(f"WRDS query failed: {exc}; resetting connection, waiting 120s and retrying once...", flush=True)
+        try:
+            conn.connection.rollback()
+        except Exception:
+            pass
+        try:
+            conn.close(); conn.connect()
+        except Exception as e2:
+            print(f"  reconnect failed: {e2}", flush=True)
         time.sleep(120)
         return conn.raw_sql(sql, date_cols=date_cols)
 
