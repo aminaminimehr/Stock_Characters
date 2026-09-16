@@ -1,5 +1,22 @@
-"""Flat procedural builder: EAR and aeavol from daily CRSP around quarterly rdq."""
-# The two features do not have available data before 1975
+"""Flat procedural builder: EAR and aeavol from daily CRSP around quarterly rdq.
+
+Output characters (GKX datashare names):
+  ear    = Earnings Announcement Return
+           cumulative daily return over [-1, +1] business days around rdq
+  aeavol = Abnormal Earnings Announcement Volume
+           (event-window mean volume - pre-window mean volume) / pre-window mean volume
+           event window: [-1, +1] BD around rdq; pre-window: [-30, -10] BD before rdq
+
+Sample note: rdq is only reliably populated from ~1975, so ear/aeavol exist from ~1975 onward.
+
+Baked-in conventions (from config/conventions.py):
+  SAMPLE_START = 1950-01-01 (no SAMPLE_END upper bound)
+  CCM: linktype LIKE 'L%%', linkprim IN ('P','C')
+  CRSP universe: exchcd IN (1, 2, 3); no shrcd filter
+  fundq floor: datadate >= 1975-01-01
+  annual SIC expansion lags: 7..19 months after fiscal datadate
+  quarterly event-to-monthly mapping: Green window -10/-5 months on datadate
+"""
 from __future__ import annotations
 
 import os
@@ -18,7 +35,7 @@ if str(PIPELINE_ROOT) not in sys.path:
 from config.conventions import CACHE_DIR, CHARACTERS_DIR, MONTHLY_ID_COLUMNS  # noqa: E402
 
 #######################################################################################################################
-#                                                    Imports + paths                                                  #
+# Connect to WRDS and ensure output directories exist
 #######################################################################################################################
 
 _wrds_user = os.environ.get("WRDS_USERNAME") or os.environ.get("WRDS_USER")
@@ -28,7 +45,11 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 CHARACTERS_DIR.mkdir(parents=True, exist_ok=True)
 
 #######################################################################################################################
-#                                              Compustat quarterly rdq pull                                           #
+# Pull comp.fundq quarterly earnings announcement dates (rdq)
+# WRDS tables:
+#   comp.company  (c): gvkey, sic
+#   comp.fundq    (f): gvkey, datadate, rdq
+# Filters: standard Compustat (INDL/STD/D/C), ibq IS NOT NULL, datadate >= 1975-01-01
 #######################################################################################################################
 
 fundq_cache = CACHE_DIR / "event_fundq.parquet"
@@ -39,14 +60,14 @@ else:
     print("Pulling comp.fundq (rdq events)...", flush=True)
     fundq_sql = """
         SELECT c.gvkey,
-               f.datadate, f.fyearq, f.fqtr, f.rdq,
-               f.ibq, c.sic
+               f.datadate,
+               f.rdq,
+               c.sic
         FROM comp.company AS c
         JOIN comp.fundq AS f ON c.gvkey = f.gvkey
         WHERE f.indfmt = 'INDL' AND f.datafmt = 'STD' AND f.popsrc = 'D' AND f.consol = 'C'
           AND f.ibq IS NOT NULL
           AND f.datadate >= DATE '1975-01-01'
-          AND f.datadate >= DATE '1950-01-01'
     """
     for _attempt in range(2):
         try:
@@ -69,33 +90,31 @@ else:
                 raise
     comp["rdq"] = pd.to_datetime(comp["rdq"], errors="coerce")
     comp["datadate"] = pd.to_datetime(comp["datadate"])
-    if "sic" in comp.columns:
-        sic_str = (
-            pd.to_numeric(comp["sic"], errors="coerce")
-            .astype("Int64")
-            .astype(str)
-            .str.replace("<NA>", "", regex=False)
-        )
-        comp["sic2"] = sic_str.str[:2].replace("", np.nan)
     comp = (
         comp.sort_values(["gvkey", "datadate"])
         .drop_duplicates(["gvkey", "datadate"], keep="last")
-        .sort_values(["gvkey", "datadate"])
     )
-    comp = comp.sort_values(["gvkey", "datadate"]).drop_duplicates(["gvkey", "datadate"], keep="first")
     comp.to_parquet(fundq_cache, index=False)
     print(f"Cached fundq -> {fundq_cache}", flush=True)
 
+# Ensure datetime types whether loaded from cache or freshly pulled
 comp["rdq"] = pd.to_datetime(comp["rdq"], errors="coerce")
 comp["datadate"] = pd.to_datetime(comp["datadate"])
 
 #######################################################################################################################
-#                                                  Pull CCM links                                                     #
+# Pull CRSP-Compustat Merged (CCM) link table
+# WRDS table: crsp.ccmxpf_linktable
+#   gvkey      = Compustat global company key
+#   lpermno    = CRSP permno (permanent security number)
+#   lpermco    = CRSP permco (permanent company number)
+#   linkdt     = link start date
+#   linkenddt  = link end date
+# Filters: linktype LIKE 'L%%', linkprim IN ('P','C'), lpermno IS NOT NULL
 #######################################################################################################################
 
 print("Pulling CCM links...", flush=True)
 ccm_sql = """
-    SELECT gvkey, lpermno AS permno, lpermco AS permco, linkdt, linkenddt, linktype
+    SELECT gvkey, lpermno AS permno, lpermco AS permco, linkdt, linkenddt
     FROM crsp.ccmxpf_linktable
     WHERE linktype LIKE 'L%%'
       AND linkprim IN ('P', 'C')
@@ -127,7 +146,7 @@ link["permno"] = pd.to_numeric(link["permno"], errors="coerce").astype("Int64")
 link = link.sort_values(["gvkey", "linkdt"])
 
 #######################################################################################################################
-#                                                  Attach CCM links                                                   #
+# Attach CCM links to fundq: keep rows where datadate falls inside [linkdt, linkenddt]
 #######################################################################################################################
 
 print("Merging CCM links onto fundq...", flush=True)
@@ -138,13 +157,20 @@ comp = comp[linkdt_ok & linkend_ok & comp["permno"].notna()].copy()
 comp["permno"] = pd.to_numeric(comp["permno"], errors="coerce").astype("int64")
 if "permco" in comp.columns:
     comp["permco"] = pd.to_numeric(comp["permco"], errors="coerce").astype("Int64")
-comp = comp.drop(columns=["linkdt", "linkenddt", "linktype"], errors="ignore")
+comp = comp.drop(columns=["linkdt", "linkenddt"], errors="ignore")
 
-comp = comp[comp["permno"].notna() & comp["rdq"].notna()].copy()
+# Event universe: one row per (permno, datadate, rdq) with valid announcement date
+comp = comp[comp["rdq"].notna()].copy()
 events = comp[["permno", "datadate", "rdq"]].drop_duplicates()
 
 #######################################################################################################################
-#                                              Daily CRSP (dsf) event windows                                         #
+# Pull crsp.dsf daily returns and volume for event permnos (batched IN lists of 4000)
+# WRDS table: crsp.dsf
+#   permno = CRSP permanent security number
+#   date   = trading date
+#   ret    = daily return (used for ear)
+#   vol    = daily share volume (used for aeavol)
+# Filter: date >= 1950-01-01
 #######################################################################################################################
 
 dsf_cache = CACHE_DIR / "event_dsf.parquet"
@@ -196,7 +222,10 @@ else:
     print(f"Cached dsf -> {dsf_cache}", flush=True)
 
 #######################################################################################################################
-#                                              Compute ear and aeavol                                                   #
+# Compute ear (Earnings Announcement Return) and aeavol (Abnormal Earnings Announcement Volume)
+#   ear:    sum of daily ret over [-1, +1] business days around rdq
+#   aeavol: (mean vol in event window - mean vol in pre-window) / mean vol in pre-window
+#           pre-window = business days [-30, -10] before rdq
 #######################################################################################################################
 
 print("Computing ear and aeavol around rdq...", flush=True)
@@ -241,7 +270,11 @@ for permno, events_p in events.groupby("permno", sort=False):
 evt = pd.DataFrame(records)
 
 #######################################################################################################################
-#                                                  CRSP monthly pull                                                  #
+# Pull crsp.msf monthly stock file joined to crsp.msenames for exchange/share codes
+# WRDS tables:
+#   crsp.msf      (m): permno, permco, date, ret
+#   crsp.msenames (n): permno, namedt, nameenddt, exchcd, shrcd
+# Filters: exchcd IN (1,2,3), date >= 1950-01-01; ret used only to drop missing-return rows
 #######################################################################################################################
 
 msf_cache = CACHE_DIR / "event_msf.parquet"
@@ -251,7 +284,7 @@ if msf_cache.exists():
 else:
     print("Pulling crsp.msf...", flush=True)
     msf_sql = """
-        SELECT m.permno, m.permco, m.date, m.ret, m.prc, m.shrout, m.vol,
+        SELECT m.permno, m.permco, m.date, m.ret,
                n.exchcd, n.shrcd
         FROM crsp.msf AS m
         JOIN crsp.msenames AS n
@@ -300,7 +333,11 @@ monthly = msf[["permno", "permco", "date", "signal_yyyymm", "target_yyyymm", "ex
 )
 
 #######################################################################################################################
-#                                        Pull comp.funda SIC for monthly attachment                                   #
+# Pull comp.funda annual SIC for monthly attachment (Green lags 7-19 after fiscal datadate)
+# WRDS tables:
+#   comp.company (c): gvkey, sic
+#   comp.funda   (f): gvkey, datadate, fyear
+# Filters: standard annual Compustat, at/prcc_f/ni NOT NULL, datadate >= 1950-01-01
 #######################################################################################################################
 
 sic_cache = CACHE_DIR / "event_sic_timing.parquet"
@@ -342,18 +379,9 @@ else:
             else:
                 raise
     sic_comp["datadate"] = pd.to_datetime(sic_comp["datadate"])
-    if "sic" in sic_comp.columns:
-        sic_str = (
-            pd.to_numeric(sic_comp["sic"], errors="coerce")
-            .astype("Int64")
-            .astype(str)
-            .str.replace("<NA>", "", regex=False)
-        )
-        sic_comp["sic2"] = sic_str.str[:2].replace("", np.nan)
     sic_comp = (
         sic_comp.sort_values(["gvkey", "datadate"])
         .drop_duplicates(["gvkey", "datadate"], keep="last")
-        .sort_values(["gvkey", "datadate"])
     )
     sic_comp = sic_comp.merge(link, on="gvkey", how="inner")
     linkdt_ok = sic_comp["linkdt"].isna() | (sic_comp["linkdt"] <= sic_comp["datadate"])
@@ -362,22 +390,20 @@ else:
     sic_comp["permno"] = pd.to_numeric(sic_comp["permno"], errors="coerce").astype("int64")
     if "permco" in sic_comp.columns:
         sic_comp["permco"] = pd.to_numeric(sic_comp["permco"], errors="coerce").astype("Int64")
-    sic_comp = sic_comp.drop(columns=["linkdt", "linkenddt", "linktype"], errors="ignore")
-    annual_sic = sic_comp[sic_comp["permno"].notna()][
-        ["permno", "permco", "gvkey", "datadate", "sic", "fyear"]
-    ].copy()
+    sic_comp = sic_comp.drop(columns=["linkdt", "linkenddt"], errors="ignore")
+    annual_sic = sic_comp[["permno", "permco", "gvkey", "datadate", "sic", "fyear"]].copy()
     annual_sic.to_parquet(sic_cache, index=False)
     print(f"Cached annual SIC -> {sic_cache}", flush=True)
 
 #######################################################################################################################
-#                                        Expand annual SIC to monthly (lags 7-19)                                     #
+# Expand annual SIC to monthly signal months: lags 7..19 months after fiscal datadate
 #######################################################################################################################
 
 annual_sic = annual_sic.copy()
 annual_sic["datadate"] = pd.to_datetime(annual_sic["datadate"])
 sic_expanded_chunks = []
 for month_lag in range(7, 20):
-    sic_chunk = annual_sic[["permno", "permco", "gvkey", "datadate", "sic", "fyear"]].copy()
+    sic_chunk = annual_sic[["permno", "datadate", "sic"]].copy()
     signal_dates = (sic_chunk["datadate"] + pd.DateOffset(months=month_lag)).dt.to_period("M").dt.to_timestamp("M")
     sic_chunk["signal_yyyymm"] = (signal_dates.dt.year * 100 + signal_dates.dt.month).astype(int)
     sic_expanded_chunks.append(sic_chunk)
@@ -396,7 +422,8 @@ sic_monthly = sic_monthly[["permno", "signal_yyyymm", "sic"]]
 monthly = monthly.merge(sic_monthly, on=["permno", "signal_yyyymm"], how="left")
 
 #######################################################################################################################
-#                                        Map events to monthly (Green -10/-5)                                         #
+# Map quarterly event values onto monthly CRSP rows (Green window -10/-5 on datadate)
+# For each monthly row at date t, pick the most recent event with datadate in [t-10mo, t-5mo]
 #######################################################################################################################
 
 print("Mapping events to monthly CRSP (Green window -10/-5 on datadate)...", flush=True)
@@ -441,7 +468,7 @@ else:
     panel = pd.DataFrame()
 
 #######################################################################################################################
-#                                                       Output                                                        #
+# Write event.parquet: monthly panel with ear and aeavol
 #######################################################################################################################
 
 out_cols = [c for c in MONTHLY_ID_COLUMNS if c in panel.columns] + ["ear", "aeavol"]
