@@ -64,21 +64,29 @@ def assign_ff49(sic_series: pd.Series) -> pd.Series:
 def apply_winsorization(df: pd.DataFrame, month_col: str = "signal_yyyymm") -> pd.DataFrame:
     """Cross-sectionally winsorize character columns by month (Green SAS rules)."""
     out = df.copy()
+    # Force plain float64 so missing values are np.nan (not pd.NA). This avoids
+    # "boolean value of NA is ambiguous" when comparing nullable Float64 columns:
+    # all-NA month groups make quantile() return the pd.NA scalar via transform,
+    # which then breaks element-wise comparisons.
     for var in HITRIM_VARS:
         if var not in out.columns:
             continue
-        vals = pd.to_numeric(out[var], errors="coerce")
-        p99 = vals.groupby(out[month_col], sort=False).transform(lambda s: s.quantile(0.99))
-        keep = vals.isna() | (vals <= p99).fillna(False)
+        vals = pd.to_numeric(out[var], errors="coerce").astype("float64")
+        p99 = (
+            vals.groupby(out[month_col], sort=False)
+            .transform(lambda s: s.quantile(0.99))
+            .astype("float64")
+        )
+        keep = vals.isna() | (vals <= p99)  # both float64 -> plain bool, no NA
         out[var] = vals.where(keep, p99)
         out.loc[p99.isna(), var] = float("nan")
     for var in HILOTRIM_VARS:
         if var not in out.columns:
             continue
-        vals = pd.to_numeric(out[var], errors="coerce")
+        vals = pd.to_numeric(out[var], errors="coerce").astype("float64")
         g = vals.groupby(out[month_col], sort=False)
-        p1 = g.transform(lambda s: s.quantile(0.01))
-        p99 = g.transform(lambda s: s.quantile(0.99))
+        p1 = g.transform(lambda s: s.quantile(0.01)).astype("float64")
+        p99 = g.transform(lambda s: s.quantile(0.99)).astype("float64")
         valid = p1.notna() & p99.notna()
         out[var] = vals.clip(lower=p1, upper=p99).where(valid, float("nan"))
     return out
