@@ -67,14 +67,18 @@ def apply_winsorization(df: pd.DataFrame, month_col: str = "signal_yyyymm") -> p
     for var in HITRIM_VARS:
         if var not in out.columns:
             continue
-        p99 = out.groupby(month_col, sort=False)[var].transform(lambda s: s.quantile(0.99))
-        out[var] = out[var].where(out[var].isna() | (out[var] <= p99), p99)
-        out.loc[p99.isna(), var] = pd.NA
+        vals = pd.to_numeric(out[var], errors="coerce")
+        p99 = vals.groupby(out[month_col], sort=False).transform(lambda s: s.quantile(0.99))
+        keep = vals.isna() | (vals <= p99).fillna(False)
+        out[var] = vals.where(keep, p99)
+        out.loc[p99.isna(), var] = float("nan")
     for var in HILOTRIM_VARS:
         if var not in out.columns:
             continue
-        g = out.groupby(month_col, sort=False)[var]
+        vals = pd.to_numeric(out[var], errors="coerce")
+        g = vals.groupby(out[month_col], sort=False)
         p1 = g.transform(lambda s: s.quantile(0.01))
         p99 = g.transform(lambda s: s.quantile(0.99))
-        out[var] = out[var].clip(lower=p1, upper=p99).where(p1.notna() & p99.notna(), pd.NA)
+        valid = p1.notna() & p99.notna()
+        out[var] = vals.clip(lower=p1, upper=p99).where(valid, float("nan"))
     return out
