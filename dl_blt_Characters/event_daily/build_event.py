@@ -170,7 +170,7 @@ events = comp[["permno", "datadate", "rdq"]].drop_duplicates()
 #   date   = trading date
 #   ret    = daily return (used for ear)
 #   vol    = daily share volume (used for aeavol)
-# Filter: date >= 1950-01-01
+# Filter: date >= 1974-01-01
 #######################################################################################################################
 
 dsf_cache = CACHE_DIR / "event_dsf.parquet"
@@ -189,7 +189,7 @@ else:
             SELECT permno, date, ret, vol
             FROM crsp.dsf
             WHERE permno IN ({permno_in_list})
-              AND date >= DATE '1950-01-01'
+              AND date >= DATE '1974-01-01'
         """
         for _attempt in range(2):
             try:
@@ -274,7 +274,7 @@ evt = pd.DataFrame(records)
 # WRDS tables:
 #   crsp.msf      (m): permno, permco, date, ret
 #   crsp.msenames (n): permno, namedt, nameenddt, exchcd, shrcd
-# Filters: exchcd IN (1,2,3), date >= 1950-01-01; ret used only to drop missing-return rows
+# Filters: exchcd IN (1,2,3), date >= 1974-01-01; ret used only to drop missing-return rows
 #######################################################################################################################
 
 msf_cache = CACHE_DIR / "event_msf.parquet"
@@ -292,7 +292,7 @@ else:
          AND n.namedt <= m.date
          AND m.date <= COALESCE(n.nameendt, DATE '9999-12-31')
         WHERE n.exchcd IN (1, 2, 3)
-          AND m.date >= DATE '1950-01-01'
+          AND m.date >= DATE '1974-01-01'
     """
     for _attempt in range(2):
         try:
