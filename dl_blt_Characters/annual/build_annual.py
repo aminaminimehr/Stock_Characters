@@ -174,6 +174,7 @@ comp = (
 if _orgcap_cache.exists():
     orgcap_lookup = pd.read_parquet(_orgcap_cache)
 else:
+    # TODO: explain why orgcap is needed here even though the same data has been downloaded previously from compustat block
     print("Pulling orgcap history (xsga, at)...", flush=True)
     orgcap_hist = wrds_query(
         conn,
@@ -192,9 +193,11 @@ else:
     )
     orgcap_hist["lag_at"] = orgcap_hist.groupby("gvkey")["at"].shift(1)
     orgcap_hist["avg_at"] = (orgcap_hist["at"] + orgcap_hist["lag_at"]) / 2
+    # TODO: add comment to explain GREEN_CPI_BY_FYEAR
     orgcap_hist["cpi"] = orgcap_hist["fyear"].map(GREEN_CPI_BY_FYEAR)
     orgcap_hist["xsga_cpi"] = safe_divide(orgcap_hist["xsga"], orgcap_hist["cpi"])
     orgcap_parts = []
+    # TODO: add comments to the following for loop
     for _, grp in orgcap_hist.groupby("gvkey", sort=False):
         orgcap_1 = np.nan
         values = []
